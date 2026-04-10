@@ -1,5 +1,6 @@
 # memtomem
 
+[![PyPI](https://img.shields.io/pypi/v/memtomem)](https://pypi.org/project/memtomem/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-green)](https://python.org)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
@@ -28,51 +29,26 @@ flowchart LR
 
 ---
 
-## Quick Start (5 minutes)
+## Quick Start
 
-### 1. Install prerequisites
-
-- **Python 3.12+** ([python.org](https://python.org))
-- **Ollama** ([ollama.com](https://ollama.com)) — runs the embedding model locally, for free
+### 1. Install
 
 ```bash
-ollama pull nomic-embed-text    # ~270MB, one-time
+ollama pull nomic-embed-text          # local embeddings (~270MB, free)
+uv tool install memtomem             # or: pipx install memtomem
 ```
 
-> **No GPU or prefer cloud?** Pick OpenAI in the wizard — see [Embeddings](docs/guides/embeddings.md).
+> No GPU? Pick OpenAI in the wizard — see [Embeddings](docs/guides/embeddings.md).
 
-### 2. Install memtomem
+### 2. Setup
 
 ```bash
-uv tool install memtomem        # or: pipx install memtomem
+mm init                               # 7-step wizard (or: mm init -y for CI)
 ```
 
-<details>
-<summary><b>Project-scoped install</b></summary>
+The wizard picks your embedding model, points at the folder you want indexed, and registers memtomem with your AI editor.
 
-Prefer per-project dependencies? Add memtomem to your project instead:
-
-```bash
-uv add memtomem                 # adds to pyproject.toml
-uv run mm init                  # use `uv run` prefix for all commands
-```
-
-</details>
-
-### 3. Run the setup wizard
-
-```bash
-mm init         # global install
-uv run mm init  # project install
-```
-
-The 7-step wizard picks your embedding model, **creates or points at the folder you want indexed**, configures storage and namespace, and registers memtomem with Claude Code (or generates a `.mcp.json` for Cursor / Windsurf / Claude Desktop). Type `b` to go back, `q` to quit.
-
-> **CI / automation?** Skip the wizard: `mm init -y` (uses sensible defaults). See `mm init --help` for all options.
-
-### 4. Verify and use
-
-In your AI editor, ask:
+### 3. Use
 
 ```
 "Call the mem_status tool"   →  confirms the server is connected
@@ -81,32 +57,20 @@ In your AI editor, ask:
 "Remember this insight"      →  mem_add(content="...", tags="ops")
 ```
 
-That's it. Your agent now has long-term memory.
-
 <details>
-<summary><b>Prefer no install? (uvx direct)</b></summary>
+<summary><b>Other install options</b></summary>
 
-If you'd rather not install the CLI, `uvx` will download and run memtomem on demand. You'll set up MEMORY_DIRS yourself.
+**Project-scoped** (per-project isolation):
+```bash
+uv add memtomem && uv run mm init    # all commands need `uv run` prefix
+```
 
+**No install** (uvx on demand):
 ```bash
 claude mcp add memtomem -s user -- uvx --from memtomem memtomem-server
 ```
 
-For Cursor / Windsurf / Claude Desktop, add to your MCP config ([paths here](docs/guides/mcp-clients.md)):
-
-```json
-{
-  "mcpServers": {
-    "memtomem": {
-      "command": "uvx",
-      "args": ["--from", "memtomem", "memtomem-server"],
-      "env": { "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/notes\"]" }
-    }
-  }
-}
-```
-
-> **Heads up**: without `MEMORY_DIRS` set to a folder you actually use, `mem_index` has nothing to index. The wizard avoids this trap by asking for the folder up front.
+See [MCP Client Setup](docs/guides/mcp-clients.md) for Cursor / Windsurf / Claude Desktop / Gemini CLI.
 
 </details>
 
@@ -114,48 +78,44 @@ For Cursor / Windsurf / Claude Desktop, add to your MCP config ([paths here](doc
 
 ## Key Features
 
-- **🔍 Hybrid search** — BM25 keyword + dense vector + RRF fusion. Both exact terms and meaning-based similarity, in one query.
-- **📦 Semantic chunking** — heading-aware Markdown, AST-based Python, tree-sitter JS/TS, structure-aware JSON/YAML/TOML
-- **♻️ Incremental indexing** — chunk-level SHA-256 diff means only changed chunks get re-embedded
-- **🏷️ Namespaces** — organize memories into scoped groups, optional auto-derivation from folder names
-- **🧹 Maintenance** — near-duplicate detection, time-based decay, TTL expiration, auto-tagging
-- **🌐 Web UI** — visual dashboard for search, sources, tags, sessions, health monitoring
-- **🛠️ 72 MCP tools** — full feature surface as MCP tools, with `mem_do` meta-tool routing 64 actions in `core` mode (default) for minimal context usage
-- **🧠 Optional STM** — proactive memory surfacing via the [memtomem-stm](https://github.com/memtomem/memtomem-stm) companion package (separate repo)
+- **Hybrid search** — BM25 keyword + dense vector + RRF fusion in one query
+- **Semantic chunking** — heading-aware Markdown, AST-based Python, tree-sitter JS/TS, structure-aware JSON/YAML/TOML
+- **Incremental indexing** — chunk-level SHA-256 diff; only changed chunks get re-embedded
+- **Namespaces** — organize memories into scoped groups with auto-derivation from folder names
+- **Maintenance** — near-duplicate detection, time-based decay, TTL expiration, auto-tagging
+- **Web UI** — visual dashboard for search, sources, tags, sessions, health monitoring
+- **72 MCP tools** — `mem_do` meta-tool routes 64 actions in `core` mode for minimal context usage
+
+---
+
+## Ecosystem
+
+| Package | Description |
+|---------|-------------|
+| [**memtomem**](https://pypi.org/project/memtomem/) | Core — MCP server, CLI, Web UI, hybrid search, storage |
+| [**memtomem-stm**](https://github.com/memtomem/memtomem-stm) | STM proxy — proactive memory surfacing via tool interception |
 
 ---
 
 ## Documentation
 
-| Guide | Who it's for |
+| Guide | Description |
 |-------|-------------|
-| [Getting Started](docs/guides/getting-started.md) | **Start here** — install, setup wizard, first use |
+| [Getting Started](docs/guides/getting-started.md) | Install, setup wizard, first use |
 | [Hands-On Tutorial](docs/guides/hands-on-tutorial.md) | Follow-along with example files |
-| [User Guide](docs/guides/user-guide.md) | Complete feature walkthrough — all tools and patterns |
+| [User Guide](docs/guides/user-guide.md) | Complete feature walkthrough |
 | [Configuration](docs/guides/configuration.md) | All `MEMTOMEM_*` environment variables |
-| [Embeddings](docs/guides/embeddings.md) | Ollama and OpenAI providers, model dimensions, switching |
+| [Embeddings](docs/guides/embeddings.md) | Ollama and OpenAI providers |
 | [MCP Client Setup](docs/guides/mcp-clients.md) | Editor-specific configuration |
-| [Agent Memory Guide](docs/guides/agent-memory-guide.md) | Sessions, working memory, procedures, multi-agent |
-| [Web UI Guide](docs/guides/web-ui.md) | Visual dashboard |
-| [Hooks](docs/guides/hooks.md) | Claude Code hooks for automatic indexing and search |
-| [memtomem-stm](https://github.com/memtomem/memtomem-stm) | Optional STM proxy for proactive memory surfacing (separate package) |
+| [Agent Memory Guide](docs/guides/agent-memory-guide.md) | Sessions, working memory, procedures |
+| [Web UI](docs/guides/web-ui.md) | Visual dashboard |
+| [Hooks](docs/guides/hooks.md) | Claude Code hooks for auto-indexing |
 
 ---
 
 ## Contributing
 
-```bash
-git clone https://github.com/memtomem/memtomem.git
-cd memtomem
-uv venv --python 3.12 && source .venv/bin/activate
-uv pip install -e "packages/memtomem[all]"
-uv run pytest                            # 896 tests (core only — STM has its own repo)
-uv run ruff check packages/memtomem/src  # lint
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor guide.
-
----
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and the contributor guide.
 
 ## License
 
