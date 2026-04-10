@@ -64,6 +64,8 @@ async def mem_recall(
             filters.append(f"until={until}")
         if source_filter:
             filters.append(f"source={source_filter!r}")
+        if effective_ns:
+            filters.append(f"namespace={effective_ns!r}")
         suffix = f" ({', '.join(filters)})" if filters else ""
         return f"No memories found{suffix}."
 

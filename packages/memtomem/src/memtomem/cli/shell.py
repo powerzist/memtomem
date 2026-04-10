@@ -54,23 +54,28 @@ async def _shell_loop() -> None:
                 return
             elif cmd == "help":
                 _show_help()
-            elif cmd in ("search", "s"):
-                await _cmd_search(comp, args)
-            elif cmd == "ask":
-                await _cmd_ask(comp, args)
-            elif cmd == "add":
-                await _cmd_add(comp, args)
-            elif cmd in ("recall", "r"):
-                await _cmd_recall(comp, args)
-            elif cmd == "tags":
-                await _cmd_tags(comp)
-            elif cmd in ("stats", "status"):
-                await _cmd_stats(comp)
-            elif cmd in ("index", "idx"):
-                await _cmd_index(comp, args)
-            else:
-                # Treat as implicit search
-                await _cmd_search(comp, parts)
+                continue
+
+            try:
+                if cmd in ("search", "s"):
+                    await _cmd_search(comp, args)
+                elif cmd == "ask":
+                    await _cmd_ask(comp, args)
+                elif cmd == "add":
+                    await _cmd_add(comp, args)
+                elif cmd in ("recall", "r"):
+                    await _cmd_recall(comp, args)
+                elif cmd == "tags":
+                    await _cmd_tags(comp)
+                elif cmd in ("stats", "status"):
+                    await _cmd_stats(comp)
+                elif cmd in ("index", "idx"):
+                    await _cmd_index(comp, args)
+                else:
+                    # Treat as implicit search
+                    await _cmd_search(comp, parts)
+            except Exception as exc:
+                click.secho(f"Error: {exc}", fg="red")
 
 
 def _show_help() -> None:

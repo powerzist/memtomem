@@ -172,6 +172,24 @@ class IndexEngine:
         namespace: str | None = None,
     ) -> dict[str, int]:
         try:
+            file_size = file_path.stat().st_size
+        except OSError:
+            return {"total": 0, "indexed": 0, "skipped": 0, "deleted": 0, "errors": []}
+
+        max_size = 10 * 1024 * 1024  # 10 MB
+        if file_size > max_size:
+            logger.warning("Skipping %s: file too large (%d bytes)", file_path.name, file_size)
+            return {
+                "total": 0,
+                "indexed": 0,
+                "skipped": 0,
+                "deleted": 0,
+                "errors": [
+                    f"{file_path.name}: file too large ({file_size // 1024 // 1024}MB, max 10MB)"
+                ],
+            }
+
+        try:
             content = file_path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return {"total": 0, "indexed": 0, "skipped": 0, "deleted": 0, "errors": []}

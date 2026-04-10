@@ -44,6 +44,8 @@ async def mem_ns_delete(
     Args:
         namespace: The namespace to delete.
     """
+    if not namespace.strip():
+        return "Error: namespace must be non-empty."
     app = _get_app(ctx)
     deleted = await app.storage.delete_by_namespace(namespace)
     return f"Deleted {deleted} chunks from namespace '{namespace}'"
@@ -62,10 +64,12 @@ async def mem_ns_set(
         mem_ns_set(namespace="work")
         mem_ns_set(namespace="project:myapp")
     """
+    if not namespace.strip():
+        return "Error: namespace must be non-empty."
     app = _get_app(ctx)
     async with app._config_lock:
-        app.current_namespace = namespace
-    return f"Session namespace set to '{namespace}'"
+        app.current_namespace = namespace.strip()
+    return f"Session namespace set to '{namespace.strip()}'"
 
 
 @mcp.tool()
@@ -95,9 +99,11 @@ async def mem_ns_rename(
     Examples::
         mem_ns_rename(old="project:v1", new="project:v2")
     """
+    if not old.strip() or not new.strip():
+        return "Error: both old and new namespace names must be non-empty."
     app = _get_app(ctx)
-    count = await app.storage.rename_namespace(old, new)
-    return f"Renamed namespace '{old}' -> '{new}' ({count} chunks updated)"
+    count = await app.storage.rename_namespace(old.strip(), new.strip())
+    return f"Renamed namespace '{old.strip()}' -> '{new.strip()}' ({count} chunks updated)"
 
 
 @mcp.tool()
@@ -140,6 +146,8 @@ async def mem_ns_assign(
         source_filter: Only assign chunks from sources containing this substring
         old_namespace: Only assign chunks currently in this namespace
     """
+    if not namespace.strip():
+        return "Error: namespace must be non-empty."
     app = _get_app(ctx)
     db = app.storage._get_db()
 
