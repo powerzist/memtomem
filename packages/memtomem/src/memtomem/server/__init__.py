@@ -134,4 +134,34 @@ if _TOOL_MODE != "full":
 
 def main() -> None:
     """Run the MCP server."""
+    import atexit
+    import fcntl
+    from pathlib import Path
+
+    pid_dir = Path("~/.memtomem").expanduser()
+    pid_dir.mkdir(parents=True, exist_ok=True)
+    pid_file = pid_dir / ".server.pid"
+
+    # Advisory lock — prevents multiple MCP servers from writing concurrently.
+    # The lock is held for the lifetime of the process and auto-released on exit.
+    _lock_fp = open(pid_file, "w")  # noqa: SIM115
+    try:
+        fcntl.flock(_lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        # Another server already holds the lock — proceed anyway (the editor
+        # expects the process to stay alive), but log a warning.
+        import sys
+
+        print(
+            "memtomem-server: another instance is already running "
+            f"(pid file: {pid_file}). Concurrent writes may be slow.",
+            file=sys.stderr,
+        )
+    else:
+        import os
+
+        _lock_fp.write(str(os.getpid()))
+        _lock_fp.flush()
+        atexit.register(lambda: pid_file.unlink(missing_ok=True))
+
     mcp.run()

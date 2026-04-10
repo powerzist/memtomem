@@ -98,7 +98,7 @@ class SqliteBackend(
         self._read_pool_idx = 0
         self._read_pool_lock = threading.Lock()
         for _ in range(3):
-            rconn = sqlite3.connect(str(db_path), check_same_thread=False)
+            rconn = sqlite3.connect(str(db_path), timeout=10, check_same_thread=False)
             rconn.execute("PRAGMA journal_mode=WAL")
             rconn.execute("PRAGMA query_only=ON")
             try:
