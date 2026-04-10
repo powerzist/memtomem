@@ -13,6 +13,8 @@ Claude Code's hook system can automate manual MCP tool calls.
 |---------|--------|---------------------|
 | Search related memories on prompt | Call `mem_search` each time | **Automatic** — UserPromptSubmit hook |
 | Reindex after new file creation | Call `mem_index` each time | **Automatic** — PostToolUse hook |
+| Track tool activity | Call `mem_add` manually | **Automatic** — PostToolUse activity hook |
+| Close session on stop | Call `mem_session_end` | **Automatic** — Stop hook |
 
 > **Note**: Hooks require the CLI (`uv tool install memtomem`, or `uv run mm ...` from a git clone). `mm` is a shorthand alias for `memtomem`. The MCP server (`memtomem-server`) is a separate entry point for AI client connections.
 
@@ -35,12 +37,30 @@ Add the following to `~/.claude/settings.json` (or `.claude/settings.json` in yo
         "timeout": 5000
       }]
     }],
-    "PostToolUse": [{
-      "matcher": "Write",
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [{
+          "type": "command",
+          "command": "mm index \"${tool_input.file_path}\" 2>>/tmp/mm-hook.log || true",
+          "timeout": 10000
+        }]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{
+          "type": "command",
+          "command": "mm activity log --type tool_call -c \"${tool_name}\" 2>>/tmp/mm-hook.log || true",
+          "timeout": 3000
+        }]
+      }
+    ],
+    "Stop": [{
+      "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "mm index \"${tool_input.file_path}\" 2>>/tmp/mm-hook.log || true",
-        "timeout": 10000
+        "command": "mm session end --auto 2>>/tmp/mm-hook.log || true",
+        "timeout": 5000
       }]
     }]
   }
@@ -73,9 +93,37 @@ When Claude creates a new file with Write, it is automatically indexed. Only the
 
 ---
 
-## Why No Stop Hook?
+### PostToolUse — Activity Tracking
 
-A naive Stop hook like `mm add "Session end: 2026-04-09"` saves meaningless timestamps that pollute search results over time. If you need session summaries, let the agent decide what to save via `mem_add` during the conversation — the agent has context about what was important.
+When Claude uses a mutation tool (Write, Edit, MultiEdit), the tool name is logged to the current session's activity timeline via `mm activity log`. These events are viewable in `mm web` under the Sessions panel.
+
+Activity logging only runs if a session is active (`mm session start` was called). If no session is active, the hook silently skips.
+
+### Stop — Session Auto-Close
+
+When the agent stops, any active session is automatically closed with an auto-generated summary (event counts). This replaces a naive `mm add` approach — raw timestamps pollute search, while session summaries are structured and filterable.
+
+---
+
+## Session Workflow
+
+Start a session before working, and the hooks handle the rest:
+
+```bash
+mm session start --agent-id "developer" --title "Feature: auth module"
+# ... work in Claude Code ...
+# PostToolUse hooks log Write/Edit activity automatically
+# Stop hook closes the session when done
+
+mm session list                    # view all sessions
+mm session events <session-id>     # view activity timeline
+```
+
+For headless automation (ralph loops, `claude -p`):
+
+```bash
+mm session wrap --agent-id "qa-bot" -- claude -p "run the test suite"
+```
 
 ---
 
@@ -86,6 +134,10 @@ A naive Stop hook like `mm add "Session end: 2026-04-09"` saves meaningless time
 | `mm search "query" --top-k 3 --format context` | Search memory, output markdown for context injection |
 | `mm index /path/to/file` | Index a file or directory |
 | `mm add "content" --tags "tag1,tag2"` | Add a memory entry |
+| `mm session start --agent-id NAME` | Start a tracked session |
+| `mm session end --auto` | End session with auto-generated summary |
+| `mm activity log --type TYPE -c "..."` | Log an activity event to current session |
+| `mm session wrap -- COMMAND` | Wrap a command with session lifecycle |
 
 ---
 

@@ -22,6 +22,28 @@
             "timeout": 10000
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mm activity log --type tool_call -c \"${tool_name}\" 2>>/tmp/mm-hook.log || true",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mm session end --auto 2>>/tmp/mm-hook.log || true",
+            "timeout": 5000
+          }
+        ]
       }
     ]
   }
