@@ -77,4 +77,4 @@ def _format_status(data: dict) -> str:
 def _fmt_time(ts: float) -> str:
     import datetime
 
-    return datetime.datetime.fromtimestamp(ts).strftime("%H:%M:%S")
+    return datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).strftime("%H:%M:%S")

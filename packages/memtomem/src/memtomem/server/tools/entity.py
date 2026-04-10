@@ -65,9 +65,7 @@ async def mem_entity_scan(
         # Pre-fetch already-extracted chunk IDs (single query instead of N)
         already_extracted: set[str] = set()
         if not overwrite:
-            already_extracted = await storage.get_extracted_chunk_ids(
-                [str(c.id) for c in chunks]
-            )
+            already_extracted = await storage.get_extracted_chunk_ids([str(c.id) for c in chunks])
 
         for chunk in chunks:
             if not overwrite and str(chunk.id) in already_extracted:

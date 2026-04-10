@@ -115,5 +115,6 @@ async def create_components(config: Mem2MemConfig | None = None) -> Components:
 
 async def close_components(comp: Components) -> None:
     """Shut down components in reverse order."""
+    await comp.search_pipeline.close()
     await comp.embedder.close()
     await comp.storage.close()

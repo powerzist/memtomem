@@ -46,12 +46,12 @@ class HistoryMixin:
             datetime.now(timezone.utc) - timedelta(days=self._HISTORY_MAX_AGE_DAYS)
         ).isoformat(timespec="seconds")
         db = self._get_db()
-        deleted = db.execute(
-            "DELETE FROM query_history WHERE created_at < ?", (cutoff,)
-        ).rowcount
+        deleted = db.execute("DELETE FROM query_history WHERE created_at < ?", (cutoff,)).rowcount
         if deleted:
             db.commit()
-            _log.info("Pruned %d old query_history rows (>%d days)", deleted, self._HISTORY_MAX_AGE_DAYS)
+            _log.info(
+                "Pruned %d old query_history rows (>%d days)", deleted, self._HISTORY_MAX_AGE_DAYS
+            )
 
     async def get_query_history(self, limit: int = 20, since: str | None = None) -> list[dict]:
         db = self._get_db()

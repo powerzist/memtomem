@@ -40,6 +40,11 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def escape_like(value: str) -> str:
+    """Escape LIKE special characters (``%``, ``_``) in a user-supplied value."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def namespace_sql(ns: NamespaceFilter) -> tuple[str, list]:
     """Build SQL WHERE fragment + params for a NamespaceFilter."""
     if ns.namespaces:

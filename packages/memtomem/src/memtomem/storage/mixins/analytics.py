@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class AnalyticsMixin:
     """Mixin providing analytics methods. Requires self._get_db()."""
@@ -213,14 +217,18 @@ class AnalyticsMixin:
         if namespace:
             ns_clause = " AND namespace = ?"
 
-        date_filter = (" AND " + " AND ".join(where_parts)) if where_parts else ""
+        created_date_filter = (" AND " + " AND ".join(where_parts)) if where_parts else ""
+        updated_where_parts = [p.replace("created_at", "updated_at") for p in where_parts]
+        updated_date_filter = (
+            (" AND " + " AND ".join(updated_where_parts)) if updated_where_parts else ""
+        )
 
         # Created per day
         created_params = list(params)
         if namespace:
             created_params.append(namespace)
         created_rows = db.execute(
-            f"SELECT DATE(created_at) as day, COUNT(*) FROM chunks WHERE 1=1{date_filter}{ns_clause} GROUP BY day ORDER BY day",
+            f"SELECT DATE(created_at) as day, COUNT(*) FROM chunks WHERE 1=1{created_date_filter}{ns_clause} GROUP BY day ORDER BY day",
             created_params,
         ).fetchall()
         created = {r[0]: r[1] for r in created_rows}
@@ -230,7 +238,7 @@ class AnalyticsMixin:
         if namespace:
             updated_params.append(namespace)
         updated_rows = db.execute(
-            f"SELECT DATE(updated_at) as day, COUNT(*) FROM chunks WHERE updated_at != created_at{date_filter.replace('created_at', 'updated_at')}{ns_clause} GROUP BY day ORDER BY day",
+            f"SELECT DATE(updated_at) as day, COUNT(*) FROM chunks WHERE updated_at != created_at{updated_date_filter}{ns_clause} GROUP BY day ORDER BY day",
             updated_params,
         ).fetchall()
         updated = {r[0]: r[1] for r in updated_rows}
@@ -240,12 +248,12 @@ class AnalyticsMixin:
         accessed: dict[str, int] = {}
         try:
             access_rows = db.execute(
-                f"SELECT DATE(created_at) as day, COUNT(*) FROM access_log WHERE 1=1{date_filter} GROUP BY day ORDER BY day",
+                f"SELECT DATE(created_at) as day, COUNT(*) FROM access_log WHERE 1=1{created_date_filter} GROUP BY day ORDER BY day",
                 access_params,
             ).fetchall()
             accessed = {r[0]: r[1] for r in access_rows}
         except Exception:
-            pass
+            logger.debug("access_log query failed (table may not exist yet)", exc_info=True)
 
         # Merge all days
         all_days = sorted(set(created) | set(updated) | set(accessed))

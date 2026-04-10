@@ -41,6 +41,7 @@ class WebhookManager:
     def __init__(self, config: WebhookConfig):
         self._config = config
         self._client = None
+        self._pending_tasks: set[asyncio.Task] = set()
         if config.url:
             err = _validate_webhook_url(config.url)
             if err:
@@ -78,7 +79,9 @@ class WebhookManager:
             ).hexdigest()
             headers["X-Webhook-Signature"] = f"sha256={sig}"
 
-        asyncio.create_task(self._send_with_retry(body, headers))
+        task = asyncio.create_task(self._send_with_retry(body, headers))
+        self._pending_tasks.add(task)
+        task.add_done_callback(self._pending_tasks.discard)
 
     async def _send_with_retry(self, body: str, headers: dict, attempts: int = 3) -> None:
         client = self._get_client()
@@ -96,6 +99,11 @@ class WebhookManager:
                 await asyncio.sleep(1.0 * (attempt + 1))
 
     async def close(self) -> None:
+        if self._pending_tasks:
+            for task in self._pending_tasks:
+                task.cancel()
+            await asyncio.gather(*self._pending_tasks, return_exceptions=True)
+            self._pending_tasks.clear()
         if self._client:
             await self._client.aclose()
             self._client = None

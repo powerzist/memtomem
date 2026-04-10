@@ -29,9 +29,11 @@ async def mem_scratch_set(
     """
     from datetime import datetime, timedelta, timezone
 
+    if ttl_minutes is not None and ttl_minutes <= 0:
+        return "Error: ttl_minutes must be a positive number."
     app = _get_app(ctx)
     expires_at = None
-    if ttl_minutes:
+    if ttl_minutes is not None and ttl_minutes > 0:
         expires_at = (datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)).isoformat(
             timespec="seconds"
         )

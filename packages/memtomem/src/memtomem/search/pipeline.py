@@ -354,7 +354,15 @@ class SearchPipeline:
             self._search_cache[cache_key] = (time.time(), version_at_start, fused, stats)
             # Evict old entries (keep max 50)
             if len(self._search_cache) > 50:
-                oldest_key = min(self._search_cache, key=lambda k: self._search_cache[k][0])
-                self._search_cache.pop(oldest_key, None)
+                try:
+                    oldest_key = min(self._search_cache, key=lambda k: self._search_cache[k][0])
+                    self._search_cache.pop(oldest_key, None)
+                except ValueError:
+                    pass  # cache emptied by concurrent invalidate_cache()
 
         return fused, stats
+
+    async def close(self) -> None:
+        """Release resources held by the pipeline (reranker client, etc.)."""
+        if self._reranker is not None and hasattr(self._reranker, "close"):
+            await self._reranker.close()

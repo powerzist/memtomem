@@ -19,6 +19,7 @@ from memtomem.models import Chunk, ChunkMetadata, ChunkType, NamespaceFilter, Se
 from memtomem.storage import fts_tokenizer as _fts
 from memtomem.storage.sqlite_helpers import (
     deserialize_f32,
+    escape_like,
     namespace_sql,
     norm_path,
     placeholders,
@@ -752,8 +753,8 @@ class SqliteBackend(
             conditions.append("created_at < ?")
             params.append(until.isoformat())
         if source_filter is not None:
-            conditions.append("source_file LIKE ?")
-            params.append(f"%{source_filter}%")
+            conditions.append("source_file LIKE ? ESCAPE '\\'")
+            params.append(f"%{escape_like(source_filter)}%")
         if namespace_filter is not None:
             frag, ns_params = namespace_sql(namespace_filter)
             if frag:

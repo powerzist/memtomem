@@ -62,7 +62,9 @@ class SessionMixin:
         limit: int = 20,
     ) -> list[dict]:
         db = self._get_db()
-        query = "SELECT id, agent_id, started_at, ended_at, summary, namespace FROM sessions"
+        query = (
+            "SELECT id, agent_id, started_at, ended_at, summary, namespace, metadata FROM sessions"
+        )
         params: list = []
         conditions: list[str] = []
         if agent_id:
@@ -84,6 +86,7 @@ class SessionMixin:
                 "ended_at": r[3],
                 "summary": r[4],
                 "namespace": r[5],
+                "metadata": r[6],
             }
             for r in rows
         ]
@@ -112,9 +115,9 @@ class SessionMixin:
         Session events are cleaned up via ON DELETE CASCADE.
         Only deletes sessions where ended_at is not NULL (completed sessions).
         """
-        cutoff = (
-            datetime.now(timezone.utc) - timedelta(days=max_age_days)
-        ).isoformat(timespec="seconds")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat(
+            timespec="seconds"
+        )
         db = self._get_db()
         cursor = db.execute(
             "DELETE FROM sessions WHERE ended_at IS NOT NULL AND ended_at < ?",

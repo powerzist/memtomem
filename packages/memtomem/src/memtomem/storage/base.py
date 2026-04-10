@@ -80,10 +80,17 @@ class StorageBackend(Protocol):
     async def delete_relation(self, source_id: UUID, target_id: UUID) -> bool: ...
 
     # Sessions (episodic memory)
-    async def create_session(self, session_id: str, agent_id: str, namespace: str) -> None: ...
+    async def create_session(
+        self, session_id: str, agent_id: str, namespace: str, metadata: dict | None = None
+    ) -> None: ...
     async def end_session(self, session_id: str, summary: str | None, metadata: dict) -> None: ...
     async def add_session_event(
-        self, session_id: str, event_type: str, content: str, chunk_ids: list[str] | None = None
+        self,
+        session_id: str,
+        event_type: str,
+        content: str,
+        chunk_ids: list[str] | None = None,
+        metadata: dict | None = None,
     ) -> None: ...
     async def list_sessions(
         self, agent_id: str | None = None, since: str | None = None, limit: int = 20

@@ -163,5 +163,6 @@ def main() -> None:
         _lock_fp.write(str(os.getpid()))
         _lock_fp.flush()
         atexit.register(lambda: pid_file.unlink(missing_ok=True))
+        atexit.register(lambda: _lock_fp.close())
 
     mcp.run()
