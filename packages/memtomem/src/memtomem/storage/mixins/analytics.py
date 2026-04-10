@@ -35,6 +35,8 @@ class AnalyticsMixin:
         ).fetchall()
         ns_dist = [{"namespace": r[0], "count": r[1]} for r in ns_rows]
 
+        total_sources = db.execute("SELECT COUNT(DISTINCT source_file) FROM chunks").fetchone()[0]
+
         # Single query for session/scratch/relation counts
         aux = db.execute(
             "SELECT "
@@ -42,20 +44,33 @@ class AnalyticsMixin:
             "(SELECT COUNT(*) FROM sessions WHERE ended_at IS NULL), "
             "(SELECT COUNT(*) FROM working_memory), "
             "(SELECT COUNT(*) FROM working_memory WHERE promoted = 1), "
-            "(SELECT COUNT(*) FROM chunk_relations)"
+            "(SELECT COUNT(*) FROM chunk_relations), "
+            "(SELECT COUNT(*) FROM sessions WHERE started_at >= date('now', '-7 days'))"
         ).fetchone()
-        total_sessions, active_sessions, scratch_count, promoted_count, relation_count = aux
+        (
+            total_sessions,
+            active_sessions,
+            scratch_count,
+            promoted_count,
+            relation_count,
+            recent_sessions,
+        ) = aux
 
         dead_pct = round((total_chunks - accessed) / total_chunks * 100, 1) if total_chunks else 0
 
         return {
             "total_chunks": total_chunks,
+            "total_sources": total_sources,
             "access_coverage": {"accessed": accessed, "total": total_chunks, "pct": access_pct},
             "tag_coverage": {"tagged": tagged, "total": total_chunks, "pct": tag_pct},
             "dead_memories_pct": dead_pct,
             "top_accessed": top_list,
             "namespace_distribution": ns_dist,
-            "sessions": {"total": total_sessions, "active": active_sessions},
+            "sessions": {
+                "total": total_sessions,
+                "active": active_sessions,
+                "recent_7d": recent_sessions,
+            },
             "working_memory": {"total": scratch_count, "promoted": promoted_count},
             "cross_references": relation_count,
         }

@@ -76,6 +76,7 @@ class SearchPipeline:
         self._search_cache: dict[str, tuple[float, int, list[SearchResult], RetrievalStats]] = {}
         self._cache_ttl = config.cache_ttl
         self._cache_version = 0
+        self._bg_tasks: set[asyncio.Task] = set()
 
     def _cache_key(
         self,
@@ -332,6 +333,8 @@ class SearchPipeline:
 
             t = asyncio.create_task(_increment())
             t.add_done_callback(_bg_task_error_cb)
+            self._bg_tasks.add(t)
+            t.add_done_callback(self._bg_tasks.discard)
 
         # Save to query history (fire-and-forget)
         async def _save_history():
@@ -348,6 +351,8 @@ class SearchPipeline:
 
         t2 = asyncio.create_task(_save_history())
         t2.add_done_callback(_bg_task_error_cb)
+        self._bg_tasks.add(t2)
+        t2.add_done_callback(self._bg_tasks.discard)
 
         # Store in TTL cache only if version hasn't changed during search
         if self._cache_version == version_at_start:
@@ -364,5 +369,8 @@ class SearchPipeline:
 
     async def close(self) -> None:
         """Release resources held by the pipeline (reranker client, etc.)."""
+        if self._bg_tasks:
+            await asyncio.gather(*self._bg_tasks, return_exceptions=True)
+            self._bg_tasks.clear()
         if self._reranker is not None and hasattr(self._reranker, "close"):
             await self._reranker.close()

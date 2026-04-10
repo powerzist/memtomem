@@ -7,7 +7,7 @@ import sqlite3
 from typing import Callable
 
 from memtomem.errors import StorageError
-from memtomem.storage.sqlite_helpers import now_iso, placeholders
+from memtomem.storage.sqlite_helpers import escape_like, now_iso, placeholders
 
 # Namespace names: alphanumeric, hyphens, underscores, dots, colons, @, spaces (max 255)
 _NS_NAME_RE = re.compile(r"^[\w\-.:@ ]{1,255}$", re.UNICODE)
@@ -147,3 +147,26 @@ class NamespaceOps:
             }
             for row in rows
         ]
+
+    async def assign_namespace(
+        self,
+        namespace: str,
+        source_filter: str | None = None,
+        old_namespace: str | None = None,
+    ) -> int:
+        """Move chunks matching filters to *namespace*. Returns affected row count."""
+        db = self._get_db()
+        conditions: list[str] = []
+        params: list = [namespace]
+        if source_filter:
+            conditions.append("source_file LIKE ? ESCAPE '\\'")
+            params.append(f"%{escape_like(source_filter)}%")
+        if old_namespace:
+            conditions.append("namespace = ?")
+            params.append(old_namespace)
+        if not conditions:
+            raise ValueError("At least one filter (source_filter or old_namespace) is required")
+        where = " WHERE " + " AND ".join(conditions)
+        cursor = db.execute(f"UPDATE chunks SET namespace=?{where}", params)
+        db.commit()
+        return cursor.rowcount

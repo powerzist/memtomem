@@ -151,25 +151,9 @@ async def mem_ns_assign(
     if not source_filter and not old_namespace:
         return "Error: at least one filter (source_filter or old_namespace) is required."
     app = _get_app(ctx)
-    db = app.storage._get_db()
-
-    conditions = []
-    params: list = [namespace]
-
-    if source_filter:
-        from memtomem.storage.sqlite_helpers import escape_like
-
-        conditions.append("source_file LIKE ? ESCAPE '\\'")
-        params.append(f"%{escape_like(source_filter)}%")
-    if old_namespace:
-        conditions.append("namespace = ?")
-        params.append(old_namespace)
-
-    where = f" WHERE {' AND '.join(conditions)}"
-    cursor = db.execute(f"UPDATE chunks SET namespace=?{where}", params)
-    db.commit()
-
-    count = cursor.rowcount
+    count = await app.storage.assign_namespace(
+        namespace.strip(), source_filter=source_filter, old_namespace=old_namespace
+    )
     filters = []
     if source_filter:
         filters.append(f"source={source_filter!r}")

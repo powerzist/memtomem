@@ -130,7 +130,7 @@ async def mem_add(
                     preview = d.chunk.content[:80].replace("\n", " ")
                     result += f"\n  - ({d.score:.0%}) {preview}..."
     except Exception:
-        logger.debug("Duplicate check after mem_add failed", exc_info=True)
+        logger.warning("Duplicate check after mem_add failed", exc_info=True)
 
     # Fire webhook
     if app.webhook_manager:

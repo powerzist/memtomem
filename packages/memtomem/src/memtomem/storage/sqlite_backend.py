@@ -112,16 +112,20 @@ class SqliteBackend(
                 logger.warning("Failed to load sqlite-vec for read pool connection: %s", exc)
             self._read_pool.append(rconn)
 
-        self._meta = MetaManager(self._get_db)
-        self._ns = NamespaceOps(self._get_db)
+        try:
+            self._meta = MetaManager(self._get_db)
+            self._ns = NamespaceOps(self._get_db)
 
-        self._dimension, self._dim_mismatch, self._model_mismatch = create_tables(
-            self._db,
-            self._meta,
-            self._dimension,
-            self._embedding_provider,
-            self._embedding_model,
-        )
+            self._dimension, self._dim_mismatch, self._model_mismatch = create_tables(
+                self._db,
+                self._meta,
+                self._dimension,
+                self._embedding_provider,
+                self._embedding_model,
+            )
+        except Exception:
+            await self.close()
+            raise
 
     def _get_db(self) -> sqlite3.Connection:
         if self._db is None:
@@ -871,6 +875,15 @@ class SqliteBackend(
     async def list_namespace_meta(self) -> list[dict]:
         assert self._ns is not None
         return await self._ns.list_namespace_meta()
+
+    async def assign_namespace(
+        self,
+        namespace: str,
+        source_filter: str | None = None,
+        old_namespace: str | None = None,
+    ) -> int:
+        assert self._ns is not None
+        return await self._ns.assign_namespace(namespace, source_filter, old_namespace)
 
     # ---- row deserialization -------------------------------------------------
 

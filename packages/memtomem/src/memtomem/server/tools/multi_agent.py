@@ -27,6 +27,8 @@ async def mem_agent_register(
         description: Optional description of the agent's role
         color: Optional color hex code for UI display
     """
+    if not agent_id or not agent_id.strip():
+        return "Error: agent_id must be non-empty."
     app = _get_app(ctx)
     namespace = f"agent/{agent_id}"
 
@@ -69,6 +71,8 @@ async def mem_agent_search(
         include_shared: Also search the shared namespace (default True)
         top_k: Maximum results to return
     """
+    if agent_id is not None and not agent_id.strip():
+        return "Error: agent_id must be non-empty if provided."
     app = _get_app(ctx)
     from memtomem.server.formatters import _format_results
 

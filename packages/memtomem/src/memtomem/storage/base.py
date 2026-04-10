@@ -143,3 +143,9 @@ class StorageBackend(Protocol):
         self, namespace: str, description: str | None = None, color: str | None = None
     ) -> None: ...
     async def list_namespace_meta(self) -> list[dict]: ...
+    async def assign_namespace(
+        self,
+        namespace: str,
+        source_filter: str | None = None,
+        old_namespace: str | None = None,
+    ) -> int: ...

@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_STOP_SENTINEL = Path("/dev/null/__stop__")
+
 
 class _MarkdownEventHandler(FileSystemEventHandler):
     """Watchdog event handler that enqueues changed .md files."""
@@ -88,11 +90,19 @@ class FileWatcher:
 
     async def stop(self) -> None:
         if self._task is not None:
-            self._task.cancel()
+            # Signal graceful shutdown — flush pending before exit
             try:
-                await self._task
-            except asyncio.CancelledError:
+                self._queue.put_nowait(_STOP_SENTINEL)
+            except asyncio.QueueFull:
                 pass
+            try:
+                await asyncio.wait_for(self._task, timeout=5.0)
+            except (TimeoutError, asyncio.CancelledError):
+                self._task.cancel()
+                try:
+                    await self._task
+                except asyncio.CancelledError:
+                    pass
         if self._observer:
             self._observer.stop()
             self._observer.join()
@@ -109,6 +119,16 @@ class FileWatcher:
         while True:
             try:
                 file_path = await asyncio.wait_for(self._queue.get(), timeout=self._debounce_s)
+                if file_path == _STOP_SENTINEL:
+                    # Flush remaining pending files before exiting
+                    if pending:
+                        batch = list(pending)
+                        pending.clear()
+                        await asyncio.gather(
+                            *(self._reindex(p) for p in batch),
+                            return_exceptions=True,
+                        )
+                    return
                 pending.add(file_path)
             except TimeoutError:
                 if pending:

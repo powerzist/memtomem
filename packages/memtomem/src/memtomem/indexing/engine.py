@@ -63,6 +63,10 @@ class IndexEngine:
         start = time.monotonic()
         path = path.resolve()
 
+        if not self._is_within_memory_dirs(path):
+            logger.warning("Path %s resolves outside configured memory_dirs, skipping", path)
+            return IndexingStats(0, 0, 0, 0, 0, 0.0)
+
         if path.is_file():
             files = [path]
         elif path.is_dir():
@@ -165,6 +169,21 @@ class IndexEngine:
 
         return None
 
+    def _is_within_memory_dirs(self, path: Path) -> bool:
+        """Check that *path* is within at least one configured memory_dir."""
+        for d in self._config.memory_dirs:
+            root = Path(d).expanduser().resolve()
+            try:
+                if path.is_relative_to(root):
+                    return True
+            except TypeError:
+                try:
+                    path.relative_to(root)
+                    return True
+                except ValueError:
+                    continue
+        return False
+
     async def _index_file(
         self,
         file_path: Path,
@@ -190,6 +209,9 @@ class IndexEngine:
             }
 
         try:
+            content = file_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            logger.warning("Non-UTF-8 content in %s, replacing invalid bytes", file_path.name)
             content = file_path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return {"total": 0, "indexed": 0, "skipped": 0, "deleted": 0, "errors": []}
