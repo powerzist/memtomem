@@ -145,7 +145,7 @@ Add to your MCP config file:
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/notes\"]"
       }
     }
   }
@@ -160,7 +160,7 @@ Add to your MCP config file:
       "command": "uv",
       "args": ["run", "--directory", "/path/to/memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/notes\"]"
       }
     }
   }

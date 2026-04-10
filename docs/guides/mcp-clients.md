@@ -47,7 +47,7 @@ Or create a `.mcp.json` file in your project root:
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/memories"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/memories\"]"
       }
     }
   }
@@ -74,7 +74,7 @@ Create or edit the `~/.cursor/mcp.json` file:
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/memories"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/memories\"]"
       }
     }
   }
@@ -102,7 +102,7 @@ Create or edit the `~/.codeium/windsurf/mcp_config.json` file:
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/memories"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/memories\"]"
       }
     }
   }
@@ -124,7 +124,7 @@ Edit the `~/Library/Application Support/Claude/claude_desktop_config.json` (macO
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/memories"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/memories\"]"
       }
     }
   }
@@ -151,7 +151,7 @@ Restart Claude Desktop after configuration.
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "/path/to/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"/path/to/notes\"]"
       }
     }
   }
@@ -224,6 +224,11 @@ The STM proxy is distributed as a separate package: **[memtomem-stm](https://git
 
 You can override settings by adding environment variables to the `env` block.
 
+> **List-typed settings must be JSON-encoded.** `MEMTOMEM_INDEXING__MEMORY_DIRS`
+> is a list, so pass it as a JSON array literal string: `"[\"~/memories\"]"`
+> — not a bare path. Passing a plain string will crash the MCP server on
+> startup with a pydantic-settings parse error.
+
 ### Common Configuration Options
 
 ```json
@@ -233,7 +238,7 @@ You can override settings by adding environment variables to the `env` block.
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/memories",
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/memories\"]",
         "MEMTOMEM_STORAGE__SQLITE_PATH": "~/.memtomem/memtomem.db",
         "MEMTOMEM_EMBEDDING__MODEL": "nomic-embed-text"
       }
@@ -259,7 +264,7 @@ ollama pull bge-m3
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/memories",
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/memories\"]",
         "MEMTOMEM_EMBEDDING__MODEL": "bge-m3",
         "MEMTOMEM_EMBEDDING__DIMENSION": "1024"
       }

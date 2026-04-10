@@ -253,8 +253,12 @@ def _write_config_and_summary(state: dict) -> None:
         server_cmd = "uvx"
         server_args = ["--from", "memtomem", "memtomem-server"]
 
-    # MCP env: only memory_dirs (all other settings via ~/.memtomem/config.json)
-    mcp_env: dict[str, str] = {"MEMTOMEM_INDEXING__MEMORY_DIRS": state["memory_dir"]}
+    # All settings come from ~/.memtomem/config.json at startup via
+    # load_config_overrides() — no env overrides are written into .mcp.json.
+    # (Previously we wrote MEMTOMEM_INDEXING__MEMORY_DIRS here as a plain
+    # string, but pydantic-settings parses list[Path] env vars as JSON arrays,
+    # which caused the MCP server to crash on startup.)
+    mcp_env: dict[str, str] = {}
 
     # MCP integration
     mcp_choice = state["mcp_choice"]
@@ -307,15 +311,13 @@ def _write_config_and_summary(state: dict) -> None:
 
 def _write_mcp_json(server_cmd: str, server_args: list[str], mcp_env: dict[str, str]) -> None:
     """Write or update .mcp.json in current directory."""
-    mcp_config: dict = {
-        "mcpServers": {
-            "memtomem": {
-                "command": server_cmd,
-                "args": server_args,
-                "env": mcp_env,
-            }
-        }
+    server_entry: dict = {
+        "command": server_cmd,
+        "args": server_args,
     }
+    if mcp_env:
+        server_entry["env"] = mcp_env
+    mcp_config: dict = {"mcpServers": {"memtomem": server_entry}}
     mcp_path = Path(".mcp.json")
     if mcp_path.exists():
         existing = json.loads(mcp_path.read_text(encoding="utf-8"))

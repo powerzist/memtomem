@@ -37,7 +37,7 @@ Create or edit the `~/.codeium/windsurf/mcp_config.json` file:
       
       "env": {
         "MEMTOMEM_STORAGE__SQLITE_PATH": "~/.memtomem/memtomem.db",
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/notes\"]"
       }
     }
   }

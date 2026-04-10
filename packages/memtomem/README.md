@@ -28,7 +28,7 @@ claude mcp add memtomem -s user -- uvx --from memtomem memtomem-server
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "/path/to/your/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"/path/to/your/notes\"]"
       }
     }
   }

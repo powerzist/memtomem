@@ -41,7 +41,7 @@ memtomem complements Antigravity with **hybrid semantic search** features it lac
       
       "env": {
         "MEMTOMEM_STORAGE__SQLITE_PATH": "/Users/your-name/.memtomem/memtomem.db",
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "/Users/your-name/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"/Users/your-name/notes\"]"
       }
     }
   }

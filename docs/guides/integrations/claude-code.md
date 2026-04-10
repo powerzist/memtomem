@@ -49,7 +49,7 @@ Create a `.mcp.json` file in the project root or `~/.claude/`:
 
       "env": {
         "MEMTOMEM_STORAGE__SQLITE_PATH": "~/.memtomem/memtomem.db",
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/notes\"]"
       }
     }
   }

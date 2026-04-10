@@ -609,7 +609,7 @@ Point `MEMORY_DIRS` to the Google Drive sync path. Keep the DB local.
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
         "MEMTOMEM_STORAGE__SQLITE_PATH": "~/.memtomem/memtomem.db",
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/Google Drive/My Drive/memtomem-memories",
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/Google Drive/My Drive/memtomem-memories\"]",
         "MEMTOMEM_NAMESPACE__ENABLE_AUTO_NS": "true"
       }
     }
@@ -623,7 +623,7 @@ Point `MEMORY_DIRS` to the Google Drive sync path. Keep the DB local.
 {
   "env": {
     "MEMTOMEM_STORAGE__SQLITE_PATH": "%USERPROFILE%\\.memtomem\\memtomem.db",
-    "MEMTOMEM_INDEXING__MEMORY_DIRS": "G:\\My Drive\\memtomem-memories",
+    "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"G:\\\\My Drive\\\\memtomem-memories\"]",
     "MEMTOMEM_NAMESPACE__ENABLE_AUTO_NS": "true"
   }
 }

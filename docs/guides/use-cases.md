@@ -36,7 +36,7 @@ Edit `~/.cursor/mcp.json`:
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "/path/to/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"/path/to/notes\"]"
       }
     }
   }
@@ -56,7 +56,7 @@ Agent panel > `...` > **MCP Servers** > **Manage MCP Servers** > **View raw conf
       "command": "uvx",
       "args": ["--from", "memtomem", "memtomem-server"],
       "env": {
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "/path/to/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"/path/to/notes\"]"
       }
     }
   }

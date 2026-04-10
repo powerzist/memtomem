@@ -38,7 +38,7 @@ Create or edit the `~/.gemini/settings.json` file:
       
       "env": {
         "MEMTOMEM_STORAGE__SQLITE_PATH": "~/.memtomem/memtomem.db",
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/notes\"]"
       }
     }
   }

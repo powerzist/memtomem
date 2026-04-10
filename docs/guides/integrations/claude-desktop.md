@@ -39,7 +39,7 @@ Edit the `~/Library/Application Support/Claude/claude_desktop_config.json` file:
       
       "env": {
         "MEMTOMEM_STORAGE__SQLITE_PATH": "~/.memtomem/memtomem.db",
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "~/notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"~/notes\"]"
       }
     }
   }
@@ -59,7 +59,7 @@ Edit the `%APPDATA%\Claude\claude_desktop_config.json` file:
       
       "env": {
         "MEMTOMEM_STORAGE__SQLITE_PATH": "%USERPROFILE%\\.memtomem\\memtomem.db",
-        "MEMTOMEM_INDEXING__MEMORY_DIRS": "%USERPROFILE%\\notes"
+        "MEMTOMEM_INDEXING__MEMORY_DIRS": "[\"%USERPROFILE%\\\\notes\"]"
       }
     }
   }
