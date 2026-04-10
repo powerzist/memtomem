@@ -90,47 +90,29 @@ async def mem_add(
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         target = Path(base).expanduser().resolve() / f"{date_str}.md"
 
-    # Capture file size before append to locate the new entry afterwards
-    pre_size = target.stat().st_size if target.exists() else 0
-
     append_entry(target, content, title=title, tags=tags)
 
     effective_ns = namespace or app.current_namespace
 
-    # Read back only the appended block (the actual on-disk content)
-    file_text = target.read_text(encoding="utf-8")
-    entry_text = file_text[pre_size:].strip()
+    # Re-index the whole file via the standard pipeline so the watcher
+    # (which also calls index_file) produces identical hashes → no duplicates.
+    stats = await app.index_engine.index_file(target, namespace=effective_ns)
 
-    # Build heading hierarchy from the entry's heading
-    heading_hierarchy: tuple[str, ...] = ()
-    for line in entry_text.split("\n"):
-        if line.startswith("## "):
-            heading_hierarchy = (line.strip(),)
-            break
-
-    # Index as a single chunk — mem_add entries are short and self-contained,
-    # so chunking would only split frontmatter from content unnecessarily.
-    await app.index_engine.index_entry(
-        entry_text,
-        target,
-        heading_hierarchy=heading_hierarchy,
-        tags=tuple(tags) if tags else (),
-        namespace=effective_ns,
+    result = (
+        f"Memory added to {target}\n"
+        f"- Chunks indexed: {stats.indexed_chunks}\n"
+        f"- File: {target}"
     )
-
-    result = f"Memory added to {target}\n- Chunks indexed: 1\n- File: {target}"
 
     # Semantic duplicate check: warn if very similar content already exists
     try:
         if len(content) > 20:
-            target_resolved = target.resolve()
             similar, _ = await app.search_pipeline.search(content, top_k=5)
             dupes = [
                 s
                 for s in similar
                 if s.score >= 0.90
                 and s.score < 0.9999  # exclude exact self-match
-                and s.chunk.metadata.source_file.resolve() != target_resolved
             ]
             if dupes:
                 result += "\n\n⚠ Similar memories found:"

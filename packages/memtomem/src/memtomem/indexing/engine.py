@@ -117,50 +117,6 @@ class IndexEngine:
             duration_ms=duration,
         )
 
-    async def index_entry(
-        self,
-        content: str,
-        file_path: Path,
-        *,
-        heading_hierarchy: tuple[str, ...] = (),
-        tags: tuple[str, ...] = (),
-        namespace: str | None = None,
-    ) -> Chunk:
-        """Index a short entry as a single chunk, bypassing the chunker.
-
-        Intended for mem_add: the content is already a complete, small memory
-        entry so splitting it would only waste embeddings and create noise.
-        The file must already be written; line numbers are derived from the
-        current file content.
-        Returns the created Chunk (with embedding and stored in DB).
-        """
-        file_path = file_path.resolve()
-
-        # Compute line range: the entry occupies the tail of the file
-        file_text = file_path.read_text(encoding="utf-8", errors="replace")
-        total_file_lines = file_text.count("\n") + 1
-        entry_lines = content.count("\n") + 1
-        start_line = max(1, total_file_lines - entry_lines + 1)
-
-        resolved_ns = self._resolve_namespace(file_path, namespace)
-
-        meta = ChunkMetadata(
-            source_file=file_path,
-            heading_hierarchy=heading_hierarchy,
-            chunk_type=ChunkType.MARKDOWN_SECTION,
-            start_line=start_line,
-            end_line=total_file_lines,
-            tags=tags,
-            namespace=resolved_ns or "default",
-        )
-        chunk = Chunk(content=content, metadata=meta)
-
-        embeddings = await self._embedder.embed_texts([chunk.retrieval_content])
-        chunk.embedding = embeddings[0]
-
-        await self._storage.upsert_chunks([chunk])
-        return chunk
-
     async def is_duplicate(
         self,
         text: str,
