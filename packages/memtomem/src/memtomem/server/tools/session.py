@@ -35,7 +35,8 @@ async def mem_session_start(
 
     metadata = {"title": title} if title else {}
     await app.storage.create_session(session_id, agent_id, effective_ns, metadata=metadata)
-    app.current_session_id = session_id
+    async with app._config_lock:
+        app.current_session_id = session_id
 
     lines = [f"Session started: {session_id}"]
     if title:
@@ -78,7 +79,8 @@ async def mem_session_end(
     # Cleanup session-bound working memory
     cleaned = await app.storage.scratch_cleanup(session_id)
 
-    app.current_session_id = None
+    async with app._config_lock:
+        app.current_session_id = None
 
     lines = [
         f"Session ended: {session_id}",

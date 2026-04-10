@@ -73,6 +73,8 @@ async def mem_import_notion(
             if chunks:
                 await app.storage.upsert_chunks(chunks)
 
+    app.search_pipeline.invalidate_cache()
+
     return (
         f"Notion import complete:\n"
         f"- Files imported: {len(imported)}\n"
@@ -144,6 +146,8 @@ async def mem_import_obsidian(
                     )
             if chunks:
                 await app.storage.upsert_chunks(chunks)
+
+    app.search_pipeline.invalidate_cache()
 
     return (
         f"Obsidian import complete:\n"

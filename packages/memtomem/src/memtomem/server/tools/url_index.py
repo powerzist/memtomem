@@ -67,6 +67,8 @@ async def mem_fetch(
         if updated:
             await app.storage.upsert_chunks(updated)
 
+    app.search_pipeline.invalidate_cache()
+
     return (
         f"Fetched and indexed: {url}\n"
         f"- Saved to: {file_path}\n"

@@ -82,6 +82,7 @@ async def mem_dedup_merge(
         return f"Invalid UUID: {exc}"
 
     deleted = await app.dedup_scanner.merge(keep_uuid, delete_uuids)
+    app.search_pipeline.invalidate_cache()
     return f"Merge complete: {deleted} chunks deleted, keep_id={keep_id}"
 
 
@@ -143,6 +144,8 @@ async def mem_decay_expire(
     stats = await expire_chunks(
         app.storage, max_age_days=max_age_days, dry_run=dry_run, source_filter=source_filter
     )
+    if not dry_run and stats.deleted_chunks > 0:
+        app.search_pipeline.invalidate_cache()
     mode = " (dry-run)" if dry_run else ""
     return (
         f"Memory expiry{mode}:\n"
@@ -188,6 +191,9 @@ async def mem_cleanup_orphans(
     for sf in orphaned:
         deleted = await app.storage.delete_by_source(sf)
         total_deleted += deleted
+
+    if total_deleted > 0:
+        app.search_pipeline.invalidate_cache()
 
     return (
         f"Cleanup complete:\n- Orphaned files: {len(orphaned)}\n- Chunks deleted: {total_deleted}"

@@ -186,6 +186,11 @@ async def mem_edit(
         app.search_pipeline.invalidate_cache()
     except Exception as exc:
         meta.source_file.write_text(original, encoding="utf-8")
+        try:
+            await app.index_engine.index_file(meta.source_file, force=True)
+        except Exception:
+            logger.warning("Rollback re-index also failed", exc_info=True)
+        app.search_pipeline.invalidate_cache()
         logger.error("mem_edit rollback after indexing failure: %s", exc, exc_info=True)
         return f"Error: edit failed and rolled back: {exc}"
 
@@ -241,6 +246,11 @@ async def mem_delete(
             app.search_pipeline.invalidate_cache()
         except Exception as exc:
             meta.source_file.write_text(original, encoding="utf-8")
+            try:
+                await app.index_engine.index_file(meta.source_file, force=True)
+            except Exception:
+                logger.warning("Rollback re-index also failed", exc_info=True)
+            app.search_pipeline.invalidate_cache()
             logger.error("mem_delete rollback after indexing failure: %s", exc, exc_info=True)
             return f"Error: delete failed and rolled back: {exc}"
         return (

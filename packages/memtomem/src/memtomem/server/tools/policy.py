@@ -126,11 +126,15 @@ async def mem_policy_run(
         result = await run_policy(app.storage, policy, dry_run=dry_run)
         if not dry_run:
             await app.storage.policy_update_last_run(name)
+            app.search_pipeline.invalidate_cache()
         return f"{'[DRY RUN] ' if dry_run else ''}{result.details}"
 
     results = await run_all_enabled(app.storage, dry_run=dry_run)
     if not results:
         return "No enabled policies to run."
+
+    if not dry_run:
+        app.search_pipeline.invalidate_cache()
 
     lines = [f"Policy run {'(dry run) ' if dry_run else ''}results:"]
     for r in results:

@@ -16,6 +16,15 @@ from memtomem.search.fusion import reciprocal_rank_fusion
 logger = logging.getLogger(__name__)
 
 
+def _bg_task_error_cb(task: asyncio.Task) -> None:
+    """Log errors from fire-and-forget background tasks."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        logger.warning("Background task %s failed: %s", task.get_name(), exc)
+
+
 def _match_source(filter_str: str, source_path: str) -> bool:
     """Match source_filter: glob when pattern chars present, substring otherwise."""
     if any(c in filter_str for c in ("*", "?", "[")):
@@ -321,7 +330,8 @@ class SearchPipeline:
                 except Exception:
                     logger.debug("Failed to increment access counts", exc_info=True)
 
-            asyncio.create_task(_increment())
+            t = asyncio.create_task(_increment())
+            t.add_done_callback(_bg_task_error_cb)
 
         # Save to query history (fire-and-forget)
         async def _save_history():
@@ -336,7 +346,8 @@ class SearchPipeline:
             except Exception:
                 logger.debug("Failed to save query history", exc_info=True)
 
-        asyncio.create_task(_save_history())
+        t2 = asyncio.create_task(_save_history())
+        t2.add_done_callback(_bg_task_error_cb)
 
         # Store in TTL cache only if version hasn't changed during search
         if self._cache_version == version_at_start:
