@@ -105,9 +105,10 @@ class IndexEngine:
         namespace: str | None = None,
     ) -> IndexingStats:
         """Index a single file. Convenience wrapper for external callers."""
-        start = time.monotonic()
-        result = await self._index_file(file_path.resolve(), force, namespace=namespace)
-        duration = (time.monotonic() - start) * 1000
+        async with self._index_lock:
+            start = time.monotonic()
+            result = await self._index_file(file_path.resolve(), force, namespace=namespace)
+            duration = (time.monotonic() - start) * 1000
         return IndexingStats(
             total_files=1,
             total_chunks=result["total"],

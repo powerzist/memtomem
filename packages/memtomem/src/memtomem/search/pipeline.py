@@ -62,9 +62,10 @@ class SearchPipeline:
         self._importance_config = importance_config
         self._context_window_config = context_window_config
 
-        # Search result TTL cache (per-instance)
-        self._search_cache: dict[str, tuple[float, list[SearchResult], RetrievalStats]] = {}
+        # Search result TTL cache (per-instance) with version counter
+        self._search_cache: dict[str, tuple[float, int, list[SearchResult], RetrievalStats]] = {}
         self._cache_ttl = config.cache_ttl
+        self._cache_version = 0
 
     def _cache_key(
         self,
@@ -90,7 +91,8 @@ class SearchPipeline:
         return hashlib.md5(raw.encode()).hexdigest()
 
     def invalidate_cache(self) -> None:
-        """Clear the search result TTL cache (call after config changes)."""
+        """Clear the search result TTL cache (call after data/config changes)."""
+        self._cache_version += 1
         self._search_cache.clear()
 
     def _resolve_context_window(self, override: int | None) -> int:
@@ -167,11 +169,12 @@ class SearchPipeline:
         cache_key = self._cache_key(
             query, top_k, source_filter, tag_filter, namespace, context_window
         )
+        version_at_start = self._cache_version
         if cache_key in self._search_cache:
-            ts, cached_results, cached_stats = self._search_cache[cache_key]
-            if time.time() - ts < self._cache_ttl:
+            ts, ver, cached_results, cached_stats = self._search_cache[cache_key]
+            if ver == self._cache_version and time.time() - ts < self._cache_ttl:
                 return cached_results, cached_stats
-            del self._search_cache[cache_key]
+            self._search_cache.pop(cache_key, None)
 
         bm25_k = max(self._config.bm25_candidates, top_k)
         dense_k = max(self._config.dense_candidates, top_k)
@@ -331,11 +334,12 @@ class SearchPipeline:
 
         asyncio.create_task(_save_history())
 
-        # Store in TTL cache
-        self._search_cache[cache_key] = (time.time(), fused, stats)
-        # Evict old entries (keep max 50)
-        if len(self._search_cache) > 50:
-            oldest_key = min(self._search_cache, key=lambda k: self._search_cache[k][0])
-            del self._search_cache[oldest_key]
+        # Store in TTL cache only if version hasn't changed during search
+        if self._cache_version == version_at_start:
+            self._search_cache[cache_key] = (time.time(), version_at_start, fused, stats)
+            # Evict old entries (keep max 50)
+            if len(self._search_cache) > 50:
+                oldest_key = min(self._search_cache, key=lambda k: self._search_cache[k][0])
+                self._search_cache.pop(oldest_key, None)
 
         return fused, stats

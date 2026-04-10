@@ -72,10 +72,17 @@ async def promote_scratch(
 
     from memtomem.tools.memory_writer import append_entry
 
+    bases = [Path(d).expanduser().resolve() for d in config.indexing.memory_dirs]
     if body.file:
         target = Path(body.file).expanduser().resolve()
+        if target.is_symlink():
+            raise HTTPException(status_code=403, detail="Symlinked targets are not allowed")
+        if not any(target.is_relative_to(b) for b in bases):
+            raise HTTPException(
+                status_code=403, detail="Path is outside configured memory directories"
+            )
     else:
-        base = Path(config.indexing.memory_dirs[0]).expanduser().resolve()
+        base = bases[0]
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         target = base / f"{date_str}.md"
 

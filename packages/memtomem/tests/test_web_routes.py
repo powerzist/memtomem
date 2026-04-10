@@ -492,8 +492,13 @@ class TestIndex:
         assert data["indexed_chunks"] == 2
 
     async def test_trigger_index_default_params(self, client: AsyncClient):
+        # Default path "." is outside configured memory_dirs, should be rejected
         resp = await client.post("/api/index")
-        assert resp.status_code == 200
+        assert resp.status_code == 403
+
+    async def test_trigger_index_outside_memory_dirs(self, client: AsyncClient):
+        resp = await client.post("/api/index", json={"path": "/etc"})
+        assert resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------

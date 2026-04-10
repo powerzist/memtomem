@@ -46,7 +46,7 @@ from memtomem.web.schemas.sources import StatsResponse
 
 logger = logging.getLogger(__name__)
 
-_LOCALHOST_ADDRS = {"127.0.0.1", "::1", "localhost", "0.0.0.0"}
+_LOCALHOST_ADDRS = {"127.0.0.1", "::1", "localhost"}
 _config_patch_lock = _asyncio.Lock()
 
 
@@ -525,9 +525,14 @@ async def index_stream(
 async def trigger_index(
     req: IndexRequest = IndexRequest(),
     index_engine=Depends(get_index_engine),
+    config=Depends(get_config),
 ) -> IndexResponse:
+    resolved = Path(req.path).expanduser().resolve()
+    memory_dirs = [Path(d).expanduser().resolve() for d in config.indexing.memory_dirs]
+    if not any(resolved.is_relative_to(d) for d in memory_dirs):
+        raise HTTPException(status_code=403, detail="Path is outside configured memory directories")
     stats = await index_engine.index_path(
-        Path(req.path).resolve(),
+        resolved,
         recursive=req.recursive,
         force=req.force,
         namespace=req.namespace,
