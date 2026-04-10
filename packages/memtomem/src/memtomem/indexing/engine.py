@@ -404,7 +404,9 @@ class IndexEngine:
 
 def _estimate_tokens(text: str) -> int:
     """Rough token estimate: ~4 chars per token for English, ~2 for Korean."""
-    return max(1, len(text) // 3)
+    korean = sum(1 for c in text if "\uac00" <= c <= "\ud7a3")
+    ratio = 2 if korean > len(text) * 0.3 else 4
+    return max(1, len(text) // ratio)
 
 
 def _can_merge(current: Chunk, nxt: Chunk) -> bool:
@@ -413,6 +415,8 @@ def _can_merge(current: Chunk, nxt: Chunk) -> bool:
     Same-file + same-hierarchy is always allowed.
     A headingless chunk (empty hierarchy, e.g. frontmatter) can merge into
     the next chunk, adopting its hierarchy.
+    Sibling headings (same parent, depth >= 2) can merge when short.
+    Top-level headings (depth 1, e.g. mem_add entries) stay independent.
     """
     if current.metadata.source_file != nxt.metadata.source_file:
         return False
@@ -421,12 +425,32 @@ def _can_merge(current: Chunk, nxt: Chunk) -> bool:
     # Allow headingless short chunk to merge forward into the next section
     if not current.metadata.heading_hierarchy:
         return True
+    # Allow sibling heading merge (same parent, depth >= 2)
+    ch = current.metadata.heading_hierarchy
+    nh = nxt.metadata.heading_hierarchy
+    if len(ch) >= 2 and len(nh) >= 2 and ch[:-1] == nh[:-1]:
+        return True
     return False
 
 
 def _merged_hierarchy(current: Chunk, nxt: Chunk) -> tuple[str, ...]:
-    """Pick the more specific heading hierarchy when merging two chunks."""
-    return nxt.metadata.heading_hierarchy or current.metadata.heading_hierarchy
+    """Pick the appropriate heading hierarchy when merging two chunks.
+
+    For identical or headingless merges, use the more specific one.
+    For sibling merges, keep only the common parent prefix.
+    """
+    ch = current.metadata.heading_hierarchy
+    nh = nxt.metadata.heading_hierarchy
+    if ch == nh or not ch:
+        return nh or ch
+    # Sibling merge: keep common parent headings only
+    common: list[str] = []
+    for a, b in zip(ch, nh):
+        if a == b:
+            common.append(a)
+        else:
+            break
+    return tuple(common) if common else nh
 
 
 def _merge_short_chunks(

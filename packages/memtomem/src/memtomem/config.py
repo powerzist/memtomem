@@ -272,6 +272,7 @@ class Mem2MemConfig(BaseSettings):
     entity_extraction: EntityExtractionConfig = Field(default_factory=EntityExtractionConfig)
     context_window: ContextWindowConfig = Field(default_factory=ContextWindowConfig)
     health_watchdog: HealthWatchdogConfig = Field(default_factory=HealthWatchdogConfig)
+    timezone: str = "UTC"  # Display timezone (e.g. "Asia/Seoul"). Storage remains UTC.
 
 
 # ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ _FRONT_MATTER_RE = re.compile(r"^---\n(.*?)\n---\n?", re.DOTALL)
 _WIKILINK_RE = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 
 
-_TOKEN_CHAR_RATIO = 3  # rough chars-per-token estimate
+_TOKEN_CHAR_RATIO = 4  # rough chars-per-token estimate (English-oriented)
 _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 
 
@@ -43,6 +43,13 @@ class MarkdownChunker:
         sections = self._split_by_headings(content)
         chunks: list[Chunk] = []
 
+        # Build file context: filename + all headings
+        all_headings = [h for s in sections for h in s["hierarchy"]]
+        file_ctx = f"{file_path.name}"
+        if all_headings:
+            unique = dict.fromkeys(all_headings)  # preserve order, dedup
+            file_ctx += " > " + " | ".join(unique)
+
         for section in sections:
             text = section["text"].strip()
             if not text:
@@ -50,6 +57,9 @@ class MarkdownChunker:
 
             hierarchy = section["hierarchy"]
             est_tokens = len(text) // _TOKEN_CHAR_RATIO
+
+            # Parent context: parent heading text (if depth >= 2)
+            parent_ctx = hierarchy[-2] if len(hierarchy) >= 2 else ""
 
             if est_tokens <= self._max_tokens:
                 chunks.append(
@@ -62,6 +72,8 @@ class MarkdownChunker:
                             start_line=section["start_line"],
                             end_line=section["end_line"],
                             tags=tuple(fm_tags),
+                            parent_context=parent_ctx,
+                            file_context=file_ctx,
                         ),
                     )
                 )
@@ -80,6 +92,8 @@ class MarkdownChunker:
                                 overlap_before=sc.get("overlap_before", 0),
                                 overlap_after=sc.get("overlap_after", 0),
                                 tags=tuple(fm_tags),
+                                parent_context=parent_ctx,
+                                file_context=file_ctx,
                             ),
                         )
                     )

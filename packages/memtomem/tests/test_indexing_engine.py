@@ -454,13 +454,18 @@ class TestEstimateTokens:
         assert _estimate_tokens("") == 1  # max(1, 0)
 
     def test_short_string(self):
-        # "hello" = 5 chars -> 5//3 = 1
         assert _estimate_tokens("hello") >= 1
 
-    def test_longer_string(self):
-        # 300 chars -> 100 tokens
+    def test_longer_string_english(self):
+        # 300 ASCII chars -> 300//4 = 75 tokens (English ratio)
         text = "a" * 300
-        assert _estimate_tokens(text) == 100
+        assert _estimate_tokens(text) == 75
+
+    def test_korean_text(self):
+        # Korean text uses ratio=2 when > 30% Korean chars
+        text = "안녕하세요 " * 30  # ~180 chars, mostly Korean
+        result = _estimate_tokens(text)
+        assert result == len(text) // 2
 
 
 # ===========================================================================

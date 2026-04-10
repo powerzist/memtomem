@@ -31,6 +31,8 @@ class ChunkMetadata:
     namespace: str = "default"
     overlap_before: int = 0  # chars of overlap with previous chunk
     overlap_after: int = 0  # chars of overlap with next chunk
+    parent_context: str = ""  # parent heading or document title
+    file_context: str = ""  # filename + heading outline
 
 
 @dataclass(frozen=True, slots=True)
