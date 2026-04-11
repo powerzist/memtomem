@@ -733,17 +733,33 @@ Bob (Machine B, after sync completes):
 
 ## Agent Context Management — `mm context`
 
-If you use multiple AI editors (Claude Code, Cursor, Gemini CLI, etc.), each expects its own config file with the same project information. `mm context` keeps them in sync from one source.
+If you use multiple AI editors (Claude Code, Cursor, Gemini CLI, OpenAI Codex, etc.), each expects its own files with overlapping project information — not just project-level instructions (`CLAUDE.md` vs `GEMINI.md` vs `AGENTS.md`), but also **agent skills** (`.claude/skills/` vs `.gemini/skills/` vs `.agents/skills/`) and **sub-agent definitions** (`.claude/agents/*.md` vs `.gemini/agents/*.md` vs `~/.codex/agents/*.toml`). `mm context` keeps all three layers in sync from a single canonical source under `.memtomem/`.
 
 ### The problem
 
 ```
-CLAUDE.md        ← "Python 3.12+, use ruff, run pytest..."
-.cursorrules     ← "Python 3.12+, use ruff, run pytest..."  (copy-paste)
-GEMINI.md        ← "Python 3.12+, use ruff, run pytest..."  (copy-paste again)
+CLAUDE.md                            ← "Python 3.12+, use ruff, run pytest..."
+.cursorrules                         ← same rules (copy-paste)
+GEMINI.md                            ← same rules (copy-paste again)
+
+.claude/skills/code-review/SKILL.md  ← identical SKILL.md
+.gemini/skills/code-review/SKILL.md  ← identical SKILL.md  (copy-paste)
+.agents/skills/code-review/SKILL.md  ← identical SKILL.md  (copy-paste again)
+
+.claude/agents/reviewer.md           ← "You are a code reviewer..."
+.gemini/agents/reviewer.md           ← same prompt, slightly different frontmatter
+~/.codex/agents/reviewer.toml        ← same prompt, entirely different file format
 ```
 
 ### The solution
+
+memtomem treats `.memtomem/` as the single source of truth for three artifact kinds:
+
+| Artifact | Canonical source | Fan-out target(s) |
+|---|---|---|
+| Project memory | `.memtomem/context.md` | `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, `AGENTS.md`, `.github/copilot-instructions.md` |
+| Agent skills (Phase 1) | `.memtomem/skills/<name>/SKILL.md` | `.claude/skills/`, `.gemini/skills/`, `.agents/skills/` |
+| Sub-agents (Phase 2) | `.memtomem/agents/<name>.md` | `.claude/agents/<name>.md`, `.gemini/agents/<name>.md`, `~/.codex/agents/<name>.toml` |
 
 ```mermaid
 flowchart TB
@@ -841,7 +857,15 @@ mem_do(action="context_detect")
 mem_do(action="context_generate", params={"agent": "cursor"})
 mem_do(action="context_diff")
 mem_do(action="context_sync")
+
+# Phase 1/2 artifact fan-out via the same tools
+mem_do(action="context_detect", params={"include": "skills,agents"})
+mem_do(action="context_sync",   params={"include": "skills"})
+mem_do(action="context_sync",   params={"include": "agents", "strict": True})
+mem_do(action="context_diff",   params={"include": "skills,agents"})
 ```
+
+All four `mem_context_*` tools accept the same `include` parameter (comma-separated, values: `skills`, `agents`). `mem_context_generate` and `mem_context_sync` additionally accept `strict=True` to fail on any sub-agent field drop.
 
 ### Agent-specific sections
 
@@ -858,15 +882,131 @@ Add `## Claude`, `## Cursor`, etc. in context.md for agent-specific overrides:
 - Prefer inline type hints over separate .pyi files
 ```
 
-### Supported agents
+### Skills fan-out — `--include=skills`
 
-| Agent | Output file |
-|-------|-------------|
-| Claude Code | `CLAUDE.md` |
-| Cursor | `.cursorrules` |
-| Gemini CLI | `GEMINI.md` |
-| OpenAI Codex | `AGENTS.md` |
-| GitHub Copilot | `.github/copilot-instructions.md` |
+Anthropic released the Agent Skills specification as an open standard in 2025-12, and OpenAI adopted the same `SKILL.md` format for Codex CLI. Today a skill is a directory with a required `SKILL.md` (plus optional `scripts/`, `references/`, `assets/` sub-directories) and the on-disk payload is **byte-identical** across Claude Code, Gemini CLI, and Codex CLI — only the parent directory differs.
+
+```mermaid
+flowchart TB
+    SK[".memtomem/skills/&lt;name&gt;/SKILL.md"]
+    SK -->|mm context sync --include=skills| C[".claude/skills/&lt;name&gt;/"]
+    SK -->|mm context sync --include=skills| G[".gemini/skills/&lt;name&gt;/"]
+    SK -->|mm context sync --include=skills| X[".agents/skills/&lt;name&gt;/"]
+```
+
+```bash
+mkdir -p .memtomem/skills/code-review
+cat > .memtomem/skills/code-review/SKILL.md <<'EOF'
+---
+name: code-review
+description: Reviews staged changes for quality.
+---
+
+Review the staged diff and report issues.
+EOF
+
+mm context sync --include=skills
+# .claude/skills/code-review/SKILL.md
+# .gemini/skills/code-review/SKILL.md
+# .agents/skills/code-review/SKILL.md
+```
+
+Because the runtime payload is byte-identical, `mm context sync --include=skills` is effectively a 3-way directory mirror — copy plus structural validation. A runtime directory that exists but does **not** contain a `SKILL.md` is treated as hand-written content and left alone; memtomem refuses to clobber it with an `IsADirectoryError` so you can keep other folders next to your skills.
+
+Reverse import:
+
+```bash
+mm context init --include=skills             # import existing .claude/skills/ into .memtomem/skills/
+mm context init --include=skills --overwrite # also overwrite existing canonical entries
+```
+
+Diff status codes: `in sync`, `out of sync`, `missing target`, `missing canonical`.
+
+### Sub-agents fan-out — `--include=agents`
+
+Unlike skills, sub-agent definitions genuinely differ across runtimes. Claude and Gemini both use Markdown + YAML frontmatter but disagree on which fields they support, and Codex uses a TOML schema with a `developer_instructions` key for the system prompt. memtomem parses one canonical Markdown file and emits the correct variant for each runtime, reporting every field it had to drop along the way.
+
+```mermaid
+flowchart TB
+    AG[".memtomem/agents/&lt;name&gt;.md\n(flat YAML frontmatter + body)"]
+    AG -->|mm context sync --include=agents| C[".claude/agents/&lt;name&gt;.md"]
+    AG -->|mm context sync --include=agents| G[".gemini/agents/&lt;name&gt;.md"]
+    AG -->|mm context sync --include=agents| X["~/.codex/agents/&lt;name&gt;.toml\n(user-scope)"]
+```
+
+Canonical `.memtomem/agents/code-reviewer.md`:
+
+```markdown
+---
+name: code-reviewer
+description: Reviews staged code for quality
+tools: [Read, Grep, Glob]
+model: sonnet
+skills: [code-review]
+isolation: worktree
+kind: reviewer
+temperature: 0.2
+---
+
+You are a meticulous code reviewer.
+Respond with a prioritized punch list.
+```
+
+| Canonical field | `.claude/agents/*.md` | `.gemini/agents/*.md` | `~/.codex/agents/*.toml` |
+|---|---|---|---|
+| `name` / `description` | ✓ | ✓ | ✓ |
+| body (system prompt) | ✓ | ✓ | → `developer_instructions` |
+| `tools` | ✓ | ✓ | **dropped** (Codex models capabilities via `mcp_servers` + `skills.config`) |
+| `model` | ✓ | ✓ | ✓ |
+| `skills` | ✓ | **dropped** | **dropped** |
+| `isolation` | ✓ | **dropped** | **dropped** |
+| `kind` | **dropped** | ✓ | **dropped** |
+| `temperature` | **dropped** | ✓ | **dropped** |
+
+Running `mm context sync --include=agents` prints every dropped field so you can see exactly what each target lost:
+
+```
+  Sub-agent fan-out: 3
+    claude_agents    .claude/agents/code-reviewer.md
+    gemini_agents    .gemini/agents/code-reviewer.md
+    codex_agents     /Users/you/.codex/agents/code-reviewer.toml
+  claude_agents dropped ['kind', 'temperature'] from 'code-reviewer'
+  gemini_agents dropped ['skills', 'isolation'] from 'code-reviewer'
+  codex_agents dropped ['tools', 'skills', 'isolation', 'kind', 'temperature'] from 'code-reviewer'
+```
+
+Use `--strict` to promote any drop to an error (fail fast when you require 1:1 fidelity):
+
+```bash
+mm context sync --include=agents --strict
+# [strict] strict mode: claude_agents would drop ['kind', 'temperature'] from 'code-reviewer'
+# Aborted.
+```
+
+**Codex is user-scope only.** Codex CLI's documented sub-agent path is `~/.codex/agents/*.toml`, so canonical agents fan out to your home directory regardless of which project you run `mm context sync` in. Be aware that multiple projects sharing agent names will overwrite each other — that's a limitation of Codex's user-scope model, not of memtomem.
+
+Reverse import from runtime files back into canonical (Claude/Gemini only — Codex TOML is deliberately *not* imported because the conversion is lossy and memtomem would have to guess dropped fields):
+
+```bash
+mm context init --include=agents
+```
+
+Combine skills and agents in one command:
+
+```bash
+mm context sync --include=skills,agents
+mm context diff --include=skills,agents
+```
+
+### Supported targets
+
+| Runtime | Project memory file | Skills directory | Sub-agents |
+|---|---|---|---|
+| Claude Code | `CLAUDE.md` | `.claude/skills/` | `.claude/agents/*.md` |
+| Cursor | `.cursorrules` | — | — |
+| Gemini CLI | `GEMINI.md` | `.gemini/skills/` | `.gemini/agents/*.md` (experimental) |
+| OpenAI Codex CLI | `AGENTS.md` | `.agents/skills/` | `~/.codex/agents/*.toml` (user-scope) |
+| GitHub Copilot | `.github/copilot-instructions.md` | — | — |
 
 ---
 

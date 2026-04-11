@@ -146,6 +146,24 @@ Yes. Specifying the same `MEMTOMEM_STORAGE__SQLITE_PATH` allows both tools to ac
 
 ---
 
+## Cross-runtime agent context with `mm context`
+
+If you also use Claude Code or Codex CLI on the same repo, treat `.memtomem/` as the single source of truth and let memtomem fan it out. Gemini supports the `kind` and `temperature` sub-agent fields that Claude doesn't — authoring canonical agents with those fields set means Claude will drop them on its side with a warning.
+
+```bash
+# Skills: .memtomem/skills/<name>/SKILL.md fans out to .claude/skills/, .gemini/skills/, .agents/skills/
+mm context sync --include=skills
+
+# Sub-agents: .memtomem/agents/<name>.md → .claude/agents/, .gemini/agents/, ~/.codex/agents/
+mm context sync --include=agents
+```
+
+> **Note**: Gemini CLI's sub-agent format is marked experimental as of 2026-03; the frontmatter schema may still change. memtomem currently maps `name`, `description`, `tools`, `model`, `kind`, `temperature` and drops the Claude-specific `skills` + `isolation` fields on the Gemini side.
+
+See the [full matrix](../user-guide.md#agent-context-management--mm-context) in the user guide.
+
+---
+
 ## Next Steps
 
 - [User Guide](../user-guide.md) — Complete feature walkthrough
