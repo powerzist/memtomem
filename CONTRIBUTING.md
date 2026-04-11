@@ -51,8 +51,12 @@ with:
 
 > I have read the CLA Document and I hereby sign the CLA
 
-You only need to sign once per GitHub account. Your signature is stored in
-`signatures/v1/cla.json` in this repository.
+You only need to sign once per GitHub account per repository. Because
+memtomem and [memtomem-stm](https://github.com/memtomem/memtomem-stm) are
+separate repositories with independent signature stores, contributors who
+open pull requests against both projects need to sign in each repository
+(still one-time per account). Your signature is stored in
+`signatures/v1/cla.json` in whichever repository you signed.
 
 The CLA is adapted from the Apache Software Foundation Individual
 Contributor License Agreement with one additional section covering future
