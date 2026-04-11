@@ -45,6 +45,7 @@ docs/marketing/
 BUG_REPORT.md
 *.png
 main.py
+scripts/
 
 # Dev repo: root tests excluded, package tests included
 tests/
