@@ -44,6 +44,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
   default MCP config (`MEMTOMEM_TOOL_MODE=core`) would hit "tool not
   found" errors. All three call sites now go through
   `mem_do(action="...", params={...})`, matching the default tool set.
+- `docs/guides/hands-on-tutorial.md` `mem_status` / `mem_stats` example
+  outputs had drifted from the real formats in
+  `server/tools/status_config.py`. Step 1.3 showed a one-line
+  `Chunks: 0 | Sources: 0` form that the code has never produced;
+  step 3.5 showed `Chunks: 12 | Sources: 4 | Storage: sqlite` as the
+  `mem_stats` response. Both now show the actual multi-line output
+  (`memtomem Status` header with `Storage` / `DB path` / `Embedding` /
+  `Dimension` / `Top-K` / `RRF k` and an `Index stats` section for
+  `mem_status`; `Memory index statistics:` header plus bullet list
+  for `mem_stats`).
+- `docs/guides/user-guide.md` `mem_index` examples likewise did not
+  match the real "`Indexing complete: ...`" block — the Index-a-directory
+  response was `"Indexed 47 files (312 chunks)"` and the Incremental
+  re-indexing response used a `"3 new, 2 updated, 1 deleted"` phrasing
+  that does not correspond to any code path. Both now use the real
+  multi-line format (`Files scanned` / `Total chunks` / `Indexed` /
+  `Skipped (unchanged)` / `Deleted (stale)` / `Duration`) and the
+  section now explains that an edited section contributes to **both**
+  `Indexed` (new hash) and `Deleted (stale)` (old hash) because the
+  diff is hash-based.
 
 ## [0.1.3] — 2026-04-10
 

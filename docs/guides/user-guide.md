@@ -95,7 +95,13 @@ Use `mem_do(action="help")` to see all 64 actions, or `mem_do(action="help", par
 
 ```
 mem_index(path="~/notes")
-→ "Indexed 47 files (312 chunks)"
+→ Indexing complete:
+  - Files scanned: 47
+  - Total chunks: 312
+  - Indexed: 312
+  - Skipped (unchanged): 0
+  - Deleted (stale): 0
+  - Duration: 2340ms
 ```
 
 Supported files and their chunking strategies:
@@ -109,16 +115,36 @@ Supported files and their chunking strategies:
 
 ### Incremental re-indexing
 
-memtomem tracks what changed. Re-indexing only processes new or modified chunks:
+memtomem tracks what changed via a SHA-256 hash per chunk. A second
+call on the same path only re-embeds chunks whose hash is new:
 
 ```
 mem_index(path="~/notes")
-→ "3 new, 2 updated, 1 deleted — 44 unchanged skipped"
+→ Indexing complete:
+  - Files scanned: 47
+  - Total chunks: 315
+  - Indexed: 5
+  - Skipped (unchanged): 308
+  - Deleted (stale): 2
+  - Duration: 180ms
 ```
+
+How to read the stats:
+
+- **Indexed** — chunks whose content hash is new (brand-new sections
+  *or* edited sections whose hash changed). Only these hit the embedder.
+- **Skipped (unchanged)** — hash matched an existing chunk, no
+  embedding call made.
+- **Deleted (stale)** — chunks that used to exist in a file but are no
+  longer produced. An edited section contributes to **both**
+  `Indexed` (new hash) and `Deleted (stale)` (old hash), because the
+  diff is hash-based, not UUID-based.
 
 ### Force re-index
 
-After switching embedding models, upgrading memtomem, or for a clean rebuild:
+After switching embedding models, upgrading memtomem, or for a clean
+rebuild, pass `force=True` — every chunk is re-embedded regardless of
+hash match, so they all show up under `Indexed`:
 
 ```
 mem_index(path="~/notes", force=True)

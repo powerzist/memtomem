@@ -70,10 +70,19 @@ Call `mem_status` from your MCP client to check the system status.
 
 Example response:
 ```
-memtomem v0.1.0 (or later)
-Storage: sqlite (~/.memtomem/memtomem.db)
-Embedding: ollama/nomic-embed-text (768d)
-Chunks: 0 | Sources: 0
+memtomem Status
+==============
+Storage:   sqlite
+DB path:   ~/.memtomem/memtomem.db
+Embedding: ollama / nomic-embed-text
+Dimension: 768
+Top-K:     10
+RRF k:     60
+
+Index stats
+-----------
+Total chunks:  0
+Source files:  0
 ```
 
 No memories yet. Let's populate them in the next step.
@@ -262,7 +271,10 @@ namespace variants only touch the index, not the files on disk.
 
 Example response:
 ```
-Chunks: 12 | Sources: 4 | Storage: sqlite
+Memory index statistics:
+- Total chunks: 12
+- Total sources: 4
+- Storage backend: sqlite
 ```
 
 ### 3.6 Editing Files Directly and Re-Indexing
@@ -319,8 +331,18 @@ automatically and tells you to clean up:
 ```
 
 ```
-memtomem v0.1.x
-...
+memtomem Status
+==============
+Storage:   sqlite
+DB path:   ~/.memtomem/memtomem.db
+Embedding: ollama / nomic-embed-text
+Dimension: 768
+Top-K:     10
+RRF k:     60
+
+Index stats
+-----------
+Total chunks:  11
 Source files:  4 (1 orphaned — run mem_cleanup_orphans)
 ```
 
