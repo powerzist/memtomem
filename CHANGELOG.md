@@ -17,6 +17,92 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
   that prints the token stream produced by `unicode61` vs. `kiwipiepy`
   side by side and runs the same query under each configuration.
 
+### Fixed
+- `MemtomemStore.index()` (LangGraph adapter) and the `mm` shell `index`
+  command called a nonexistent `IndexEngine.index_directory()` method and
+  would crash at runtime. Routed both to `index_path()` and added
+  regression tests in `tests/test_langgraph.py`.
+
+## [0.1.3] — 2026-04-10
+
+Quality & security audit: 79+ fixes across nine audit rounds.
+
+### Security
+- Path traversal guard on source validation and symlink resolution.
+- Webhook SSRF protection (private IP / internal host blocking).
+- Recursion depth limit for structured-data (JSON/YAML/TOML) chunking.
+- Binary file detection so non-text files are skipped during indexing.
+- Namespace validation and shell crash guard.
+- File size limit enforcement during ingestion.
+
+### Fixed
+- Cache race conditions and invalidation gaps in the search pipeline.
+- Index lock handling and rollback consistency on partial failures.
+- WAL checkpoint handling to prevent DB growth.
+- Retention policy correctness and persistence reliability.
+- Batch query correctness under concurrent access.
+- Resource leaks (file handles, DB connections, embedder clients).
+- Float epsilon handling in scoring; overlap cap enforcement in chunking.
+- Cache TTL snapshot and lock-timeout races.
+
+## [0.1.2] — 2026-04-10
+
+### Added
+- Session and activity tracking CLI: `mm session start/end/list/events`,
+  `mm activity log`, and `mm session wrap -- CMD` to wrap headless
+  processes with a session lifecycle.
+- PostToolUse and Stop hooks for automatic activity logging.
+- Timezone config: `MEMTOMEM_TIMEZONE=Asia/Seoul` (display only, storage
+  stays UTC).
+- Web UI sessions panel with event type badges, expandable metadata, and
+  client-side filtering.
+- `parent_context` and `file_context` metadata on chunks for better
+  retrieval context.
+
+### Changed
+- Sibling heading sections (same parent) merge when short to reduce chunk
+  fragmentation. Top-level `mem_add` entries stay independent of sibling
+  merge.
+- Token estimation uses a dynamic ratio: 4 for English, 2 for Korean.
+
+### Fixed
+- SQLite `busy_timeout=10` prevents "database is locked" when the CLI and
+  MCP server access storage concurrently.
+- MCP server PID lock warns about duplicate instances instead of silently
+  racing on writes.
+
+## [0.1.1] — 2026-04-10
+
+### Added
+- `mm init --non-interactive` mode for CI and automation.
+- Project-scoped install support via `uv add memtomem`.
+
+### Changed
+- README optimized as a GitHub profile landing page (163 → 115 lines);
+  PyPI badge and ecosystem section added.
+- `mm init` docs clarified to drop the unneeded `uv run` prefix after
+  `uv tool install`; README Quick Start leads with explicit install +
+  wizard.
+
+### Fixed
+- `mem_add` produced duplicate chunks because `index_entry` and
+  `index_file` were two separate indexing paths. Removed `index_entry`
+  and routed all ingestion through `index_file`.
+- `mm init` wrote `MEMORY_DIRS` as a plain string into `.mcp.json`,
+  which crashed the server on startup. The wizard now serialises list
+  env vars as JSON (#13).
+- `mm web` surfaces an actionable error when the `[web]` extra is
+  missing instead of failing with a bare `ModuleNotFoundError` (#14).
+
+## [0.1.0.post1] — 2026-04-10
+
+Metadata-only re-release; no code changes.
+
+### Changed
+- Corporate ownership recorded as DAPADA Inc. alongside the memtomem
+  contributors in package authors and `LICENSE`.
+- `Issues` URL added to PyPI project metadata (#12).
+
 ## [0.1.0] — 2026-04-08
 
 Initial open-source release.
