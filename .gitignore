@@ -23,7 +23,7 @@ coverage.json
 
 # Claude Code
 .claude/
-CLAUDE.md
+CLAUDE.local.md
 .claude-plugin/
 
 # macOS
