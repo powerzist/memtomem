@@ -760,7 +760,7 @@ memtomem treats `.memtomem/` as the single source of truth for four artifact kin
 | Project memory | `.memtomem/context.md` | `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, `AGENTS.md`, `.github/copilot-instructions.md` |
 | Agent skills (Phase 1) | `.memtomem/skills/<name>/SKILL.md` | `.claude/skills/`, `.gemini/skills/`, `.agents/skills/` |
 | Sub-agents (Phase 2) | `.memtomem/agents/<name>.md` | `.claude/agents/<name>.md`, `.gemini/agents/<name>.md`, `~/.codex/agents/<name>.toml` |
-| Slash commands (Phase 3) | `.memtomem/commands/<name>.md` | `.claude/commands/<name>.md`, `.gemini/commands/<name>.toml` |
+| Slash commands (Phase 3) | `.memtomem/commands/<name>.md` | `.claude/commands/<name>.md`, `.gemini/commands/<name>.toml`, `~/.codex/prompts/<name>.md` |
 
 ```mermaid
 flowchart TB
@@ -1002,13 +1002,14 @@ mm context diff --include=skills,agents
 
 ### Slash commands fan-out — `--include=commands`
 
-Custom slash commands (`/review`, `/fix-issue`, etc.) are the fourth artifact kind. Claude Code and Gemini CLI both support user-authored commands, but they disagree on the file format: Claude uses Markdown + YAML frontmatter while Gemini uses TOML. memtomem parses one canonical Markdown file and emits the correct variant for each runtime, rewriting the argument placeholder (`$ARGUMENTS` ↔ `{{args}}`) along the way.
+Custom slash commands (`/review`, `/fix-issue`, etc.) are the fourth artifact kind. Claude Code, Gemini CLI, and OpenAI Codex CLI all support user-authored commands, but they disagree on the file format: Claude and Codex use Markdown + YAML frontmatter, while Gemini uses TOML. memtomem parses one canonical Markdown file and emits the correct variant for each runtime, rewriting the argument placeholder only where needed (`$ARGUMENTS` ↔ `{{args}}` for Gemini; Codex supports `$ARGUMENTS` natively, so its body is passed through verbatim).
 
 ```mermaid
 flowchart TB
     CMD[".memtomem/commands/&lt;name&gt;.md"]
     CMD -->|mm context sync --include=commands| C[".claude/commands/&lt;name&gt;.md"]
     CMD -->|mm context sync --include=commands| G[".gemini/commands/&lt;name&gt;.toml"]
+    CMD -->|mm context sync --include=commands| X["~/.codex/prompts/&lt;name&gt;.md (user-scope)"]
 ```
 
 Canonical `.memtomem/commands/review.md`:
@@ -1024,13 +1025,13 @@ model: sonnet
 Review the file at $ARGUMENTS and report issues.
 ```
 
-| Canonical field | `.claude/commands/*.md` | `.gemini/commands/*.toml` |
-|---|---|---|
-| `description` | ✓ | ✓ |
-| body (prompt) | ✓ (`$ARGUMENTS` preserved) | → `prompt` (rewritten to `{{args}}`) |
-| `argument-hint` | ✓ | **dropped** |
-| `allowed-tools` | ✓ | **dropped** |
-| `model` | ✓ | **dropped** |
+| Canonical field | `.claude/commands/*.md` | `.gemini/commands/*.toml` | `~/.codex/prompts/*.md` |
+|---|---|---|---|
+| `description` | ✓ | ✓ | ✓ |
+| body (prompt) | ✓ (`$ARGUMENTS` preserved) | → `prompt` (rewritten to `{{args}}`) | ✓ (`$ARGUMENTS` / `$1..$9` / `$NAME` / `$$` all native) |
+| `argument-hint` | ✓ | **dropped** | ✓ |
+| `allowed-tools` | ✓ | **dropped** | **dropped** |
+| `model` | ✓ | **dropped** | **dropped** |
 
 Resulting Gemini TOML:
 
@@ -1039,15 +1040,28 @@ description = "Review a file for issues"
 prompt = "Review the file at {{args}} and report issues."
 ```
 
-Because Gemini's TOML schema only has two fields (`description` and `prompt`) and the placeholder rewrite is reversible, **Phase 3 conversions are lossless in both directions** — unlike Phase 2 sub-agents where Codex TOML cannot be safely reverse-imported. Running `mm context init --include=commands` successfully round-trips Gemini TOML files back into canonical Markdown, with `{{args}}` automatically rewritten to `$ARGUMENTS`.
+Resulting Codex prompt at `~/.codex/prompts/review.md`:
 
-Running sync prints every dropped field so you can see what Gemini lost:
+```markdown
+---
+description: Review a file for issues
+argument-hint: [file-path]
+---
+
+Review the file at $ARGUMENTS and report issues.
+```
+
+The Gemini side is **lossless in both directions** (only two TOML fields; the `$ARGUMENTS` ↔ `{{args}}` rewrite is reversible), so `mm context init --include=commands` round-trips Gemini TOML back into canonical Markdown. The Codex side is **forward-only** — commands are fanned out to `~/.codex/prompts/` but never imported back, because the user-scope path spans projects and would break the "import runtime files from *this* project" semantic (matching the Phase 2 sub-agent policy for Codex TOML).
+
+Running sync prints every dropped field so you can see what each runtime lost:
 
 ```
-  Command fan-out: 2
+  Command fan-out: 3
     claude_commands    .claude/commands/review.md
     gemini_commands    .gemini/commands/review.toml
+    codex_commands     ~/.codex/prompts/review.md
   gemini_commands dropped ['argument-hint', 'allowed-tools', 'model'] from 'review'
+  codex_commands dropped ['allowed-tools', 'model'] from 'review'
 ```
 
 Use `--strict` to fail on any drop:
@@ -1058,7 +1072,7 @@ mm context sync --include=commands --strict
 # Aborted.
 ```
 
-> **Codex is deferred to Phase 3.5.** OpenAI documents Codex CLI's `~/.codex/prompts/` custom-prompts feature as *deprecated* and recommends migrating command-like workflows to **skills** (which memtomem already fans out to Codex in Phase 1 via `.agents/skills/`). Phase 3 deliberately ships with Claude + Gemini only. Codex users who want a command-like workflow should author a skill instead.
+> **Codex custom prompts are upstream-deprecated.** OpenAI's docs recommend migrating reusable command-like workflows to **skills** (which memtomem already fans out to Codex via `.agents/skills/` in Phase 1). memtomem still syncs canonical commands to `~/.codex/prompts/` for parity with Claude + Gemini, but for new authoring you should prefer a skill. Reverse import from `~/.codex/prompts/` is intentionally not supported — author under `.memtomem/commands/` and let fan-out populate Codex.
 
 Combine every artifact kind in a single command:
 
@@ -1074,7 +1088,7 @@ mm context diff --include=skills,agents,commands
 | Claude Code | `CLAUDE.md` | `.claude/skills/` | `.claude/agents/*.md` | `.claude/commands/*.md` |
 | Cursor | `.cursorrules` | — | — | — |
 | Gemini CLI | `GEMINI.md` | `.gemini/skills/` | `.gemini/agents/*.md` (experimental) | `.gemini/commands/*.toml` |
-| OpenAI Codex CLI | `AGENTS.md` | `.agents/skills/` | `~/.codex/agents/*.toml` (user-scope) | Phase 3.5 (deprecated upstream) |
+| OpenAI Codex CLI | `AGENTS.md` | `.agents/skills/` | `~/.codex/agents/*.toml` (user-scope) | `~/.codex/prompts/*.md` (user-scope, deprecated upstream) |
 | GitHub Copilot | `.github/copilot-instructions.md` | — | — | — |
 
 ---
