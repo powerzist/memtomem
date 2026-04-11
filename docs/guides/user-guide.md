@@ -565,7 +565,6 @@ memtomem-web --port 3000      # custom port
 | **Index** | Trigger indexing, upload files, add memories |
 | **Tags** | Tag cloud, auto-tagging, tag-based browsing |
 | **Timeline** | Chronological view of all chunks |
-| **STM** | Proxy monitoring — compression metrics, server status, call history (only when STM installed) |
 | **More** | Config, namespaces, dedup, decay, export/import, **harness** (sessions, working memory, procedures, health) |
 
 See [Web UI Guide](web-ui.md) for full details.
