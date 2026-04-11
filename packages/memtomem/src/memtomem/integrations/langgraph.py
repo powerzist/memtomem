@@ -246,7 +246,7 @@ class MemtomemStore:
     ) -> dict:
         """Index files for search."""
         await self._ensure_init()
-        stats = await self._components.index_engine.index_directory(
+        stats = await self._components.index_engine.index_path(
             Path(path).expanduser().resolve(),
             recursive=recursive,
             namespace=namespace,

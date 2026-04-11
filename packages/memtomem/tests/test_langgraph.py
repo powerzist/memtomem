@@ -1,5 +1,7 @@
 """Tests for LangGraph adapter (MemtomemStore)."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 
@@ -21,6 +23,57 @@ class TestMemtomemStoreInit:
         from memtomem.integrations.langgraph import MemtomemStore
         store = MemtomemStore()
         assert store._current_session_id is None
+
+
+class TestMemtomemStoreIndex:
+    """Regression tests for MemtomemStore.index() — ensures it delegates to
+    the correct IndexEngine API (previously called a nonexistent
+    `index_directory` method)."""
+
+    @pytest.mark.asyncio
+    async def test_index_delegates_to_index_path(self, tmp_path):
+        from memtomem.integrations.langgraph import MemtomemStore
+        from memtomem.models import IndexingStats
+
+        store = MemtomemStore()
+
+        mock_engine = MagicMock()
+        mock_engine.index_path = AsyncMock(
+            return_value=IndexingStats(
+                total_files=2,
+                total_chunks=5,
+                indexed_chunks=5,
+                skipped_chunks=0,
+                deleted_chunks=0,
+                duration_ms=123.0,
+            )
+        )
+        store._components = MagicMock(index_engine=mock_engine)
+
+        result = await store.index(path=str(tmp_path), recursive=True, namespace="notes")
+
+        mock_engine.index_path.assert_awaited_once()
+        args, kwargs = mock_engine.index_path.call_args
+        # Positional path argument is resolved to an absolute Path
+        assert args[0] == tmp_path.expanduser().resolve()
+        assert kwargs["recursive"] is True
+        assert kwargs["namespace"] == "notes"
+
+        assert result == {
+            "total_files": 2,
+            "indexed_chunks": 5,
+            "duration_ms": 123.0,
+        }
+
+    @pytest.mark.asyncio
+    async def test_index_engine_has_index_path(self):
+        """Guards against renames of the target method on IndexEngine."""
+        from memtomem.indexing.engine import IndexEngine
+
+        assert hasattr(IndexEngine, "index_path"), (
+            "IndexEngine.index_path is the target of MemtomemStore.index(); "
+            "renaming it without updating the adapter will break LangGraph integration."
+        )
 
 
 @pytest.mark.ollama

@@ -256,7 +256,7 @@ async def _cmd_index(comp, args: list[str]) -> None:
         return
 
     click.echo(f"Indexing {path}...")
-    stats = await comp.index_engine.index_directory(path, recursive=True)
+    stats = await comp.index_engine.index_path(path, recursive=True)
     click.secho(
         f"Done: {stats.total_files} files, {stats.indexed_chunks} chunks ({stats.duration_ms}ms)",
         fg="green",
