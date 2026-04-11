@@ -73,8 +73,9 @@ limited to:
       GPL-3.0, MPL-2.0);
   (b) any source-available license (for example, FSL, BUSL, ELv2);
   (c) proprietary or commercial license terms offered alongside any of
-      the above ("dual licensing"); or
-  (d) any combination of the above.
+      the above ("dual licensing");
+  (d) any combination of the above; or
+  (e) any other license terms that DAPADA may elect.
 
 This grant is perpetual, worldwide, non-exclusive, and royalty-free. You
 understand that (i) DAPADA is not obligated to adopt any particular
