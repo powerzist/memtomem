@@ -3,6 +3,20 @@
 All notable changes will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
+## [Unreleased]
+
+### Added
+- `examples/notebooks/` — five scenario-based Jupyter notebooks that walk
+  through the Python API (`create_components()`, `search_pipeline.search()`,
+  `index_engine.index_path()`, storage mixins, and `MemtomemStore` for
+  LangGraph). Covers hello-memory, bulk indexing + filters, session /
+  scratch / recall, search tuning, and a two-node LangGraph agent. Each
+  notebook runs against a throwaway temp directory so it cannot touch the
+  user's real `~/.memtomem/` setup.
+- Notebook 02 includes a "Korean with the kiwipiepy tokenizer" section
+  that prints the token stream produced by `unicode61` vs. `kiwipiepy`
+  side by side and runs the same query under each configuration.
+
 ## [0.1.0] — 2026-04-08
 
 Initial open-source release.

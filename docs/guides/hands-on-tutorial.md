@@ -269,6 +269,7 @@ If you install the CLI (`uv tool install memtomem`, or `uv run mm ...` from a gi
 
 ## Next Steps
 
+- [Interactive Notebooks](../../examples/notebooks/) — Same ideas, but driven from Python (Jupyter) instead of an MCP client. Useful if you want to embed memtomem in a data-science or agent-framework workflow.
 - [User Guide](user-guide.md) — Complete feature walkthrough
 - [Practical Use Cases](use-cases.md) — Agent workflow scenarios
 - [MCP Client Configuration](mcp-clients.md) — Editor-specific setup

@@ -103,6 +103,7 @@ See [MCP Client Setup](docs/guides/mcp-clients.md) for Cursor / Windsurf / Claud
 |-------|-------------|
 | [Getting Started](docs/guides/getting-started.md) | Install, setup wizard, first use |
 | [Hands-On Tutorial](docs/guides/hands-on-tutorial.md) | Follow-along with example files |
+| [Interactive Notebooks](examples/notebooks/) | Jupyter notebooks for the Python API — hello, indexing, sessions, tuning, LangGraph |
 | [User Guide](docs/guides/user-guide.md) | Complete feature walkthrough |
 | [Configuration](docs/guides/configuration.md) | All `MEMTOMEM_*` environment variables |
 | [Embeddings](docs/guides/embeddings.md) | Ollama and OpenAI providers |
