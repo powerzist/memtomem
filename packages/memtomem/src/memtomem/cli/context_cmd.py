@@ -6,7 +6,17 @@ from pathlib import Path
 
 import click
 
-from memtomem.context.detector import detect_agent_files, detect_skill_dirs
+from memtomem.context.agents import (
+    StrictDropError,
+    diff_agents,
+    extract_agents_to_canonical,
+    generate_all_agents,
+)
+from memtomem.context.detector import (
+    detect_agent_dirs,
+    detect_agent_files,
+    detect_skill_dirs,
+)
 from memtomem.context.generator import (
     GENERATORS,
     extract_sections_from_agent_file,
@@ -18,8 +28,8 @@ from memtomem.context.skills import (
     generate_all_skills,
 )
 
-# Phase 1 supports only --include=skills. Phase 2+ will add agents / commands / hooks / mcp.
-_KNOWN_INCLUDES: frozenset[str] = frozenset({"skills"})
+# Phase 1-2 supports --include={skills,agents}. Phase 3+ will add commands / hooks / mcp.
+_KNOWN_INCLUDES: frozenset[str] = frozenset({"skills", "agents"})
 
 
 def _find_project_root() -> Path:
@@ -112,6 +122,66 @@ def _print_skills_diff(root: Path) -> None:
         click.secho(f"  {runtime:15s}  {name}  [{status}]", fg=color)
 
 
+# ── Sub-agent sub-handlers (Phase 2) ─────────────────────────────────
+
+
+def _print_agents_detect(root: Path) -> None:
+    agents = detect_agent_dirs(root)
+    if not agents:
+        click.echo("  (no sub-agent files)")
+        return
+    click.secho(f"  {len(agents)} sub-agent file(s):", fg="cyan")
+    for a in agents:
+        rel = a.path.relative_to(root) if a.path.is_relative_to(root) else a.path
+        click.echo(f"    {a.agent:15s}  {rel}  ({a.size} bytes)")
+
+
+def _print_agents_init(root: Path, overwrite: bool) -> None:
+    imported = extract_agents_to_canonical(root, overwrite=overwrite)
+    if imported:
+        click.secho(
+            f"  Imported {len(imported)} sub-agent(s) → .memtomem/agents/", fg="green"
+        )
+        for p in imported:
+            click.echo(f"    {p.stem}")
+    else:
+        click.echo("  (no runtime sub-agents to import)")
+
+
+def _print_agents_generate(root: Path, strict: bool) -> None:
+    try:
+        result = generate_all_agents(root, strict=strict)
+    except StrictDropError as exc:
+        click.secho(f"  [strict] {exc}", fg="red")
+        raise click.Abort()
+
+    if result.generated:
+        click.secho(f"  Sub-agent fan-out: {len(result.generated)}", fg="green")
+        for runtime, path in result.generated:
+            try:
+                rel = path.relative_to(root) if path.is_relative_to(root) else path
+            except ValueError:
+                rel = path
+            click.echo(f"    {runtime:15s}  {rel}")
+    for runtime, reason in result.skipped:
+        click.secho(f"  skipped {runtime}: {reason}", fg="yellow")
+    for runtime, agent_name, dropped in result.dropped:
+        click.secho(
+            f"  {runtime} dropped {dropped} from '{agent_name}'",
+            fg="yellow",
+        )
+
+
+def _print_agents_diff(root: Path) -> None:
+    rows = diff_agents(root)
+    if not rows:
+        click.echo("  (no sub-agents to compare)")
+        return
+    for runtime, name, status in rows:
+        color = "green" if status == "in sync" else "yellow"
+        click.secho(f"  {runtime:15s}  {name}  [{status}]", fg=color)
+
+
 @click.group("context")
 def context() -> None:
     """Manage unified agent context (CLAUDE.md, .cursorrules, GEMINI.md, etc.)."""
@@ -138,6 +208,10 @@ def detect_cmd(include: tuple[str, ...]) -> None:
     if "skills" in inc:
         click.echo("")
         _print_skills_detect(root)
+
+    if "agents" in inc:
+        click.echo("")
+        _print_agents_detect(root)
 
 
 @context.command("init")
@@ -195,11 +269,20 @@ def init_cmd(include: tuple[str, ...], overwrite: bool) -> None:
         click.echo("")
         _print_skills_init(root, overwrite=overwrite)
 
+    if "agents" in inc:
+        click.echo("")
+        _print_agents_init(root, overwrite=overwrite)
+
 
 @context.command("generate")
 @click.option("--agent", "-a", default="all", help="Agent name or 'all'")
 @_INCLUDE_OPTION
-def generate_cmd(agent: str, include: tuple[str, ...]) -> None:
+@click.option(
+    "--strict",
+    is_flag=True,
+    help="Promote dropped-field warnings to errors when converting sub-agents.",
+)
+def generate_cmd(agent: str, include: tuple[str, ...], strict: bool) -> None:
     """Generate agent files from .memtomem/context.md."""
     inc = _parse_include(include)
     root = _find_project_root()
@@ -237,6 +320,10 @@ def generate_cmd(agent: str, include: tuple[str, ...]) -> None:
     if "skills" in inc:
         click.echo("")
         _print_skills_generate(root)
+
+    if "agents" in inc:
+        click.echo("")
+        _print_agents_generate(root, strict=strict)
 
     click.secho("Done.", fg="green")
 
@@ -282,10 +369,19 @@ def diff_cmd(include: tuple[str, ...]) -> None:
         click.echo("")
         _print_skills_diff(root)
 
+    if "agents" in inc:
+        click.echo("")
+        _print_agents_diff(root)
+
 
 @context.command("sync")
 @_INCLUDE_OPTION
-def sync_cmd(include: tuple[str, ...]) -> None:
+@click.option(
+    "--strict",
+    is_flag=True,
+    help="Promote dropped-field warnings to errors when converting sub-agents.",
+)
+def sync_cmd(include: tuple[str, ...], strict: bool) -> None:
     """Sync context.md to all detected agent files."""
     inc = _parse_include(include)
     root = _find_project_root()
@@ -323,5 +419,9 @@ def sync_cmd(include: tuple[str, ...]) -> None:
     if "skills" in inc:
         click.echo("")
         _print_skills_generate(root)
+
+    if "agents" in inc:
+        click.echo("")
+        _print_agents_generate(root, strict=strict)
 
     click.secho("Synced.", fg="green")

@@ -10,7 +10,7 @@ from memtomem.server.error_handler import tool_handler
 from memtomem.server.tool_registry import register
 
 # Known --include values (mirrors cli.context_cmd._KNOWN_INCLUDES).
-_KNOWN_INCLUDES: frozenset[str] = frozenset({"skills"})
+_KNOWN_INCLUDES: frozenset[str] = frozenset({"skills", "agents"})
 
 
 def _find_project_root() -> Path:
@@ -48,11 +48,14 @@ async def mem_context_detect(
     """Detect agent configuration files in the current project.
 
     Scans for CLAUDE.md, .cursorrules, GEMINI.md, AGENTS.md,
-    and .github/copilot-instructions.md. Pass ``include="skills"`` to also
-    list runtime skill directories (.claude/skills/, .gemini/skills/,
-    .agents/skills/).
+    and .github/copilot-instructions.md. Pass ``include="skills,agents"`` to
+    also list runtime skill directories and sub-agent files.
     """
-    from memtomem.context.detector import detect_agent_files, detect_skill_dirs
+    from memtomem.context.detector import (
+        detect_agent_dirs,
+        detect_agent_files,
+        detect_skill_dirs,
+    )
 
     inc = _parse_include(include)
     root = _find_project_root()
@@ -79,6 +82,18 @@ async def mem_context_detect(
         else:
             lines.append("No skill directories found.")
 
+    if "agents" in inc:
+        agents = detect_agent_dirs(root)
+        if lines:
+            lines.append("")
+        if agents:
+            lines.append(f"{len(agents)} sub-agent file(s):")
+            for a in agents:
+                rel = a.path.relative_to(root) if a.path.is_relative_to(root) else a.path
+                lines.append(f"  {a.agent}: {rel} ({a.size} bytes)")
+        else:
+            lines.append("No sub-agent files found.")
+
     return "\n".join(lines) if lines else "Nothing detected."
 
 
@@ -88,14 +103,17 @@ async def mem_context_detect(
 async def mem_context_generate(
     agent: str = "all",
     include: str = "",
+    strict: bool = False,
     ctx: CtxType = None,  # type: ignore[assignment]
 ) -> str:
     """Generate agent configuration files from .memtomem/context.md.
 
     Args:
         agent: Agent name (claude, cursor, gemini, codex, copilot) or "all".
-        include: Comma-separated extra artifact kinds. Phase 1: ``skills``.
+        include: Comma-separated extra artifact kinds (``skills``, ``agents``).
+        strict: Promote dropped-field warnings to errors when converting sub-agents.
     """
+    from memtomem.context.agents import StrictDropError, generate_all_agents
     from memtomem.context.generator import GENERATORS
     from memtomem.context.parser import CONTEXT_FILENAME, parse_context
     from memtomem.context.skills import generate_all_skills
@@ -138,6 +156,25 @@ async def mem_context_generate(
         for runtime, reason in skill_result.skipped:
             results.append(f"  skipped {runtime}: {reason}")
 
+    if "agents" in inc:
+        try:
+            agent_result = generate_all_agents(root, strict=strict)
+        except StrictDropError as exc:
+            return f"strict error: {exc}"
+        if agent_result.generated:
+            results.append("")
+            results.append(f"Sub-agent fan-out: {len(agent_result.generated)}")
+            for runtime, path in agent_result.generated:
+                try:
+                    rel = path.relative_to(root) if path.is_relative_to(root) else path
+                except ValueError:
+                    rel = path
+                results.append(f"  {runtime}: {rel}")
+        for runtime, reason in agent_result.skipped:
+            results.append(f"  skipped {runtime}: {reason}")
+        for runtime, agent_name, dropped in agent_result.dropped:
+            results.append(f"  {runtime} dropped {dropped} from '{agent_name}'")
+
     return "Generated:\n" + "\n".join(results)
 
 
@@ -150,8 +187,10 @@ async def mem_context_diff(
 ) -> str:
     """Show sync status between context.md and agent files.
 
-    Pass ``include="skills"`` to also compare canonical and runtime skill dirs.
+    Pass ``include="skills,agents"`` to also compare canonical skills /
+    sub-agents against their runtime counterparts.
     """
+    from memtomem.context.agents import diff_agents
     from memtomem.context.detector import detect_agent_files
     from memtomem.context.generator import GENERATORS
     from memtomem.context.parser import CONTEXT_FILENAME, parse_context
@@ -194,6 +233,17 @@ async def mem_context_diff(
         else:
             lines.append("No skills to compare.")
 
+    if "agents" in inc:
+        rows = diff_agents(root)
+        if rows:
+            if lines:
+                lines.append("")
+            lines.append("Sub-agents:")
+            for runtime, name, status in rows:
+                lines.append(f"  {runtime}: {name} [{status}]")
+        else:
+            lines.append("No sub-agents to compare.")
+
     return "\n".join(lines) if lines else "Nothing to compare."
 
 
@@ -202,13 +252,16 @@ async def mem_context_diff(
 @register("context")
 async def mem_context_sync(
     include: str = "",
+    strict: bool = False,
     ctx: CtxType = None,  # type: ignore[assignment]
 ) -> str:
     """Sync .memtomem/context.md to all detected agent files.
 
-    Pass ``include="skills"`` to also fan out .memtomem/skills/ to
-    .claude/skills/, .gemini/skills/, and .agents/skills/ (Codex CLI).
+    Pass ``include="skills,agents"`` to also fan out ``.memtomem/skills/`` and
+    ``.memtomem/agents/`` to their runtime targets (Claude Code, Gemini CLI,
+    Codex CLI). ``strict=True`` turns dropped sub-agent fields into errors.
     """
+    from memtomem.context.agents import StrictDropError, generate_all_agents
     from memtomem.context.detector import detect_agent_files
     from memtomem.context.generator import GENERATORS
     from memtomem.context.parser import CONTEXT_FILENAME, parse_context
@@ -255,5 +308,25 @@ async def mem_context_sync(
                 results.append(f"  {runtime}: {rel}")
         for runtime, reason in skill_result.skipped:
             results.append(f"  skipped {runtime}: {reason}")
+
+    if "agents" in inc:
+        try:
+            agent_result = generate_all_agents(root, strict=strict)
+        except StrictDropError as exc:
+            return f"strict error: {exc}"
+        if agent_result.generated:
+            if results:
+                results.append("")
+            results.append(f"Sub-agent fan-out: {len(agent_result.generated)}")
+            for runtime, path in agent_result.generated:
+                try:
+                    rel = path.relative_to(root) if path.is_relative_to(root) else path
+                except ValueError:
+                    rel = path
+                results.append(f"  {runtime}: {rel}")
+        for runtime, reason in agent_result.skipped:
+            results.append(f"  skipped {runtime}: {reason}")
+        for runtime, agent_name, dropped in agent_result.dropped:
+            results.append(f"  {runtime} dropped {dropped} from '{agent_name}'")
 
     return "Synced:\n" + "\n".join(results) if results else "Nothing to sync."

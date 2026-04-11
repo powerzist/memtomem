@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-DetectedKind = Literal["file", "skill_dir"]
+DetectedKind = Literal["file", "skill_dir", "agent_file"]
 
 
 @dataclass
@@ -41,6 +41,14 @@ SKILL_DIRS: dict[str, list[str]] = {
     "claude_skills": [".claude/skills"],
     "gemini_skills": [".gemini/skills"],
     "codex_skills": [".agents/skills"],
+}
+
+# Sub-agent-runtime name → project-scope directories containing ``<name>.md`` sub-agent
+# files. Codex sub-agents are user-scope only (``~/.codex/agents/``) so they are not
+# discoverable via the project root and intentionally omitted here.
+AGENT_DIRS: dict[str, list[str]] = {
+    "claude_agents": [".claude/agents"],
+    "gemini_agents": [".gemini/agents"],
 }
 
 
@@ -101,16 +109,53 @@ def detect_skill_dirs(project_root: Path) -> list[DetectedFile]:
     return sorted(found, key=lambda f: (f.agent, str(f.path)))
 
 
+def detect_agent_dirs(project_root: Path) -> list[DetectedFile]:
+    """Scan project root for runtime-specific sub-agent files.
+
+    Each discovered ``<name>.md`` file under a registered ``AGENT_DIRS`` entry
+    is reported as a ``DetectedFile`` with ``kind="agent_file"``. Codex
+    sub-agents live in ``~/.codex/agents/`` (user-scope) and are therefore
+    **not** discoverable here — use :func:`memtomem.context.agents.diff_agents`
+    for the Codex side.
+    """
+    found: list[DetectedFile] = []
+
+    for agent, paths in AGENT_DIRS.items():
+        for rel_path in paths:
+            root = project_root / rel_path
+            if not root.is_dir():
+                continue
+            for md_file in sorted(root.glob("*.md")):
+                if not md_file.is_file():
+                    continue
+                found.append(
+                    DetectedFile(
+                        agent=agent,
+                        path=md_file,
+                        size=md_file.stat().st_size,
+                        kind="agent_file",
+                    )
+                )
+
+    return sorted(found, key=lambda f: (f.agent, str(f.path)))
+
+
 def detect_all(project_root: Path) -> list[DetectedFile]:
-    """Return both agent files and skill directories in a single list."""
-    return detect_agent_files(project_root) + detect_skill_dirs(project_root)
+    """Return project-memory files, skill directories, and sub-agent files."""
+    return (
+        detect_agent_files(project_root)
+        + detect_skill_dirs(project_root)
+        + detect_agent_dirs(project_root)
+    )
 
 
 __all__ = [
+    "AGENT_DIRS",
     "AGENT_FILES",
     "DetectedFile",
     "DetectedKind",
     "SKILL_DIRS",
+    "detect_agent_dirs",
     "detect_agent_files",
     "detect_all",
     "detect_skill_dirs",
