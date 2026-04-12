@@ -36,7 +36,7 @@ async def mem_entity_scan(
     """
     from fnmatch import fnmatch
 
-    from memtomem.tools.entity_extraction import extract_entities
+    from memtomem.tools.entity_extraction import extract_entities_with_llm
 
     app = _get_app(ctx)
     storage = app.storage
@@ -71,7 +71,9 @@ async def mem_entity_scan(
             if not overwrite and str(chunk.id) in already_extracted:
                 continue
 
-            entities = extract_entities(chunk.content, entity_types)
+            entities = await extract_entities_with_llm(
+                chunk.content, entity_types, app.llm_provider
+            )
             if not entities:
                 continue
 

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from memtomem.embedding.base import EmbeddingProvider
+    from memtomem.llm.base import LLMProvider
     from memtomem.storage.base import StorageBackend
 
 logger = logging.getLogger(__name__)
@@ -69,3 +71,52 @@ async def expand_query_headings(
         logger.debug("Query expanded (headings): %r -> %r", query, expanded)
         return expanded
     return query
+
+
+# ---------------------------------------------------------------------------
+# LLM-based expansion
+# ---------------------------------------------------------------------------
+
+_EXPANSION_SYSTEM_PROMPT = (
+    "You are a search query expansion assistant. Given a user's search "
+    "query, generate synonyms and closely related terms that would help "
+    "retrieve relevant documents. Output ONLY a comma-separated list of "
+    "terms, nothing else. Do not repeat words already in the query."
+)
+
+# Hard timeout to prevent search latency blow-up (seconds).
+_LLM_EXPANSION_TIMEOUT = 3.0
+
+
+async def expand_query_llm(
+    query: str,
+    llm_provider: LLMProvider,
+    max_terms: int = 3,
+) -> str:
+    """Expand query using an LLM to generate synonyms / related terms.
+
+    A hard timeout of 3 seconds prevents search from hanging when the
+    LLM provider is slow. On timeout the original query is returned
+    (handled by the caller).
+    """
+    from memtomem.llm.utils import strip_llm_response
+
+    prompt = f'Expand this search query with up to {max_terms} related terms:\n"{query}"'
+
+    raw = await asyncio.wait_for(
+        llm_provider.generate(prompt, system=_EXPANSION_SYSTEM_PROMPT, max_tokens=256),
+        timeout=_LLM_EXPANSION_TIMEOUT,
+    )
+    cleaned = strip_llm_response(raw)
+
+    query_words = set(query.lower().split())
+    terms: list[str] = []
+    for part in cleaned.split(","):
+        term = part.strip()
+        if term and term.lower() not in query_words:
+            terms.append(term)
+    if not terms:
+        return query
+    expanded = query + " " + " ".join(terms[:max_terms])
+    logger.debug("Query expanded (llm): %r -> %r", query, expanded)
+    return expanded

@@ -139,6 +139,20 @@ depend on `policy_type`:
 | `keep_originals` | bool | `true` | Keep original chunks after consolidation (recommended) |
 | `summary_namespace` | str | `"archive:summary"` | Namespace for generated summary chunks |
 
+## LLM
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MEMTOMEM_LLM__ENABLED` | `false` | Enable LLM provider (required for LLM-powered features) |
+| `MEMTOMEM_LLM__PROVIDER` | `ollama` | `ollama` (local), `openai` (cloud/compatible), or `anthropic` |
+| `MEMTOMEM_LLM__MODEL` | _(empty)_ | Model name (empty uses provider default: ollama→llama3.2, openai→gpt-4o-mini, anthropic→claude-sonnet-4-20250514) |
+| `MEMTOMEM_LLM__BASE_URL` | `http://localhost:11434` | API endpoint URL |
+| `MEMTOMEM_LLM__API_KEY` | _(empty)_ | API key (required for OpenAI/Anthropic/OpenRouter) |
+| `MEMTOMEM_LLM__MAX_TOKENS` | `1024` | Maximum response tokens |
+| `MEMTOMEM_LLM__TIMEOUT` | `60.0` | Request timeout in seconds |
+
+The `openai` provider works with any OpenAI-compatible endpoint (LM Studio, vLLM, OpenRouter, etc.) — set `BASE_URL` to the server's address. See [LLM Providers](llm-providers.md) for setup examples.
+
 ## Tool Mode
 
 | Variable | Default | Description |

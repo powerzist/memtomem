@@ -107,7 +107,8 @@ See [MCP Client Setup](docs/guides/mcp-clients.md) for Cursor / Windsurf / Claud
 | [Interactive Notebooks](examples/notebooks/) | Jupyter notebooks for the Python API — hello, indexing, sessions, tuning, LangGraph |
 | [User Guide](docs/guides/user-guide.md) | Complete feature walkthrough |
 | [Configuration](docs/guides/configuration.md) | All `MEMTOMEM_*` environment variables |
-| [Embeddings](docs/guides/embeddings.md) | Ollama and OpenAI providers |
+| [Embeddings](docs/guides/embeddings.md) | ONNX, Ollama, and OpenAI embedding providers |
+| [LLM Providers](docs/guides/llm-providers.md) | Ollama, OpenAI, Anthropic, and compatible endpoints |
 | [MCP Client Setup](docs/guides/mcp-clients.md) | Editor-specific configuration |
 | [Agent Memory Guide](docs/guides/agent-memory-guide.md) | Sessions, working memory, procedures |
 | [Web UI](docs/guides/web-ui.md) | Visual dashboard |

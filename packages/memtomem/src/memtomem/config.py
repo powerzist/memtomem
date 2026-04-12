@@ -186,13 +186,13 @@ class RerankConfig(BaseSettings):
 class QueryExpansionConfig(BaseSettings):
     enabled: bool = False
     max_terms: int = 3
-    strategy: str = "tags"  # "tags" | "headings" | "both"
+    strategy: str = "tags"  # "tags" | "headings" | "both" | "llm"
 
     @field_validator("strategy")
     @classmethod
     def valid_strategy(cls, v: str) -> str:
-        if v not in ("tags", "headings", "both"):
-            raise ValueError("strategy must be 'tags', 'headings', or 'both'")
+        if v not in ("tags", "headings", "both", "llm"):
+            raise ValueError("strategy must be 'tags', 'headings', 'both', or 'llm'")
         return v
 
 

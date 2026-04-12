@@ -93,6 +93,13 @@ async def create_components(config: Mem2MemConfig | None = None) -> Components:
 
         reranker = create_reranker(config.rerank)
 
+    # Create optional LLM provider (before SearchPipeline so it can be passed in)
+    llm = None
+    if config.llm.enabled:
+        from memtomem.llm.factory import create_llm
+
+        llm = create_llm(config.llm)
+
     search_pipeline = SearchPipeline(
         storage=storage,
         embedder=embedder,
@@ -104,14 +111,8 @@ async def create_components(config: Mem2MemConfig | None = None) -> Components:
         expansion_config=config.query_expansion,
         importance_config=config.importance,
         context_window_config=config.context_window,
+        llm_provider=llm,
     )
-
-    # Create optional LLM provider
-    llm = None
-    if config.llm.enabled:
-        from memtomem.llm.factory import create_llm
-
-        llm = create_llm(config.llm)
 
     return Components(
         config=config,

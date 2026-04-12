@@ -47,6 +47,9 @@ if TYPE_CHECKING:
     from memtomem.storage.base import StorageBackend
 
 
+_EXPANSION_CACHE_MAX = 100
+
+
 class SearchPipeline:
     def __init__(
         self,
@@ -60,6 +63,7 @@ class SearchPipeline:
         expansion_config: object | None = None,
         importance_config: object | None = None,
         context_window_config: ContextWindowConfig | None = None,
+        llm_provider: object | None = None,
     ) -> None:
         self._storage = storage
         self._embedder = embedder
@@ -71,12 +75,16 @@ class SearchPipeline:
         self._expansion_config = expansion_config
         self._importance_config = importance_config
         self._context_window_config = context_window_config
+        self._llm_provider = llm_provider
 
         # Search result TTL cache (per-instance) with version counter
         self._search_cache: dict[str, tuple[float, int, list[SearchResult], RetrievalStats]] = {}
         self._cache_ttl = config.cache_ttl
         self._cache_version = 0
         self._bg_tasks: set[asyncio.Task] = set()
+
+        # LLM query expansion cache (cleared on invalidate_cache)
+        self._expansion_cache: dict[str, str] = {}
 
     def _cache_key(
         self,
@@ -105,6 +113,7 @@ class SearchPipeline:
         """Clear the search result TTL cache (call after data/config changes)."""
         self._cache_version += 1
         self._search_cache.clear()
+        self._expansion_cache.clear()
 
     def _resolve_context_window(self, override: int | None) -> int:
         """Return the effective context window size (0 = disabled)."""
@@ -200,7 +209,11 @@ class SearchPipeline:
 
         # Stage 0: Query expansion
         if self._expansion_config and getattr(self._expansion_config, "enabled", False):
-            from memtomem.search.expansion import expand_query_tags, expand_query_headings
+            from memtomem.search.expansion import (
+                expand_query_headings,
+                expand_query_llm,
+                expand_query_tags,
+            )
 
             strategy = getattr(self._expansion_config, "strategy", "tags")
             max_terms = getattr(self._expansion_config, "max_terms", 3)
@@ -208,6 +221,25 @@ class SearchPipeline:
                 query = await expand_query_tags(query, self._storage, max_terms)
             if strategy in ("headings", "both"):
                 query = await expand_query_headings(query, self._storage, self._embedder, max_terms)
+            if strategy == "llm":
+                if query in self._expansion_cache:
+                    query = self._expansion_cache[query]
+                elif self._llm_provider is not None:
+                    try:
+                        original = query
+                        query = await expand_query_llm(
+                            query,
+                            self._llm_provider,
+                            max_terms,  # type: ignore[arg-type]
+                        )
+                        if len(self._expansion_cache) >= _EXPANSION_CACHE_MAX:
+                            self._expansion_cache.clear()
+                        self._expansion_cache[original] = query
+                    except Exception:
+                        logger.warning(
+                            "LLM query expansion failed, using original query",
+                            exc_info=True,
+                        )
 
         # Stage 1 + 2: run enabled retrievers concurrently
         bm25_results: list[SearchResult] = []

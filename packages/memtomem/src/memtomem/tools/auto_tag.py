@@ -1,7 +1,13 @@
-"""Automatic keyword-based tag extraction for memory chunks."""
+"""Automatic keyword-based tag extraction for memory chunks.
+
+When an LLM provider is available the ``extract_tags_llm`` function offers
+a semantically richer alternative; ``_extract_tags_with_fallback`` picks
+the LLM path when possible and gracefully degrades to keyword heuristics.
+"""
 
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -9,7 +15,9 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from memtomem.llm.base import LLMProvider
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +184,78 @@ def extract_tags_keyword(
     return [word for word, _ in counter.most_common(max_tags)]
 
 
+# ---------------------------------------------------------------------------
+# LLM-based tagging (optional upgrade over keyword heuristic)
+# ---------------------------------------------------------------------------
+
+_AUTO_TAG_SYSTEM_PROMPT = (
+    "Generate concise, lowercase tags that capture the key topics and themes. "
+    "Output ONLY a comma-separated list of tags, nothing else. "
+    "Tags should be single words or hyphenated compounds."
+)
+
+
+async def extract_tags_llm(
+    text: str,
+    llm_provider: LLMProvider,
+    max_tags: int = 5,
+    heading_hierarchy: tuple[str, ...] = (),
+) -> list[str]:
+    """Extract tags using an LLM for semantic understanding.
+
+    Args:
+        text: Content to extract tags from.
+        llm_provider: An initialised LLMProvider instance.
+        max_tags: Maximum number of tags to return.
+        heading_hierarchy: Heading breadcrumbs for additional context.
+
+    Returns:
+        List of lowercase tag strings, up to *max_tags*.
+    """
+    from memtomem.llm.utils import strip_llm_response
+
+    heading_ctx = ""
+    if heading_hierarchy:
+        heading_ctx = f"\nHeading context: {' > '.join(heading_hierarchy)}\n"
+
+    prompt = (
+        f"Generate up to {max_tags} tags for this content.{heading_ctx}\n---\n{text[:3000]}\n---"
+    )
+
+    raw = await llm_provider.generate(prompt, system=_AUTO_TAG_SYSTEM_PROMPT, max_tokens=256)
+    cleaned = strip_llm_response(raw)
+
+    # Parse comma-separated tags
+    seen: set[str] = set()
+    tags: list[str] = []
+    for part in cleaned.split(","):
+        tag = part.strip().lower()
+        if tag and tag not in seen:
+            seen.add(tag)
+            tags.append(tag)
+    return tags[:max_tags]
+
+
+async def _extract_tags_with_fallback(
+    text: str,
+    max_tags: int = 5,
+    heading_hierarchy: tuple[str, ...] = (),
+    llm_provider: object | None = None,
+) -> list[str]:
+    """Try LLM tagging; fall back to keyword heuristic on failure."""
+    if llm_provider is not None:
+        try:
+            return await extract_tags_llm(
+                text,
+                llm_provider,
+                max_tags,
+                heading_hierarchy,  # type: ignore[arg-type]
+            )
+        except Exception:
+            logger.warning("LLM tagging failed, using keyword fallback", exc_info=True)
+    return extract_tags_keyword(text, max_tags, heading_hierarchy=heading_hierarchy)
+
+
 @dataclass(frozen=True)
 class AutoTagStats:
     """Statistics returned by auto_tag_storage."""
@@ -191,6 +271,7 @@ async def auto_tag_storage(
     max_tags: int = 5,
     overwrite: bool = False,
     dry_run: bool = False,
+    llm_provider: object | None = None,
 ) -> AutoTagStats:
     """Apply keyword-based tags to chunks in storage.
 
@@ -229,10 +310,11 @@ async def auto_tag_storage(
                 skipped += 1
                 continue
 
-            new_tags = extract_tags_keyword(
+            new_tags = await _extract_tags_with_fallback(
                 chunk.content,
                 max_tags=max_tags,
                 heading_hierarchy=chunk.metadata.heading_hierarchy,
+                llm_provider=llm_provider,
             )
             if not new_tags:
                 skipped += 1

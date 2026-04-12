@@ -1,9 +1,21 @@
-"""Entity extraction from unstructured text — regex + heuristic approach."""
+"""Entity extraction from unstructured text — regex + heuristic approach.
+
+When an LLM provider is available, ``extract_entities_with_llm`` tries the
+LLM first for higher-quality extraction (especially person names and
+decisions) and falls back to the regex heuristic.
+"""
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from memtomem.llm.base import LLMProvider
+
+logger = logging.getLogger(__name__)
 
 _MONTHS = (
     "January",
@@ -251,3 +263,104 @@ def _extract_concepts(text: str) -> list[ExtractedEntity]:
         if len(term) > 3:
             results.append(ExtractedEntity("concept", term, 0.7, m.start()))
     return results
+
+
+# ---------------------------------------------------------------------------
+# LLM-based entity extraction (optional upgrade over regex)
+# ---------------------------------------------------------------------------
+
+_VALID_ENTITY_TYPES = frozenset(
+    {"person", "date", "decision", "action_item", "technology", "concept"}
+)
+
+_ENTITY_SYSTEM_PROMPT = (
+    "You are an entity extraction assistant. Extract structured entities "
+    "from the given text. For each entity, output one line in the format:\n"
+    "TYPE|VALUE|CONFIDENCE\n"
+    "where TYPE is one of: person, date, decision, action_item, technology, "
+    "concept. CONFIDENCE is a float 0.0-1.0. Output ONLY the entity lines, "
+    "nothing else. If no entities are found, output NONE."
+)
+
+
+def _parse_entity_response(
+    raw: str,
+    entity_types: set[str] | None = None,
+) -> list[ExtractedEntity]:
+    """Parse TYPE|VALUE|CONFIDENCE lines from an LLM response."""
+    from memtomem.llm.utils import strip_llm_response
+
+    text = strip_llm_response(raw)
+    if not text or text.strip().upper() == "NONE":
+        return []
+
+    results: list[ExtractedEntity] = []
+    for line in text.split("\n"):
+        line = line.strip()
+        if not line or line.upper() == "NONE":
+            continue
+        parts = line.split("|")
+        if len(parts) < 2:
+            continue  # malformed line — skip
+        etype = parts[0].strip().lower()
+        if etype not in _VALID_ENTITY_TYPES:
+            continue
+        if entity_types and etype not in entity_types:
+            continue
+        value = parts[1].strip()
+        if not value:
+            continue
+        try:
+            confidence = float(parts[2].strip()) if len(parts) >= 3 else 0.7
+            confidence = max(0.0, min(1.0, confidence))
+        except (ValueError, IndexError):
+            confidence = 0.7
+        results.append(ExtractedEntity(etype, value[:200], confidence, 0))
+    return results
+
+
+async def extract_entities_llm(
+    text: str,
+    llm_provider: LLMProvider,
+    entity_types: list[str] | None = None,
+) -> list[ExtractedEntity]:
+    """Extract entities using an LLM for higher-quality structured extraction.
+
+    Args:
+        text: Content to extract entities from (truncated to 3000 chars).
+        llm_provider: An initialised LLMProvider instance.
+        entity_types: Restrict to these entity types (default: all).
+
+    Returns:
+        List of :class:`ExtractedEntity` parsed from the LLM response.
+    """
+    type_hint = ""
+    if entity_types:
+        type_hint = f"\nOnly extract these types: {', '.join(entity_types)}\n"
+
+    prompt = f"Extract entities from the following text.{type_hint}\n---\n{text[:3000]}\n---"
+
+    raw = await llm_provider.generate(prompt, system=_ENTITY_SYSTEM_PROMPT, max_tokens=256)
+    types_set = set(entity_types) if entity_types else None
+    return _parse_entity_response(raw, types_set)
+
+
+async def extract_entities_with_llm(
+    text: str,
+    entity_types: list[str] | None = None,
+    llm_provider: LLMProvider | None = None,
+) -> list[ExtractedEntity]:
+    """Extract entities, preferring LLM when available.
+
+    Falls back to the regex heuristic when *llm_provider* is ``None`` or
+    when the LLM call fails.
+    """
+    if llm_provider is not None:
+        try:
+            return await extract_entities_llm(text, llm_provider, entity_types)
+        except Exception:
+            logger.warning(
+                "LLM entity extraction failed, using heuristic fallback",
+                exc_info=True,
+            )
+    return extract_entities(text, entity_types)

@@ -384,9 +384,25 @@ See [Web UI Guide](web-ui.md) for details.
 
 ---
 
+## Optional: LLM Provider
+
+memtomem can use an LLM for enhanced features like consolidation summaries, semantic auto-tagging, and query expansion. LLM is disabled by default — basic search, indexing, and tagging work without it.
+
+To enable:
+
+```bash
+export MEMTOMEM_LLM__ENABLED=true
+export MEMTOMEM_LLM__PROVIDER=ollama    # or: openai, anthropic
+```
+
+See [LLM Providers](llm-providers.md) for full setup including local servers (LM Studio, vLLM) and cloud APIs (OpenRouter).
+
+---
+
 ## Next steps
 
 - [Hands-On Tutorial](hands-on-tutorial.md) — follow-along with example files
 - [User Guide](user-guide.md) — complete feature walkthrough
 - [Agent Memory Guide](agent-memory-guide.md) — sessions, working memory, procedures
+- [LLM Providers](llm-providers.md) — Ollama, OpenAI, and compatible endpoints
 - [MCP Client Setup](mcp-clients.md) — editor-specific configuration
