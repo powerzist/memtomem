@@ -67,9 +67,7 @@ class TestPolicyScheduler:
             return_value=[_result("p1", 0)],
         ) as mock_run:
             await sched._run_policies()
-            mock_run.assert_called_once_with(
-                app.storage, dry_run=False, max_actions=100
-            )
+            mock_run.assert_called_once_with(app.storage, dry_run=False, max_actions=100)
 
     @pytest.mark.asyncio
     async def test_cache_invalidated_when_affected(self):
@@ -114,8 +112,11 @@ class TestPolicyScheduler:
 
         with patch("memtomem.tools.policy_engine.run_all_enabled", side_effect=_failing):
             await sched.start()
-            # Wait long enough for at least 2 ticks
-            await asyncio.sleep(0.2)
+            # Poll until at least 2 ticks happen (CI can be slow).
+            for _ in range(40):
+                await asyncio.sleep(0.05)
+                if call_count >= 2:
+                    break
             assert not sched._task.done(), "loop crashed after error"
             assert call_count >= 2, f"expected >= 2 calls, got {call_count}"
             await sched.stop()
