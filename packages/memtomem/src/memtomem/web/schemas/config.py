@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ConfigEmbeddingOut(BaseModel):
@@ -69,6 +69,8 @@ class ConfigResponse(BaseModel):
 
 class ConfigPatchRequest(BaseModel):
     """Section-level partial update. Include only fields to change."""
+
+    model_config = ConfigDict(extra="allow")
 
     search: dict[str, Any] | None = None
     indexing: dict[str, Any] | None = None

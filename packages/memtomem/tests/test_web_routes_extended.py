@@ -653,8 +653,8 @@ class TestConfigPatch:
         assert len(data["applied"]) == 0
         assert any("read-only" in r for r in data["rejected"])
 
-    async def test_patch_unknown_section_ignored(self, client: AsyncClient):
-        """Unknown sections are silently ignored by Pydantic (extra='ignore')."""
+    async def test_patch_unknown_section_rejected(self, client: AsyncClient):
+        """Unknown sections are reported in rejected list."""
         resp = await client.patch(
             "/api/config",
             json={"nonexistent": {"key": "val"}},
@@ -662,6 +662,7 @@ class TestConfigPatch:
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["applied"]) == 0
+        assert any("nonexistent" in r for r in data["rejected"])
 
     async def test_save_config(self, client: AsyncClient):
         """POST /api/config/save persists config."""
@@ -711,15 +712,13 @@ class TestNamespaceCRUD:
         assert data["namespace"] == "general"
         assert data["chunk_count"] == 30
 
-    async def test_rename_namespace_empty_name_accepted(self, app, client: AsyncClient):
-        """Empty new_name is currently accepted (no validation)."""
-        app.state.storage.rename_namespace = AsyncMock(return_value=0)
+    async def test_rename_namespace_empty_name_rejected(self, client: AsyncClient):
+        """Empty new_name is rejected by Pydantic min_length=1."""
         resp = await client.post(
             "/api/namespaces/default/rename",
             json={"new_name": ""},
         )
-        # Note: no server-side validation for empty names — potential improvement
-        assert resp.status_code == 200
+        assert resp.status_code == 422
 
     async def test_delete_namespace(self, app, client: AsyncClient):
         app.state.storage.delete_by_namespace = AsyncMock(return_value=30)
@@ -875,3 +874,96 @@ class TestImport:
             files={"file": ("data.csv", b"a,b,c", "text/csv")},
         )
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Integration test — real SQLite storage
+# ---------------------------------------------------------------------------
+
+
+class TestNamespaceIntegration:
+    """End-to-end namespace CRUD with real SQLite storage."""
+
+    @pytest.fixture
+    async def real_client(self, tmp_path):
+        """App backed by a real in-memory SQLite store."""
+        from memtomem.config import Mem2MemConfig
+        from memtomem.server.component_factory import create_components, close_components
+
+        db_path = str(tmp_path / "integ.db")
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+
+        config = Mem2MemConfig()
+        config.storage.sqlite_path = Path(db_path)
+        config.indexing.memory_dirs = [mem_dir]
+        config.embedding.dimension = 768
+
+        import memtomem.config as _cfg
+
+        _orig = _cfg.load_config_overrides
+        _cfg.load_config_overrides = lambda c: None
+        comp = await create_components(config)
+        _cfg.load_config_overrides = _orig
+
+        application = create_app(lifespan=None)
+        application.state.storage = comp.storage
+        application.state.config = config
+        application.state.embedder = comp.embedder
+        application.state.search_pipeline = comp.search_pipeline
+        application.state.index_engine = comp.index_engine
+        application.state.dedup_scanner = AsyncMock()
+        application.state.project_root = tmp_path
+
+        transport = ASGITransport(app=application)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            yield c, comp
+
+        await close_components(comp)
+
+    async def test_namespace_crud_lifecycle(self, real_client):
+        """Create chunk → set meta → rename ns → verify → delete ns."""
+        client, comp = real_client
+        storage = comp.storage
+
+        # Insert a chunk into "alpha" namespace directly
+        chunk = _make_test_chunk(namespace="alpha")
+        await storage.upsert_chunks([chunk])
+
+        # 1) List namespaces — "alpha" should appear
+        resp = await client.get("/api/namespaces")
+        assert resp.status_code == 200
+        ns_names = [ns["namespace"] for ns in resp.json()["namespaces"]]
+        assert "alpha" in ns_names
+
+        # 2) Set metadata on "alpha"
+        resp = await client.patch(
+            "/api/namespaces/alpha",
+            json={"description": "Test ns", "color": "#ff0000"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["description"] == "Test ns"
+
+        # 3) Rename "alpha" → "beta"
+        resp = await client.post(
+            "/api/namespaces/alpha/rename",
+            json={"new_name": "beta"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["namespace"] == "beta"
+        assert resp.json()["chunk_count"] == 1
+
+        # 4) Old name is gone
+        resp = await client.get("/api/namespaces/alpha")
+        assert resp.status_code == 404
+
+        # 5) Delete "beta" — removes chunk
+        resp = await client.delete("/api/namespaces/beta")
+        assert resp.status_code == 200
+        assert resp.json()["deleted"] == 1
+
+        # 6) Verify empty
+        resp = await client.get("/api/namespaces")
+        assert resp.status_code == 200
+        ns_names = [ns["namespace"] for ns in resp.json()["namespaces"]]
+        assert "beta" not in ns_names

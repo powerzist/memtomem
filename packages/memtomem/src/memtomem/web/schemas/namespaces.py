@@ -31,7 +31,7 @@ class NamespaceMetaRequest(BaseModel):
 
 
 class RenameRequest(BaseModel):
-    new_name: str
+    new_name: str = Field(..., min_length=1, max_length=200)
 
 
 class NamespaceInfoResponse(BaseModel):
