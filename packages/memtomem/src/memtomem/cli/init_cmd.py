@@ -275,7 +275,7 @@ def _step_language(state: dict) -> None:
 
 
 def _step_settings(state: dict) -> None:
-    step_header(8, "Claude Code Hooks")
+    step_header(7, "Claude Code Hooks")
 
     # Skip entirely if Claude Code is not installed
     claude_dir = Path.home() / ".claude"
@@ -318,7 +318,7 @@ def _step_settings(state: dict) -> None:
 
 
 def _step_mcp(state: dict) -> None:
-    step_header(7, "Connect to AI Editor")
+    step_header(8, "Connect to AI Editor")
     click.echo("  How do you want to connect memtomem?")
     click.echo("    [1] Claude Code (run 'claude mcp add' automatically)")
     click.echo("    [2] Generate .mcp.json (for Cursor, Windsurf, etc.)")
@@ -464,6 +464,8 @@ def _write_mcp_json(server_cmd: str, server_args: list[str], mcp_env: dict[str, 
 
 
 _MODEL_DIMS: dict[str, int] = {
+    "all-MiniLM-L6-v2": 384,
+    "bge-small-en-v1.5": 384,
     "nomic-embed-text": 768,
     "bge-m3": 1024,
     "text-embedding-3-small": 1536,
@@ -475,7 +477,7 @@ _MODEL_DIMS: dict[str, int] = {
 @click.option(
     "-y", "--non-interactive", is_flag=True, help="Skip wizard, use defaults or provided options"
 )
-@click.option("--provider", type=click.Choice(["none", "ollama", "openai"]), default=None)
+@click.option("--provider", type=click.Choice(["none", "onnx", "ollama", "openai"]), default=None)
 @click.option("--model", default=None, help="Embedding model name")
 @click.option("--memory-dir", default=None, help="Memory directory path")
 @click.option("--db-path", default=None, help="SQLite DB path")
@@ -529,6 +531,9 @@ def init(
         if _provider == "none":
             _model = ""
             _dimension = 0
+        elif _provider == "onnx":
+            _model = model or "all-MiniLM-L6-v2"
+            _dimension = _MODEL_DIMS.get(_model, 384)
         elif _provider == "ollama":
             _model = model or "nomic-embed-text"
             _dimension = _MODEL_DIMS.get(_model, 768)

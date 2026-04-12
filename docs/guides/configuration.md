@@ -24,9 +24,9 @@ For interactive setup, run `mm init` instead of editing env vars by hand.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MEMTOMEM_EMBEDDING__PROVIDER` | `ollama` | `ollama` (local) or `openai` (cloud) |
-| `MEMTOMEM_EMBEDDING__MODEL` | `nomic-embed-text` | Embedding model name |
-| `MEMTOMEM_EMBEDDING__DIMENSION` | `768` | Vector dimension (must match the model) |
+| `MEMTOMEM_EMBEDDING__PROVIDER` | `none` | `none` (BM25 only), `onnx` (local), `ollama` (local server), or `openai` (cloud) |
+| `MEMTOMEM_EMBEDDING__MODEL` | _(empty)_ | Embedding model name (depends on provider) |
+| `MEMTOMEM_EMBEDDING__DIMENSION` | `0` | Vector dimension (must match the model; 0 = BM25 only) |
 | `MEMTOMEM_EMBEDDING__BASE_URL` | `http://localhost:11434` | API endpoint URL |
 | `MEMTOMEM_EMBEDDING__API_KEY` | _(empty)_ | API key (required for OpenAI) |
 | `MEMTOMEM_EMBEDDING__BATCH_SIZE` | `64` | Texts per embedding API call |
@@ -46,6 +46,16 @@ See [Embedding Providers](embeddings.md) for the supported model list and the di
 | `MEMTOMEM_SEARCH__ENABLE_DENSE` | `true` | Enable semantic vector retriever |
 | `MEMTOMEM_SEARCH__RRF_WEIGHTS` | `[1.0, 1.0]` | RRF weights for `[BM25, Dense]` — adjust to favor one retriever |
 | `MEMTOMEM_SEARCH__TOKENIZER` | `unicode61` | FTS tokenizer (`unicode61` or `kiwipiepy`) |
+
+## Query Expansion
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MEMTOMEM_QUERY_EXPANSION__ENABLED` | `false` | Enable query expansion (pre-retrieval) |
+| `MEMTOMEM_QUERY_EXPANSION__MAX_TERMS` | `3` | Maximum terms to add to the query |
+| `MEMTOMEM_QUERY_EXPANSION__STRATEGY` | `tags` | `tags`, `headings`, `both`, or `llm` |
+
+The `llm` strategy uses an LLM to generate semantic synonyms (requires `MEMTOMEM_LLM__ENABLED=true`). Other strategies use index metadata and do not need LLM. See [LLM Providers](llm-providers.md).
 
 ## Context Window
 

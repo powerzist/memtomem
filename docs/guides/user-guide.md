@@ -428,6 +428,21 @@ mem_auto_tag(max_tags=5)                            # apply
 mem_auto_tag(source_filter="notes", overwrite=True) # re-tag specific files
 ```
 
+> **LLM enhancement**: When LLM is enabled (`MEMTOMEM_LLM__ENABLED=true`), `mem_auto_tag` uses semantic analysis for richer tags. Falls back to keyword frequency heuristics when LLM is disabled or fails. See [LLM Providers](llm-providers.md).
+
+### Entity extraction
+
+Scan indexed chunks and extract structured entities (people, dates, decisions, technologies):
+
+```
+mem_entity_scan(dry_run=True)                       # preview
+mem_entity_scan()                                   # extract & store
+mem_entity_scan(entity_types=["person", "decision"])# specific types only
+mem_entity_search(entity_type="person")             # query extracted entities
+```
+
+> **LLM enhancement**: When LLM is enabled, `mem_entity_scan` uses LLM-based structured extraction for higher accuracy (especially person names and decisions). Falls back to regex/pattern matching when LLM is disabled or fails.
+
 ### Decay and expiration
 
 Score decay reduces relevance of older memories:

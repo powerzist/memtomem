@@ -132,13 +132,14 @@ mm init -y --provider openai --api-key sk-...           # OpenAI
 mm init -y --memory-dir ~/notes --mcp claude            # custom dir + Claude Code auto-setup
 ```
 
-1. **Embedding provider** — Ollama (local, free) or OpenAI (cloud). Model selection and auto-pull.
+1. **Embedding provider** — BM25-only (default, zero-dependency), Local ONNX (no server), Ollama (local server), or OpenAI (cloud)
 2. **Memory directory** — where your notes live (e.g., `~/notes`, `~/memories`)
 3. **Storage** — SQLite database path (default: `~/.memtomem/memtomem.db`)
 4. **Namespace** — auto-assign namespace from folder name (e.g., `~/docs` → `docs`)
 5. **Search** — number of results per query (default: 10), time-decay toggle
 6. **Language** — tokenizer selection: Unicode (default) or Korean (kiwipiepy)
-7. **Editor connection** — Claude Code auto-setup, .mcp.json generation, or manual
+7. **Claude Code hooks** — optional hook integration via settings.json
+8. **Editor connection** — Claude Code auto-setup, .mcp.json generation, or manual
 
 After the wizard, your MCP server is ready. Skip to [First use](#first-use) if you ran the wizard.
 
