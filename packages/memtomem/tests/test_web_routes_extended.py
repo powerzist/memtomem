@@ -169,13 +169,21 @@ def app():
     # namespaces
     storage.list_namespace_meta = AsyncMock(
         return_value=[
-            {"namespace": "default", "chunk_count": 30, "description": "General", "color": "#3b82f6"},
-            {"namespace": "work", "chunk_count": 12, "description": "Work notes", "color": "#ef4444"},
+            {
+                "namespace": "default",
+                "chunk_count": 30,
+                "description": "General",
+                "color": "#3b82f6",
+            },
+            {
+                "namespace": "work",
+                "chunk_count": 12,
+                "description": "Work notes",
+                "color": "#ef4444",
+            },
         ]
     )
-    storage.list_namespaces = AsyncMock(
-        return_value=[("default", 30), ("work", 12)]
-    )
+    storage.list_namespaces = AsyncMock(return_value=[("default", 30), ("work", 12)])
     storage.get_namespace_meta = AsyncMock(
         return_value={"description": "General", "color": "#3b82f6"}
     )
@@ -402,9 +410,7 @@ class TestDecay:
             mock_expire.return_value = ExpireStats(
                 total_chunks=100, expired_chunks=20, deleted_chunks=0
             )
-            resp = await client.get(
-                "/api/decay/scan", params={"max_age_days": 60.0}
-            )
+            resp = await client.get("/api/decay/scan", params={"max_age_days": 60.0})
             assert resp.status_code == 200
             data = resp.json()
             assert data["expired_chunks"] == 20
@@ -460,9 +466,7 @@ class TestExport:
         with patch("memtomem.tools.export_import.export_chunks") as mock_export:
             from memtomem.tools.export_import import ExportBundle
 
-            bundle = ExportBundle(
-                exported_at="2026-01-01T00:00:00Z", total_chunks=42, chunks=[]
-            )
+            bundle = ExportBundle(exported_at="2026-01-01T00:00:00Z", total_chunks=42, chunks=[])
             mock_export.return_value = bundle
 
             resp = await client.get("/api/export/stats")
@@ -618,3 +622,256 @@ class TestSettingsSync:
                 target.write_text(backup)
             elif target.is_file():
                 target.unlink()
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/config  (config mutation)
+# ---------------------------------------------------------------------------
+
+
+class TestConfigPatch:
+    async def test_patch_mutable_field(self, client: AsyncClient):
+        """Patching a mutable field succeeds and returns applied change."""
+        resp = await client.patch(
+            "/api/config",
+            json={"search": {"default_top_k": 20}},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["applied"]) == 1
+        assert data["applied"][0]["field"] == "search.default_top_k"
+        assert data["applied"][0]["new_value"] == "20"
+
+    async def test_patch_readonly_field_rejected(self, client: AsyncClient):
+        """Patching a read-only field is rejected."""
+        resp = await client.patch(
+            "/api/config",
+            json={"embedding": {"provider": "openai"}},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["applied"]) == 0
+        assert any("read-only" in r for r in data["rejected"])
+
+    async def test_patch_unknown_section_ignored(self, client: AsyncClient):
+        """Unknown sections are silently ignored by Pydantic (extra='ignore')."""
+        resp = await client.patch(
+            "/api/config",
+            json={"nonexistent": {"key": "val"}},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["applied"]) == 0
+
+    async def test_save_config(self, client: AsyncClient):
+        """POST /api/config/save persists config."""
+        with patch("memtomem.config.save_config_overrides"):
+            resp = await client.post("/api/config/save")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["ok"] is True
+
+
+# ---------------------------------------------------------------------------
+# Namespace CRUD
+# ---------------------------------------------------------------------------
+
+
+class TestNamespaceCRUD:
+    async def test_get_namespace_info(self, client: AsyncClient):
+        resp = await client.get("/api/namespaces/default")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["namespace"] == "default"
+        assert data["chunk_count"] == 30
+        assert data["description"] == "General"
+
+    async def test_get_namespace_not_found(self, app, client: AsyncClient):
+        app.state.storage.list_namespaces.return_value = [("default", 30), ("work", 12)]
+        resp = await client.get("/api/namespaces/nonexistent")
+        assert resp.status_code == 404
+
+    async def test_update_namespace_meta(self, client: AsyncClient):
+        resp = await client.patch(
+            "/api/namespaces/default",
+            json={"description": "Updated", "color": "#00ff00"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["namespace"] == "default"
+
+    async def test_rename_namespace(self, app, client: AsyncClient):
+        app.state.storage.rename_namespace = AsyncMock(return_value=30)
+        resp = await client.post(
+            "/api/namespaces/default/rename",
+            json={"new_name": "general"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["namespace"] == "general"
+        assert data["chunk_count"] == 30
+
+    async def test_rename_namespace_empty_name_accepted(self, app, client: AsyncClient):
+        """Empty new_name is currently accepted (no validation)."""
+        app.state.storage.rename_namespace = AsyncMock(return_value=0)
+        resp = await client.post(
+            "/api/namespaces/default/rename",
+            json={"new_name": ""},
+        )
+        # Note: no server-side validation for empty names — potential improvement
+        assert resp.status_code == 200
+
+    async def test_delete_namespace(self, app, client: AsyncClient):
+        app.state.storage.delete_by_namespace = AsyncMock(return_value=30)
+        resp = await client.delete("/api/namespaces/default")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["deleted"] == 30
+
+
+# ---------------------------------------------------------------------------
+# Scratch workspace CRUD
+# ---------------------------------------------------------------------------
+
+
+class TestScratchCRUD:
+    async def test_set_scratch(self, app, client: AsyncClient):
+        app.state.storage.scratch_set = AsyncMock()
+        resp = await client.post(
+            "/api/scratch",
+            json={"key": "task", "value": "write tests"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["key"] == "task"
+
+    async def test_set_scratch_with_ttl(self, app, client: AsyncClient):
+        app.state.storage.scratch_set = AsyncMock()
+        resp = await client.post(
+            "/api/scratch",
+            json={"key": "tmp", "value": "ephemeral", "ttl_minutes": 60},
+        )
+        assert resp.status_code == 200
+        app.state.storage.scratch_set.assert_called_once()
+        # Verify expires_at was computed (non-None)
+        call_kwargs = app.state.storage.scratch_set.call_args
+        assert call_kwargs.kwargs.get("expires_at") is not None
+
+    async def test_delete_scratch(self, app, client: AsyncClient):
+        app.state.storage.scratch_delete = AsyncMock(return_value=True)
+        resp = await client.delete("/api/scratch/task")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["key"] == "task"
+        assert data["deleted"] is True
+
+    async def test_promote_scratch(self, app, client: AsyncClient):
+        app.state.storage.scratch_get = AsyncMock(
+            return_value={"key": "note", "value": "promote me"}
+        )
+        app.state.storage.scratch_promote = AsyncMock()
+        with patch("memtomem.tools.memory_writer.append_entry"):
+            resp = await client.post(
+                "/api/scratch/note/promote",
+                json={},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["promoted"] is True
+            assert data["key"] == "note"
+
+    async def test_promote_scratch_not_found(self, app, client: AsyncClient):
+        app.state.storage.scratch_get = AsyncMock(return_value=None)
+        resp = await client.post(
+            "/api/scratch/missing/promote",
+            json={},
+        )
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Watchdog endpoints
+# ---------------------------------------------------------------------------
+
+
+class TestWatchdog:
+    async def test_status_disabled(self, client: AsyncClient):
+        """When no watchdog is configured, returns enabled=false."""
+        resp = await client.get("/api/watchdog/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["enabled"] is False
+
+    async def test_status_enabled(self, app, client: AsyncClient):
+        mock_wd = MagicMock()
+        mock_wd.get_status.return_value = {
+            "enabled": True,
+            "checks": {"storage": "ok"},
+        }
+        app.state.health_watchdog = mock_wd
+        resp = await client.get("/api/watchdog/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["enabled"] is True
+        assert "checks" in data
+
+    async def test_history(self, app, client: AsyncClient):
+        mock_wd = MagicMock()
+        mock_wd.get_trends.return_value = {"check": "storage", "points": []}
+        app.state.health_watchdog = mock_wd
+        resp = await client.get(
+            "/api/watchdog/history",
+            params={"check": "storage", "hours": 24},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["check"] == "storage"
+
+    async def test_run_disabled(self, client: AsyncClient):
+        """POST /watchdog/run returns 400 when not configured."""
+        resp = await client.post("/api/watchdog/run")
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["enabled"] is False
+
+    async def test_run_enabled(self, app, client: AsyncClient):
+        mock_wd = AsyncMock()
+        mock_wd.run_now = AsyncMock(return_value={"storage": "ok", "embedding": "ok"})
+        app.state.health_watchdog = mock_wd
+        resp = await client.post("/api/watchdog/run")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["storage"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# POST /api/export/import
+# ---------------------------------------------------------------------------
+
+
+class TestImport:
+    async def test_import_json_bundle(self, client: AsyncClient):
+        with patch("memtomem.tools.export_import.import_chunks") as mock_imp:
+            from types import SimpleNamespace
+
+            mock_imp.return_value = SimpleNamespace(
+                total_chunks=5,
+                imported_chunks=4,
+                skipped_chunks=1,
+                failed_chunks=0,
+            )
+            resp = await client.post(
+                "/api/export/import",
+                files={"file": ("export.json", b'{"chunks":[]}', "application/json")},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["total_chunks"] == 5
+            assert data["imported_chunks"] == 4
+
+    async def test_import_rejects_non_json(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/export/import",
+            files={"file": ("data.csv", b"a,b,c", "text/csv")},
+        )
+        assert resp.status_code == 422

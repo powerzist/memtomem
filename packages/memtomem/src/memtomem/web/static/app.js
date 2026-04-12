@@ -69,10 +69,13 @@ const STATE = {
 // Utilities
 // ---------------------------------------------------------------------------
 
-async function api(method, path, body) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
-  if (body !== undefined) opts.body = JSON.stringify(body);
-  const res = await fetch(API + path, opts);
+async function api(method, path, body, opts = {}) {
+  if (typeof opts !== 'object' || Array.isArray(opts)) opts = {};
+  const fetchOpts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) fetchOpts.body = JSON.stringify(body);
+  if (opts.signal) fetchOpts.signal = opts.signal;
+  else fetchOpts.signal = AbortSignal.timeout(opts.timeout ?? 30_000);
+  const res = await fetch(API + path, fetchOpts);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || res.statusText);
@@ -396,7 +399,7 @@ async function loadStats() {
     qs('stat-sources').textContent = `${data.total_sources} sources`;
     qs('card-chunks').textContent = data.total_chunks;
     qs('card-sources').textContent = data.total_sources;
-  } catch (_) { /* non-critical */ }
+  } catch (e) { console.warn('[stats]', e); }
 }
 
 loadStats();
@@ -438,14 +441,18 @@ async function checkEmbeddingMismatch() {
     }
 
     qs('emb-reset-btn').addEventListener('click', async () => {
-      const warned = confirm(
-        'WARNING: All indexed vectors will be deleted.\n' +
-        `New config will be applied: ${data.configured.provider}/${data.configured.model} (dim ${data.configured.dimension})\n\n` +
-        'Re-indexing will be required afterwards. Continue?'
-      );
+      const warned = await showConfirm({
+        title: t('confirm.emb_reset_title'),
+        message: t('confirm.emb_reset_msg', {
+          provider: data.configured.provider,
+          model: data.configured.model,
+          dimension: data.configured.dimension,
+        }),
+        confirmText: t('confirm.emb_reset_btn'),
+      });
       if (!warned) return;
       try {
-        const res = await api('POST', '/api/embedding-reset');
+        const res = await api('POST', '/api/embedding-reset', undefined, { timeout: 120_000 });
         hide(banner);
         sessionStorage.removeItem('m2m-emb-banner-dismissed');
         await fetchServerConfig();
@@ -454,7 +461,7 @@ async function checkEmbeddingMismatch() {
         showToast(t('toast.reset_failed', { error: err.message }), 'error');
       }
     }, { once: true });
-  } catch (_) { /* non-critical */ }
+  } catch (e) { console.warn('[emb-check]', e); }
 }
 
 // ---------------------------------------------------------------------------
@@ -811,6 +818,8 @@ function _renderActiveFilters() {
   show(el);
 }
 
+let _searchAbortCtrl = null;
+
 async function doSearch() {
   const q = qs('search-input').value.trim();
   if (!q) return;
@@ -831,12 +840,18 @@ async function doSearch() {
     .map(o => o.value).filter(Boolean);
   if (selectedSources.length) params.set('source_filter', selectedSources.join(','));
 
+  // Cancel any in-flight search
+  if (_searchAbortCtrl) _searchAbortCtrl.abort();
+  _searchAbortCtrl = new AbortController();
+
   const btn = qs('search-btn');
   btnLoading(btn, true);
   try {
-    const data = await api('GET', `/api/search?${params}`);
+    const data = await api('GET', `/api/search?${params}`, undefined,
+                           { signal: _searchAbortCtrl.signal });
     renderResults(data.results, data.retrieval_stats);
   } catch (err) {
+    if (err.name === 'AbortError') return;
     const list = qs('results-list');
     list.innerHTML = '';
     hide(qs('results-empty'));
@@ -2657,9 +2672,25 @@ async function runIndexStream() {
 
   const params = new URLSearchParams({ path, recursive, force });
   const es = new EventSource(`/api/index/stream?${params}`);
+  let _sseFailCount = 0;
+  const _SSE_MAX_FAILS = 3;
 
   es.onmessage = (e) => {
-    const event = JSON.parse(e.data);
+    let event;
+    try { event = JSON.parse(e.data); }
+    catch {
+      _sseFailCount++;
+      console.warn(`[index-stream] malformed SSE (${_sseFailCount}/${_SSE_MAX_FAILS}):`, e.data);
+      if (_sseFailCount >= _SSE_MAX_FAILS) {
+        es.close();
+        showToast(t('toast.stream_fallback'), 'error');
+        hide(progressEl);
+        btnLoading(qs('index-stream-btn'), false);
+        btnLoading(qs('index-btn'), false);
+      }
+      return;
+    }
+    _sseFailCount = 0;
     if (event.type === 'progress') {
       const pct = event.files_total > 0
         ? Math.round((event.files_done / event.files_total) * 100) : 0;
@@ -3612,7 +3643,7 @@ function _showReindexWarning(applied) {
       const btn = e.target;
       btnLoading(btn, true);
       try {
-        const res = await api('POST', '/api/fts-rebuild');
+        const res = await api('POST', '/api/fts-rebuild', undefined, { timeout: 120_000 });
         showToast(res.message || `FTS rebuilt: ${res.rebuilt_rows} chunks`, 'success');
         btn.textContent = 'Done';
         btn.disabled = true;
@@ -3628,7 +3659,7 @@ function _showReindexWarning(applied) {
       const btn = e.target;
       btnLoading(btn, true);
       try {
-        const res = await api('POST', '/api/reindex?force=true');
+        const res = await api('POST', '/api/reindex?force=true', undefined, { timeout: 300_000 });
         if (res.errors && res.errors.length) {
           showToast(`Re-index completed with ${res.errors.length} error(s): ${res.errors[0]}`, 'error');
         } else {
@@ -4402,7 +4433,8 @@ async function loadSourceFilter() {
     sel.innerHTML = data.sources.map(s =>
       `<option value="${escapeAttr(s.path)}">${escapeHtml(basename(s.path))}</option>`
     ).join('');
-  } catch (_) {
+  } catch (e) {
+    console.warn('[source-filter]', e);
     sel.innerHTML = '<option value="" disabled>Error loading sources</option>';
   }
 }
@@ -5007,7 +5039,7 @@ async function loadNamespaceDropdowns() {
         if (sel.value !== current) sel.value = '';
       }
     });
-  } catch (_) { /* non-critical */ }
+  } catch (e) { console.warn('[ns-dropdown]', e); }
 }
 
 // Load on startup and when switching to related tabs
@@ -5161,10 +5193,15 @@ async function renameNamespace(oldName) {
 }
 
 async function deleteNamespace(name) {
-  if (!confirm(`Delete all chunks in namespace '${name}'? This cannot be undone.`)) return;
+  const ok = await showConfirm({
+    title: t('confirm.ns_delete_title'),
+    message: t('confirm.ns_delete_msg', { name }),
+    confirmText: t('common.delete'),
+  });
+  if (!ok) return;
   try {
     const data = await api('DELETE', `/api/namespaces/${encodeURIComponent(name)}`);
-    showToast(`Deleted ${data.deleted} chunks from '${name}'`, 'success');
+    showToast(t('toast.ns_deleted', { count: data.deleted, name }), 'success');
     STATE.lastResults = STATE.lastResults.filter(r => r.chunk.namespace !== name);
     renderResults(STATE.lastResults);
     _markDataStale();

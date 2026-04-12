@@ -384,5 +384,13 @@
   "toast.reindex_failed": "Re-index failed: {error}",
   "toast.rename_failed": "Rename failed: {error}",
   "toast.update_failed": "Update failed: {error}",
-  "toast.error": "Error: {error}"
+  "toast.error": "Error: {error}",
+
+  "toast.ns_deleted": "Deleted {count} chunks from '{name}'",
+
+  "confirm.emb_reset_title": "Reset Embedding Vectors",
+  "confirm.emb_reset_msg": "WARNING: All indexed vectors will be deleted. New config: {provider}/{model} (dim {dimension}). Re-indexing required afterwards.",
+  "confirm.emb_reset_btn": "Reset",
+  "confirm.ns_delete_title": "Delete Namespace",
+  "confirm.ns_delete_msg": "Delete all chunks in namespace '{name}'? This cannot be undone."
 }

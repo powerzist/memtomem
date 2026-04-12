@@ -45,7 +45,8 @@ const I18N = (() => {
       el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel));
     });
     document.querySelectorAll('[data-i18n-html]').forEach(el => {
-      el.innerHTML = t(el.dataset.i18nHtml);
+      console.warn('[i18n] data-i18n-html is deprecated, use data-i18n instead:', el);
+      el.textContent = t(el.dataset.i18nHtml);
     });
   }
 

@@ -384,5 +384,13 @@
   "toast.reindex_failed": "재인덱스 실패: {error}",
   "toast.rename_failed": "이름 변경 실패: {error}",
   "toast.update_failed": "업데이트 실패: {error}",
-  "toast.error": "오류: {error}"
+  "toast.error": "오류: {error}",
+
+  "toast.ns_deleted": "'{name}'에서 {count}개 청크 삭제됨",
+
+  "confirm.emb_reset_title": "임베딩 벡터 초기화",
+  "confirm.emb_reset_msg": "경고: 모든 인덱싱된 벡터가 삭제됩니다. 새 설정: {provider}/{model} (dim {dimension}). 이후 재인덱싱이 필요합니다.",
+  "confirm.emb_reset_btn": "초기화",
+  "confirm.ns_delete_title": "네임스페이스 삭제",
+  "confirm.ns_delete_msg": "네임스페이스 '{name}'의 모든 청크를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다."
 }
