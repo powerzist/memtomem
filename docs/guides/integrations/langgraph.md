@@ -172,8 +172,8 @@ The adapter respects the same environment variables as the MCP server:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MEMTOMEM_EMBEDDING__PROVIDER` | `ollama` | Embedding provider |
-| `MEMTOMEM_EMBEDDING__MODEL` | `nomic-embed-text` | Model name |
+| `MEMTOMEM_EMBEDDING__PROVIDER` | `none` | Embedding provider (`none`, `onnx`, `ollama`, `openai`) |
+| `MEMTOMEM_EMBEDDING__MODEL` | _(empty)_ | Model name (depends on provider) |
 | `MEMTOMEM_STORAGE__SQLITE_PATH` | `~/.memtomem/memtomem.db` | Database path |
 | `MEMTOMEM_INDEXING__MEMORY_DIRS` | `~/.memtomem/memories` | Memory directories |
 
