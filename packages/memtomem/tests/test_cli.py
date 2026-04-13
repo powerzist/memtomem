@@ -291,6 +291,43 @@ class TestSaveConfigOverrides:
         assert str(tmp_path / "a") in loaded_dirs
         assert str(tmp_path / "b") in loaded_dirs
 
+    def test_invalid_value_falls_back_to_default(self, tmp_path, monkeypatch):
+        """Invalid values in config.json should be skipped with warning, not crash."""
+        import json
+
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr("memtomem.config._override_path", lambda: config_file)
+
+        config_file.write_text(json.dumps({
+            "search": {"default_top_k": -5},  # violates min=1
+        }))
+
+        cfg = Mem2MemConfig()
+        default_top_k = cfg.search.default_top_k
+        load_config_overrides(cfg)
+
+        # Invalid value must be rejected; field keeps code default
+        assert cfg.search.default_top_k == default_top_k
+
+    def test_invalid_value_does_not_block_valid_ones(self, tmp_path, monkeypatch):
+        """One bad field must not prevent other valid fields from loading."""
+        import json
+
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr("memtomem.config._override_path", lambda: config_file)
+
+        config_file.write_text(json.dumps({
+            "search": {"default_top_k": -5, "rrf_k": 80},
+            "decay": {"enabled": True},
+        }))
+
+        cfg = Mem2MemConfig()
+        load_config_overrides(cfg)
+
+        # Valid fields applied, invalid one skipped
+        assert cfg.search.rrf_k == 80
+        assert cfg.decay.enabled is True
+
     def test_existing_memory_dirs_not_clobbered(self, tmp_path, monkeypatch):
         """Saving mutable fields must not destroy pre-existing memory_dirs."""
         import json

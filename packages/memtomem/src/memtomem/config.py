@@ -494,6 +494,20 @@ def load_config_overrides(config: Mem2MemConfig) -> None:
             continue
         for key, value in updates.items():
             if hasattr(section_obj, key):
+                full_key = f"{section_name}.{key}"
+                constraint = FIELD_CONSTRAINTS.get(full_key)
+                if constraint:
+                    try:
+                        value = coerce_and_validate(value, constraint)
+                    except ValueError as exc:
+                        _log.warning(
+                            "Invalid config value %s=%r in %s: %s (using default)",
+                            full_key,
+                            value,
+                            path,
+                            exc,
+                        )
+                        continue
                 try:
                     setattr(section_obj, key, value)
                 except (TypeError, ValueError) as exc:
