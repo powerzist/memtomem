@@ -340,9 +340,20 @@ def _write_config_and_summary(state: dict) -> None:
     project_install = state.get("project_install", False)
     project_dir = state.get("project_dir")
 
-    # Write ~/.memtomem/config.json
+    # Write ~/.memtomem/config.json (read-merge-write to preserve non-init fields)
     click.secho("Writing configuration...", fg="green")
-    config_data: dict = {
+    config_path = config_dir / "config.json"
+
+    # Read existing config as merge base (preserves post-init user edits)
+    existing: dict = {}
+    if config_path.exists():
+        try:
+            existing = json.loads(config_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # Build init-target fields only
+    init_data: dict = {
         "embedding": {
             "provider": state["provider"],
             "model": state["model"],
@@ -358,11 +369,20 @@ def _write_config_and_summary(state: dict) -> None:
         "decay": {"enabled": state["decay_enabled"]},
     }
     if state["provider"] == "ollama":
-        config_data["embedding"]["base_url"] = "http://localhost:11434"
+        init_data["embedding"]["base_url"] = "http://localhost:11434"
     if state.get("api_key"):
-        config_data["embedding"]["api_key"] = state["api_key"]
-    config_path = config_dir / "config.json"
-    config_path.write_text(json.dumps(config_data, indent=2), encoding="utf-8")
+        init_data["embedding"]["api_key"] = state["api_key"]
+
+    # Merge: init fields overwrite, non-init sections/fields preserved
+    for section, fields in init_data.items():
+        if section not in existing:
+            existing[section] = {}
+        if isinstance(fields, dict) and isinstance(existing[section], dict):
+            existing[section].update(fields)
+        else:
+            existing[section] = fields
+
+    config_path.write_text(json.dumps(existing, indent=2, default=str), encoding="utf-8")
     click.echo(f"  Config: {config_path}")
 
     # Build MCP server command
