@@ -45,7 +45,12 @@ async def mem_stats(
 async def mem_status(
     ctx: CtxType = None,  # type: ignore[assignment]
 ) -> str:
-    """Show indexing statistics and current configuration summary."""
+    """Show indexing statistics and current configuration summary.
+
+    Reports storage backend, embedding info, chunk/source counts, and
+    warns when orphaned source files are detected (files removed from
+    disk but still indexed — run mem_cleanup_orphans to fix).
+    """
     app = _get_app(ctx)
     stats = await app.storage.get_stats()
     config = app.config

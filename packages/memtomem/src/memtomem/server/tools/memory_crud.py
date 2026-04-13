@@ -163,8 +163,11 @@ async def mem_add(
         file: Target .md filename (relative or absolute). If omitted, a
               timestamped file is created in the first memory_dir.
         namespace: Assign indexed chunks to this namespace (default: config default)
-        template: Use a built-in template (adr, meeting, debug, decision).
-                  Content can be JSON with field values or plain text.
+        template: Use a built-in template (adr, meeting, debug, decision,
+                  procedure). Content can be JSON with field values or plain text.
+
+    Returns a confirmation message. If highly similar memories already exist
+    (≥90% match), a duplicate warning is appended to the output.
     """
     message, _stats = await _mem_add_core(
         content=content,

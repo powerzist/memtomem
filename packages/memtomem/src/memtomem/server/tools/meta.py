@@ -43,6 +43,9 @@ async def mem_do(
     analytics, maintenance, policy, entity, multi_agent, importers,
     procedures, advanced, ingest, search, context
 
+    Common aliases are resolved automatically (e.g. "orphans" →
+    "cleanup_orphans", "health" → "eval").
+
     Args:
         action: The action name (e.g. "session_start", "tag_list", "help")
         params: Optional dict of parameters for the action
