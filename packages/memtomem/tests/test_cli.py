@@ -12,7 +12,13 @@ import pytest
 from click.testing import CliRunner
 
 from memtomem.cli import cli
-from memtomem.cli.config_cmd import _coerce_and_validate, _FIELD_CONSTRAINTS
+from memtomem.config import (
+    FIELD_CONSTRAINTS,
+    Mem2MemConfig,
+    coerce_and_validate,
+    load_config_overrides,
+    save_config_overrides,
+)
 
 
 @pytest.fixture
@@ -128,6 +134,46 @@ class TestConfigCLI:
         result = runner.invoke(cli, ["config", "set", "noperiod", "10"])
         assert result.exit_code != 0
 
+    @patch("memtomem.config.save_config_overrides")
+    @patch("memtomem.config.load_config_overrides")
+    @patch("memtomem.config.Mem2MemConfig")
+    def test_config_set_tokenizer_triggers_fts_rebuild(
+        self, mock_cfg_cls, mock_load, mock_save, runner: CliRunner
+    ) -> None:
+        """Changing search.tokenizer via CLI must trigger set_tokenizer + FTS rebuild."""
+        mock_cfg = MagicMock()
+        mock_cfg.search.tokenizer = "unicode61"
+        mock_cfg_cls.return_value = mock_cfg
+
+        mock_storage = MagicMock()
+        mock_storage.rebuild_fts = MagicMock(return_value=42)
+
+        with (
+            patch("memtomem.storage.fts_tokenizer.set_tokenizer") as mock_set_tok,
+            patch("memtomem.storage.factory.create_storage", return_value=mock_storage),
+        ):
+            result = runner.invoke(cli, ["config", "set", "search.tokenizer", "kiwipiepy"])
+            assert result.exit_code == 0
+
+            mock_set_tok.assert_called_once_with("kiwipiepy")
+            mock_storage.rebuild_fts.assert_called_once()
+
+    @patch("memtomem.config.save_config_overrides")
+    @patch("memtomem.config.load_config_overrides")
+    @patch("memtomem.config.Mem2MemConfig")
+    def test_config_set_non_tokenizer_no_fts_rebuild(
+        self, mock_cfg_cls, mock_load, mock_save, runner: CliRunner
+    ) -> None:
+        """Non-tokenizer config changes must NOT trigger FTS rebuild."""
+        mock_cfg = MagicMock()
+        mock_cfg.search.default_top_k = 10
+        mock_cfg_cls.return_value = mock_cfg
+
+        with patch("memtomem.storage.fts_tokenizer.set_tokenizer") as mock_set_tok:
+            result = runner.invoke(cli, ["config", "set", "search.default_top_k", "20"])
+            assert result.exit_code == 0
+            mock_set_tok.assert_not_called()
+
     def test_config_set_immutable_field(self, runner: CliRunner) -> None:
         """Attempting to set a non-mutable field is rejected."""
         result = runner.invoke(cli, ["config", "set", "search.nonexistent_field", "10"])
@@ -139,62 +185,131 @@ class TestConfigCLI:
 
 
 class TestCoerceAndValidate:
-    """Test the _coerce_and_validate helper directly."""
+    """Test the coerce_and_validate helper directly."""
 
     def test_none_constraint(self) -> None:
-        assert _coerce_and_validate("hello", None) == "hello"
+        assert coerce_and_validate("hello", None) == "hello"
 
     def test_int_coercion(self) -> None:
         constraint = {"type": int, "min": 1, "max": 100}
-        assert _coerce_and_validate("42", constraint) == 42
+        assert coerce_and_validate("42", constraint) == 42
 
     def test_int_below_min(self) -> None:
         constraint = {"type": int, "min": 1, "max": 100}
         with pytest.raises(ValueError, match=">= 1"):
-            _coerce_and_validate("0", constraint)
+            coerce_and_validate("0", constraint)
 
     def test_int_above_max(self) -> None:
         constraint = {"type": int, "min": 1, "max": 100}
         with pytest.raises(ValueError, match="<= 100"):
-            _coerce_and_validate("200", constraint)
+            coerce_and_validate("200", constraint)
 
     def test_int_not_numeric(self) -> None:
         constraint = {"type": int}
         with pytest.raises(ValueError, match="cannot convert"):
-            _coerce_and_validate("abc", constraint)
+            coerce_and_validate("abc", constraint)
 
     def test_bool_true_variants(self) -> None:
         constraint = {"type": bool}
         for v in ("true", "1", "yes", True):
-            assert _coerce_and_validate(v, constraint) is True
+            assert coerce_and_validate(v, constraint) is True
 
     def test_bool_false_variants(self) -> None:
         constraint = {"type": bool}
         for v in ("false", "0", "no", False):
-            assert _coerce_and_validate(v, constraint) is False
+            assert coerce_and_validate(v, constraint) is False
 
     def test_bool_invalid(self) -> None:
         constraint = {"type": bool}
         with pytest.raises(ValueError, match="cannot convert"):
-            _coerce_and_validate("maybe", constraint)
+            coerce_and_validate("maybe", constraint)
 
     def test_float_coercion(self) -> None:
         constraint = {"type": float, "min": 0.0, "max": 1.0}
-        assert _coerce_and_validate("0.5", constraint) == 0.5
+        assert coerce_and_validate("0.5", constraint) == 0.5
 
     def test_allowed_constraint(self) -> None:
         constraint = {"type": str, "allowed": {"a", "b"}}
-        assert _coerce_and_validate("a", constraint) == "a"
+        assert coerce_and_validate("a", constraint) == "a"
         with pytest.raises(ValueError, match="must be one of"):
-            _coerce_and_validate("c", constraint)
+            coerce_and_validate("c", constraint)
+
+    def test_list_float_coercion_from_string(self) -> None:
+        """CSV string should be coerced to list[float]."""
+        constraint = {"type": list, "item_type": float, "length": 2}
+        result = coerce_and_validate("1.5,0.8", constraint)
+        assert result == [1.5, 0.8]
+
+    def test_list_float_coercion_from_list(self) -> None:
+        """Passing an actual list should work (Web UI path)."""
+        constraint = {"type": list, "item_type": float, "length": 2}
+        result = coerce_and_validate([1.5, 0.8], constraint)
+        assert result == [1.5, 0.8]
+
+    def test_list_float_wrong_length(self) -> None:
+        constraint = {"type": list, "item_type": float, "length": 2}
+        with pytest.raises(ValueError, match="length 2"):
+            coerce_and_validate("1.0,2.0,3.0", constraint)
+
+    def test_list_float_invalid_element(self) -> None:
+        constraint = {"type": list, "item_type": float, "length": 2}
+        with pytest.raises(ValueError, match="cannot convert"):
+            coerce_and_validate("abc,1.0", constraint)
+
+    def test_rrf_weights_has_constraint(self) -> None:
+        """search.rrf_weights must be registered in FIELD_CONSTRAINTS."""
+        assert "search.rrf_weights" in FIELD_CONSTRAINTS
 
     def test_field_constraints_are_well_formed(self) -> None:
-        """Sanity: every declared constraint has type, min, and max."""
-        for key, c in _FIELD_CONSTRAINTS.items():
+        """Sanity: every declared constraint has a type and consistent bounds."""
+        for key, c in FIELD_CONSTRAINTS.items():
             assert "type" in c, f"{key} missing type"
-            assert "min" in c, f"{key} missing min"
-            assert "max" in c, f"{key} missing max"
-            assert c["min"] < c["max"], f"{key} min >= max"
+            # When both min and max are present, min must be < max
+            if "min" in c and "max" in c:
+                assert c["min"] < c["max"], f"{key} min >= max"
+
+
+# ── save_config_overrides persistence ──────────────────────────────────
+
+
+class TestSaveConfigOverrides:
+    """Verify save→load round-trip for mutable and special fields."""
+
+    def test_memory_dirs_survives_save_load(self, tmp_path, monkeypatch):
+        """memory_dirs added via Web UI must survive a save→load cycle."""
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr("memtomem.config._override_path", lambda: config_file)
+
+        cfg = Mem2MemConfig()
+        cfg.indexing.memory_dirs = [tmp_path / "a", tmp_path / "b"]
+        save_config_overrides(cfg)
+
+        fresh = Mem2MemConfig()
+        load_config_overrides(fresh)
+
+        loaded_dirs = [str(p) for p in fresh.indexing.memory_dirs]
+        assert str(tmp_path / "a") in loaded_dirs
+        assert str(tmp_path / "b") in loaded_dirs
+
+    def test_existing_memory_dirs_not_clobbered(self, tmp_path, monkeypatch):
+        """Saving mutable fields must not destroy pre-existing memory_dirs."""
+        import json
+
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr("memtomem.config._override_path", lambda: config_file)
+
+        # Simulate mm init having written memory_dirs
+        config_file.write_text(json.dumps({
+            "indexing": {"memory_dirs": ["/pre/existing"]},
+        }))
+
+        cfg = Mem2MemConfig()
+        load_config_overrides(cfg)
+        cfg.search.default_top_k = 42
+        save_config_overrides(cfg)
+
+        data = json.loads(config_file.read_text())
+        assert "/pre/existing" in [str(p) for p in data["indexing"]["memory_dirs"]]
 
 
 # ── Other subcommands (help text) ───────────────────────────────────────

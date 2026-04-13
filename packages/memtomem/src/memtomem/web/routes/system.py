@@ -10,6 +10,12 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from memtomem.config import (
+    FIELD_CONSTRAINTS,
+    MUTABLE_FIELDS,
+    coerce_and_validate,
+    save_config_overrides,
+)
 from memtomem.tools.memory_writer import append_entry
 from memtomem.web.deps import (
     get_config,
@@ -163,96 +169,9 @@ async def get_config_endpoint(config=Depends(get_config)) -> ConfigResponse:
 # PATCH /api/config — runtime configuration update
 # ---------------------------------------------------------------------------
 
-_MUTABLE_FIELDS: dict[str, set[str]] = {
-    "search": {
-        "default_top_k",
-        "bm25_candidates",
-        "dense_candidates",
-        "rrf_k",
-        "enable_bm25",
-        "enable_dense",
-        "tokenizer",
-        "rrf_weights",
-    },
-    "indexing": {
-        "max_chunk_tokens",
-        "min_chunk_tokens",
-        "chunk_overlap_tokens",
-        "structured_chunk_mode",
-    },
-    "embedding": {"batch_size"},
-    "decay": {"enabled", "half_life_days"},
-    "mmr": {"enabled", "lambda_param"},
-    "namespace": {"default_namespace", "enable_auto_ns"},
-}
 
-_FIELD_CONSTRAINTS: dict[str, dict] = {
-    "search.default_top_k": {"type": int, "min": 1, "max": 500},
-    "search.bm25_candidates": {"type": int, "min": 1, "max": 1000},
-    "search.dense_candidates": {"type": int, "min": 1, "max": 1000},
-    "search.rrf_k": {"type": int, "min": 1, "max": 1000},
-    "search.enable_bm25": {"type": bool},
-    "search.enable_dense": {"type": bool},
-    "search.tokenizer": {"type": str, "allowed": {"unicode61", "kiwipiepy"}},
-    "indexing.max_chunk_tokens": {"type": int, "min": 64, "max": 8192},
-    "indexing.min_chunk_tokens": {"type": int, "min": 0, "max": 256},
-    "indexing.chunk_overlap_tokens": {"type": int, "min": 0, "max": 512},
-    "indexing.structured_chunk_mode": {"type": str, "allowed": {"original", "recursive"}},
-    "embedding.batch_size": {"type": int, "min": 1, "max": 1024},
-    "decay.enabled": {"type": bool},
-    "decay.half_life_days": {"type": float, "min": 0.1},
-    "mmr.enabled": {"type": bool},
-    "mmr.lambda_param": {"type": float, "min": 0.0, "max": 1.0},
-    "namespace.default_namespace": {"type": str},
-    "namespace.enable_auto_ns": {"type": bool},
-}
-
-
-def _coerce_and_validate(value, constraint: dict | None):
-    """Coerce value to expected type and validate constraints."""
-    if constraint is None:
-        return value
-
-    expected_type = constraint["type"]
-
-    if expected_type is bool:
-        if isinstance(value, bool):
-            coerced = value
-        elif isinstance(value, str):
-            low = value.lower()
-            if low in ("true", "1", "yes"):
-                coerced = True
-            elif low in ("false", "0", "no"):
-                coerced = False
-            else:
-                raise ValueError(f"cannot convert '{value}' to bool")
-        elif isinstance(value, (int, float)):
-            coerced = bool(value)
-        else:
-            raise ValueError(f"cannot convert to bool: {value}")
-    elif expected_type is int:
-        try:
-            coerced = int(value)
-        except (TypeError, ValueError):
-            raise ValueError(f"cannot convert '{value}' to int")
-    elif expected_type is float:
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError):
-            raise ValueError(f"cannot convert '{value}' to float")
-    elif expected_type is str:
-        coerced = str(value)
-    else:
-        coerced = value
-
-    if "min" in constraint and coerced < constraint["min"]:
-        raise ValueError(f"must be >= {constraint['min']}")
-    if "max" in constraint and coerced > constraint["max"]:
-        raise ValueError(f"must be <= {constraint['max']}")
-    if "allowed" in constraint and coerced not in constraint["allowed"]:
-        raise ValueError(f"must be one of {constraint['allowed']}")
-
-    return coerced
+# _MUTABLE_FIELDS, _FIELD_CONSTRAINTS, _coerce_and_validate are imported
+# from memtomem.config (canonical single source of truth).
 
 
 @router.patch("/config", response_model=ConfigPatchResponse)
@@ -271,7 +190,7 @@ async def patch_config(
         async with _asyncio.timeout(60):
             async with _config_patch_lock:
                 for section_name, updates in req.model_dump(exclude_none=True).items():
-                    allowed = _MUTABLE_FIELDS.get(section_name, set())
+                    allowed = MUTABLE_FIELDS.get(section_name, set())
                     section_obj = getattr(config, section_name, None)
                     if section_obj is None:
                         rejected.append(f"{section_name}: unknown section")
@@ -283,9 +202,9 @@ async def patch_config(
                             rejected.append(f"{full_key}: read-only field")
                             continue
 
-                        constraint = _FIELD_CONSTRAINTS.get(full_key)
+                        constraint = FIELD_CONSTRAINTS.get(full_key)
                         try:
-                            coerced = _coerce_and_validate(value, constraint)
+                            coerced = coerce_and_validate(value, constraint)
                         except ValueError as e:
                             rejected.append(f"{full_key}: {e}")
                             continue
@@ -317,9 +236,7 @@ async def patch_config(
                     search_pipeline.invalidate_cache()
 
                 if persist:
-                    from memtomem.config import save_config_overrides
-
-                    save_config_overrides(config, _MUTABLE_FIELDS)
+                    save_config_overrides(config)
     except TimeoutError:
         raise HTTPException(503, "Config update timed out — another update may be in progress")
 
@@ -329,9 +246,7 @@ async def patch_config(
 @router.post("/config/save")
 async def save_config(config=Depends(get_config)):
     """Persist current mutable config to ~/.memtomem/config.json."""
-    from memtomem.config import save_config_overrides
-
-    save_config_overrides(config, _MUTABLE_FIELDS)
+    save_config_overrides(config)
     return {"ok": True, "message": "Config saved to ~/.memtomem/config.json"}
 
 
@@ -356,9 +271,7 @@ async def add_memory_dir(request: Request, config=Depends(get_config)):
         }
 
     config.indexing.memory_dirs.append(resolved)
-    from memtomem.config import save_config_overrides
-
-    save_config_overrides(config, _MUTABLE_FIELDS)
+    save_config_overrides(config)
     return {
         "ok": True,
         "message": f"Added {resolved}",
@@ -384,9 +297,7 @@ async def remove_memory_dir(request: Request, config=Depends(get_config)):
         raise HTTPException(status_code=400, detail="Cannot remove last memory_dir")
 
     config.indexing.memory_dirs = new_dirs
-    from memtomem.config import save_config_overrides
-
-    save_config_overrides(config, _MUTABLE_FIELDS)
+    save_config_overrides(config)
     return {
         "ok": True,
         "message": f"Removed {resolved}",

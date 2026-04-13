@@ -293,7 +293,7 @@ class TestSetConfigKey:
         config = Mem2MemConfig()
         msg = _set_config_key(config, "decay.enabled", "true")
         assert config.decay.enabled is True
-        assert "runtime only" in msg
+        assert msg.startswith("Set ")
 
     def test_set_bool_field_false(self):
         config = Mem2MemConfig()
@@ -307,9 +307,16 @@ class TestSetConfigKey:
         assert config.decay.half_life_days == 7.5
 
     def test_set_string_field(self):
+        """Mutable string field (namespace.default_namespace) should be settable."""
+        config = Mem2MemConfig()
+        msg = _set_config_key(config, "namespace.default_namespace", "work")
+        assert config.namespace.default_namespace == "work"
+
+    def test_init_only_field_rejected(self):
+        """Init-only fields like embedding.provider must be rejected."""
         config = Mem2MemConfig()
         msg = _set_config_key(config, "embedding.provider", "openai")
-        assert config.embedding.provider == "openai"
+        assert "not mutable" in msg.lower()
 
     def test_invalid_section(self):
         config = Mem2MemConfig()
@@ -331,11 +338,17 @@ class TestSetConfigKey:
         msg = _set_config_key(config, "a.b.c", "val")
         assert "section.field" in msg
 
-    def test_unsupported_complex_type(self):
+    def test_set_rrf_weights_csv(self):
+        """rrf_weights accepts CSV string and coerces to list[float]."""
         config = Mem2MemConfig()
-        # rrf_weights is a list[float], should be rejected
-        msg = _set_config_key(config, "search.rrf_weights", "[1.0, 2.0]")
-        assert "unsupported" in msg.lower() or "Cannot set" in msg
+        msg = _set_config_key(config, "search.rrf_weights", "1.5,0.8")
+        assert msg.startswith("Set ")
+        assert config.search.rrf_weights == [1.5, 0.8]
+
+    def test_set_rrf_weights_wrong_length(self):
+        config = Mem2MemConfig()
+        msg = _set_config_key(config, "search.rrf_weights", "1.0,2.0,3.0")
+        assert "Invalid" in msg or "length" in msg
 
 
 # ---------------------------------------------------------------------------
