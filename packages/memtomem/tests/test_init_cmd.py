@@ -48,6 +48,90 @@ def test_write_mcp_json_preserves_valid_env(
     assert data["mcpServers"]["memtomem"]["env"] == env
 
 
+def _make_init_state(tmp_path: Path) -> dict:
+    """Return a minimal wizard state dict pointing at *tmp_path*."""
+    return {
+        "provider": "none",
+        "model": "",
+        "dimension": 0,
+        "db_path": str(tmp_path / "memtomem.db"),
+        "memory_dir": str(tmp_path / "memories"),
+        "enable_auto_ns": False,
+        "default_ns": "default",
+        "top_k": 10,
+        "tokenizer": "unicode61",
+        "decay_enabled": False,
+        # Non-config keys required by _write_config_and_summary
+        "mcp_choice": 3,  # skip MCP setup
+        "settings_hooks": False,
+        "source_install": False,
+        "source_dir": None,
+        "project_install": False,
+        "project_dir": None,
+    }
+
+
+class TestInitConfigMerge:
+    """mm init must preserve non-init fields on re-run."""
+
+    def test_reinit_preserves_existing_mutable_fields(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Post-init config changes (e.g. mmr.lambda_param) must survive re-init."""
+        from memtomem.cli.init_cmd import _write_config_and_summary
+
+        # Redirect ~/.memtomem to tmp_path/.memtomem
+        monkeypatch.setenv("HOME", str(tmp_path))
+        config_dir = tmp_path / ".memtomem"
+        config_dir.mkdir()
+
+        # First init
+        state = _make_init_state(tmp_path)
+        _write_config_and_summary(state)
+
+        # User modifies config post-init (simulate mm config set)
+        config_path = config_dir / "config.json"
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        data["mmr"] = {"enabled": True, "lambda_param": 0.3}
+        data["search"]["bm25_candidates"] = 200
+        config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+        # Re-run init (change provider)
+        state["provider"] = "onnx"
+        state["model"] = "all-MiniLM-L6-v2"
+        state["dimension"] = 384
+        _write_config_and_summary(state)
+
+        result = json.loads(config_path.read_text(encoding="utf-8"))
+
+        # Init fields updated
+        assert result["embedding"]["provider"] == "onnx"
+        assert result["embedding"]["dimension"] == 384
+
+        # Non-init fields preserved
+        assert result["mmr"]["enabled"] is True
+        assert result["mmr"]["lambda_param"] == 0.3
+        assert result["search"]["bm25_candidates"] == 200
+
+    def test_first_init_works_without_existing_config(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """First init (no config.json) must work exactly as before."""
+        from memtomem.cli.init_cmd import _write_config_and_summary
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        config_dir = tmp_path / ".memtomem"
+        config_dir.mkdir()
+
+        state = _make_init_state(tmp_path)
+        _write_config_and_summary(state)
+
+        config_path = config_dir / "config.json"
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        assert data["embedding"]["provider"] == "none"
+        assert data["search"]["default_top_k"] == 10
+
+
 def test_memory_dirs_env_requires_json_array(monkeypatch: pytest.MonkeyPatch) -> None:
     """Documentation examples of MEMTOMEM_INDEXING__MEMORY_DIRS must be
     encoded as a JSON array string. A bare path crashes pydantic-settings.
