@@ -180,7 +180,7 @@ class SearchPipeline:
         rrf_weights: list[float] | None = None,
         context_window: int | None = None,
     ) -> tuple[list[SearchResult], RetrievalStats]:
-        top_k = top_k or self._config.default_top_k
+        top_k = self._config.default_top_k if top_k is None else top_k
         effective_weights = rrf_weights or self._config.rrf_weights
 
         # Check TTL cache for identical queries

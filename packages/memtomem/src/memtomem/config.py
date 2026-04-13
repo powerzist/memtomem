@@ -346,6 +346,105 @@ class Mem2MemConfig(BaseSettings):
 
 
 # ---------------------------------------------------------------------------
+# Canonical mutable-field definitions and validation
+# ---------------------------------------------------------------------------
+# Single source of truth for which config fields can be modified at runtime
+# via CLI (``mm config set``), Web UI (``PATCH /api/config``), and MCP
+# (``mem_config``).  All three paths import from here.
+
+MUTABLE_FIELDS: dict[str, set[str]] = {
+    "search": {
+        "default_top_k",
+        "bm25_candidates",
+        "dense_candidates",
+        "rrf_k",
+        "enable_bm25",
+        "enable_dense",
+        "tokenizer",
+        "rrf_weights",
+    },
+    "indexing": {
+        "max_chunk_tokens",
+        "min_chunk_tokens",
+        "chunk_overlap_tokens",
+        "structured_chunk_mode",
+    },
+    "embedding": {"batch_size"},
+    "decay": {"enabled", "half_life_days"},
+    "mmr": {"enabled", "lambda_param"},
+    "namespace": {"default_namespace", "enable_auto_ns"},
+}
+
+FIELD_CONSTRAINTS: dict[str, dict] = {
+    "search.default_top_k": {"type": int, "min": 1, "max": 500},
+    "search.bm25_candidates": {"type": int, "min": 1, "max": 1000},
+    "search.dense_candidates": {"type": int, "min": 1, "max": 1000},
+    "search.rrf_k": {"type": int, "min": 1, "max": 1000},
+    "search.enable_bm25": {"type": bool},
+    "search.enable_dense": {"type": bool},
+    "search.tokenizer": {"type": str, "allowed": {"unicode61", "kiwipiepy"}},
+    "indexing.max_chunk_tokens": {"type": int, "min": 64, "max": 8192},
+    "indexing.min_chunk_tokens": {"type": int, "min": 0, "max": 256},
+    "indexing.chunk_overlap_tokens": {"type": int, "min": 0, "max": 512},
+    "indexing.structured_chunk_mode": {"type": str, "allowed": {"original", "recursive"}},
+    "embedding.batch_size": {"type": int, "min": 1, "max": 1024},
+    "decay.enabled": {"type": bool},
+    "decay.half_life_days": {"type": float, "min": 0.1},
+    "mmr.enabled": {"type": bool},
+    "mmr.lambda_param": {"type": float, "min": 0.0, "max": 1.0},
+    "namespace.default_namespace": {"type": str},
+    "namespace.enable_auto_ns": {"type": bool},
+}
+
+
+def coerce_and_validate(value: object, constraint: dict | None) -> object:
+    """Coerce *value* to the expected type and validate min/max/allowed constraints."""
+    if constraint is None:
+        return value
+
+    expected_type = constraint["type"]
+
+    if expected_type is bool:
+        if isinstance(value, bool):
+            coerced: object = value
+        elif isinstance(value, str):
+            low = value.lower()
+            if low in ("true", "1", "yes"):
+                coerced = True
+            elif low in ("false", "0", "no"):
+                coerced = False
+            else:
+                raise ValueError(f"cannot convert '{value}' to bool")
+        elif isinstance(value, (int, float)):
+            coerced = bool(value)
+        else:
+            raise ValueError(f"cannot convert to bool: {value}")
+    elif expected_type is int:
+        try:
+            coerced = int(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            raise ValueError(f"cannot convert '{value}' to int")
+    elif expected_type is float:
+        try:
+            coerced = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            raise ValueError(f"cannot convert '{value}' to float")
+    elif expected_type is str:
+        coerced = str(value)
+    else:
+        coerced = value
+
+    if "min" in constraint and coerced < constraint["min"]:  # type: ignore[operator]
+        raise ValueError(f"must be >= {constraint['min']}")
+    if "max" in constraint and coerced > constraint["max"]:  # type: ignore[operator]
+        raise ValueError(f"must be <= {constraint['max']}")
+    if "allowed" in constraint and coerced not in constraint["allowed"]:
+        raise ValueError(f"must be one of {constraint['allowed']}")
+
+    return coerced
+
+
+# ---------------------------------------------------------------------------
 # Config persistence: ~/.memtomem/config.json override layer
 # ---------------------------------------------------------------------------
 
@@ -420,23 +519,46 @@ def _auto_discovered_memory_dirs() -> list[Path]:
     return [p.expanduser() for p in candidates if p.expanduser().is_dir()]
 
 
-def save_config_overrides(config: Mem2MemConfig, mutable_fields: dict[str, set[str]]) -> None:
-    """Persist mutable fields to ~/.memtomem/config.json."""
-    import json as _json
+def save_config_overrides(
+    config: Mem2MemConfig,
+    mutable_fields: dict[str, set[str]] | None = None,
+) -> None:
+    """Persist mutable fields to ~/.memtomem/config.json.
 
-    data: dict[str, dict[str, object]] = {}
+    Uses **read-merge-write** so that keys not in *mutable_fields* (e.g.
+    init-only settings like ``embedding.provider`` or ``storage.sqlite_path``)
+    are preserved across saves.
+    """
+    import json as _json
+    import logging
+
+    _log = logging.getLogger(__name__)
+    mutable_fields = mutable_fields or MUTABLE_FIELDS
+
+    path = _override_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # ── Read existing config (merge base) ──
+    existing: dict = {}
+    if path.exists():
+        try:
+            existing = _json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, _json.JSONDecodeError) as exc:
+            _log.warning("Cannot read existing config at %s: %s — overwriting", path, exc)
+
+    # ── Merge mutable fields into existing data ──
     for section_name, fields in mutable_fields.items():
         section_obj = getattr(config, section_name, None)
         if section_obj is None:
             continue
-        section_data: dict[str, object] = {}
+        section_data: dict[str, object] = existing.get(section_name, {})
+        if not isinstance(section_data, dict):
+            section_data = {}
         for key in fields:
             val = getattr(section_obj, key, None)
             if val is not None:
                 section_data[key] = val
         if section_data:
-            data[section_name] = section_data
+            existing[section_name] = section_data
 
-    path = _override_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_json.dumps(data, indent=2, default=str), encoding="utf-8")
+    path.write_text(_json.dumps(existing, indent=2, default=str), encoding="utf-8")

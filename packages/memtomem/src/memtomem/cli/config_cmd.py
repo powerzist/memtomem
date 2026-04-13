@@ -6,72 +6,7 @@ import json
 
 import click
 
-
-# ---------------------------------------------------------------------------
-# Mutable field definitions and validation (used by `config set`)
-# ---------------------------------------------------------------------------
-
-_MUTABLE_FIELDS: dict[str, set[str]] = {
-    "search": {"default_top_k", "bm25_candidates", "dense_candidates", "rrf_k"},
-    "indexing": {"max_chunk_tokens"},
-    "embedding": {"batch_size"},
-}
-
-_FIELD_CONSTRAINTS: dict[str, dict] = {
-    "search.default_top_k": {"type": int, "min": 1, "max": 500},
-    "search.bm25_candidates": {"type": int, "min": 1, "max": 1000},
-    "search.dense_candidates": {"type": int, "min": 1, "max": 1000},
-    "search.rrf_k": {"type": int, "min": 1, "max": 1000},
-    "indexing.max_chunk_tokens": {"type": int, "min": 64, "max": 8192},
-    "embedding.batch_size": {"type": int, "min": 1, "max": 1024},
-}
-
-
-def _coerce_and_validate(value, constraint: dict | None):
-    """Coerce value to expected type and validate constraints."""
-    if constraint is None:
-        return value
-
-    expected_type = constraint["type"]
-
-    if expected_type is bool:
-        if isinstance(value, bool):
-            coerced = value
-        elif isinstance(value, str):
-            low = value.lower()
-            if low in ("true", "1", "yes"):
-                coerced = True
-            elif low in ("false", "0", "no"):
-                coerced = False
-            else:
-                raise ValueError(f"cannot convert '{value}' to bool")
-        elif isinstance(value, (int, float)):
-            coerced = bool(value)
-        else:
-            raise ValueError(f"cannot convert to bool: {value}")
-    elif expected_type is int:
-        try:
-            coerced = int(value)
-        except (TypeError, ValueError):
-            raise ValueError(f"cannot convert '{value}' to int")
-    elif expected_type is float:
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError):
-            raise ValueError(f"cannot convert '{value}' to float")
-    elif expected_type is str:
-        coerced = str(value)
-    else:
-        coerced = value
-
-    if "min" in constraint and coerced < constraint["min"]:
-        raise ValueError(f"must be >= {constraint['min']}")
-    if "max" in constraint and coerced > constraint["max"]:
-        raise ValueError(f"must be <= {constraint['max']}")
-    if "allowed" in constraint and coerced not in constraint["allowed"]:
-        raise ValueError(f"must be one of {constraint['allowed']}")
-
-    return coerced
+from memtomem.config import FIELD_CONSTRAINTS, MUTABLE_FIELDS, coerce_and_validate
 
 
 # ---------------------------------------------------------------------------
@@ -123,14 +58,14 @@ def config_set(key: str, value: str) -> None:
         raise SystemExit(1)
 
     section_name, field_name = parts
-    allowed = _MUTABLE_FIELDS.get(section_name, set())
+    allowed = MUTABLE_FIELDS.get(section_name, set())
     if field_name not in allowed:
         click.echo(click.style(f"{key}: not a mutable field", fg="red"))
         raise SystemExit(1)
 
-    constraint = _FIELD_CONSTRAINTS.get(key)
+    constraint = FIELD_CONSTRAINTS.get(key)
     try:
-        coerced = _coerce_and_validate(value, constraint)
+        coerced = coerce_and_validate(value, constraint)
     except ValueError as e:
         click.echo(click.style(f"{key}: {e}", fg="red"))
         raise SystemExit(1)
@@ -142,5 +77,5 @@ def config_set(key: str, value: str) -> None:
     old_val = getattr(section_obj, field_name)
     setattr(section_obj, field_name, coerced)
 
-    save_config_overrides(cfg, _MUTABLE_FIELDS)
+    save_config_overrides(cfg)
     click.echo(f"{key}: {old_val} -> {coerced}")

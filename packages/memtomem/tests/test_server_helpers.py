@@ -430,19 +430,19 @@ class TestSetConfigKey:
         config = Mem2MemConfig()
         msg = _set_config_key(config, "decay.enabled", "true")
         assert config.decay.enabled is True
-        assert "runtime only" in msg
+        assert msg.startswith("Set ")
 
     def test_set_float_field(self):
         config = Mem2MemConfig()
         result = _set_config_key(config, "mmr.lambda_param", "0.5")
         assert config.mmr.lambda_param == pytest.approx(0.5)
-        assert "runtime only" in result
+        assert result.startswith("Set ")
 
     def test_set_string_field(self):
         config = Mem2MemConfig()
         result = _set_config_key(config, "namespace.default_namespace", "work")
         assert config.namespace.default_namespace == "work"
-        assert "runtime only" in result
+        assert result.startswith("Set ")
 
     def test_invalid_key_format_no_dot(self):
         config = Mem2MemConfig()

@@ -47,18 +47,15 @@ function _syncSearchDefaults() {
   if (!STATE.serverConfig?.search) return;
   const topK = STATE.serverConfig.search.default_top_k;
   if (topK) {
-    const saved = localStorage.getItem('m2m-default-top-k');
-    if (!saved) {
-      const sel = qs('top-k');
-      if (![...sel.options].some(o => o.value == topK)) {
-        const opt = document.createElement('option');
-        opt.value = topK;
-        opt.textContent = `Top ${topK}`;
-        sel.appendChild(opt);
-      }
-      sel.value = String(topK);
-      STATE.currentTopK = topK;
+    const sel = qs('top-k');
+    if (![...sel.options].some(o => o.value == topK)) {
+      const opt = document.createElement('option');
+      opt.value = topK;
+      opt.textContent = `Top ${topK}`;
+      sel.appendChild(opt);
     }
+    sel.value = String(topK);
+    STATE.currentTopK = topK;
   }
 }
 

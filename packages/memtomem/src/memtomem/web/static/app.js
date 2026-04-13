@@ -2942,13 +2942,12 @@ qs('d-pin-btn').addEventListener('click', () => {
 function _loadSettings() {
   return {
     defaultTab: localStorage.getItem('m2m-default-tab') || 'search',
-    defaultTopK: localStorage.getItem('m2m-default-top-k') || '10',
   };
 }
 
 (function _applySettings() {
   const s = _loadSettings();
-  qs('top-k').value = s.defaultTopK;
+  // top-k default is synced from server config via _syncSearchDefaults()
   // Apply default tab only if no hash deep link is present
   if (!location.hash.slice(1)) {
     const currentActive = document.querySelector('.tab-btn.active');
@@ -2962,24 +2961,36 @@ function _loadSettings() {
 qs('settings-btn').addEventListener('click', () => {
   const s = _loadSettings();
   qs('settings-default-tab').value = s.defaultTab;
-  qs('settings-default-topk').value = s.defaultTopK;
+  // Show current server config top-k (or UI value as fallback)
+  const curTopK = STATE.serverConfig?.search?.default_top_k || STATE.currentTopK || 10;
+  qs('settings-default-topk').value = String(curTopK);
   show(qs('settings-modal'));
 });
 qs('settings-close-btn').addEventListener('click', () => hide(qs('settings-modal')));
 qs('settings-modal').addEventListener('click', e => {
   if (e.target === qs('settings-modal')) hide(qs('settings-modal'));
 });
-qs('settings-save-btn').addEventListener('click', () => {
+qs('settings-save-btn').addEventListener('click', async () => {
   localStorage.setItem('m2m-default-tab', qs('settings-default-tab').value);
-  localStorage.setItem('m2m-default-top-k', qs('settings-default-topk').value);
+  const newTopK = parseInt(qs('settings-default-topk').value, 10);
+  // Sync top-k to server config so all paths see the same value
+  try {
+    await api('PATCH', '/api/config?persist=true', { search: { default_top_k: newTopK } });
+    if (STATE.serverConfig?.search) STATE.serverConfig.search.default_top_k = newTopK;
+    qs('top-k').value = String(newTopK);
+    STATE.currentTopK = newTopK;
+  } catch (e) {
+    console.warn('Failed to persist top-k to server config:', e);
+  }
   showToast(t('toast.settings_saved'), 'success');
   hide(qs('settings-modal'));
 });
 qs('settings-reset-btn').addEventListener('click', () => {
   localStorage.removeItem('m2m-default-tab');
-  localStorage.removeItem('m2m-default-top-k');
   qs('settings-default-tab').value = 'search';
-  qs('settings-default-topk').value = '10';
+  // Reset top-k to server default
+  const serverTopK = STATE.serverConfig?.search?.default_top_k || 10;
+  qs('settings-default-topk').value = String(serverTopK);
   showToast(t('toast.settings_reset'), 'info');
 });
 

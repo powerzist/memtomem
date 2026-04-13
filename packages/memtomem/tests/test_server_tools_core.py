@@ -293,7 +293,7 @@ class TestSetConfigKey:
         config = Mem2MemConfig()
         msg = _set_config_key(config, "decay.enabled", "true")
         assert config.decay.enabled is True
-        assert "runtime only" in msg
+        assert msg.startswith("Set ")
 
     def test_set_bool_field_false(self):
         config = Mem2MemConfig()

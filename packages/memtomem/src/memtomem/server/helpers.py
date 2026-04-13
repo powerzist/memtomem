@@ -68,14 +68,17 @@ def _check_embedding_mismatch(app: object) -> str | None:
 
 
 def _set_config_key(config: Mem2MemConfig, key: str, value: str) -> str:
-    """Set a dot-notation config key to a new string value (runtime only).
+    """Set a dot-notation config key to a new string value.
 
     Only ``section.field`` format (exactly one dot) is supported.
-    Scalar types (bool, int, float, str) are coerced from the string value.
-    Complex types (list, set, frozenset, Path …) are rejected.
+    Uses :func:`~memtomem.config.coerce_and_validate` for type coercion
+    and constraint checking (min/max/allowed) when the field has a
+    registered constraint in :data:`~memtomem.config.FIELD_CONSTRAINTS`.
 
     Returns a human-readable confirmation or error message.
     """
+    from memtomem.config import FIELD_CONSTRAINTS, coerce_and_validate
+
     parts = key.split(".")
     if len(parts) != 2:
         return f"Key must be in 'section.field' format (e.g. 'search.default_top_k'). Got: '{key}'"
@@ -88,26 +91,32 @@ def _set_config_key(config: Mem2MemConfig, key: str, value: str) -> str:
     if not hasattr(section, field_name):
         return f"Field '{field_name}' not found in section '{section_name}'."
 
-    current = getattr(section, field_name)
-
-    # Coerce string → target type
-    try:
-        if isinstance(current, bool):
-            coerced: object = value.lower() in ("true", "1", "yes")
-        elif isinstance(current, int):
-            coerced = int(value)
-        elif isinstance(current, float):
-            coerced = float(value)
-        elif isinstance(current, str):
-            coerced = value
-        else:
-            return (
-                f"Cannot set '{key}': unsupported field type "
-                f"'{type(current).__name__}'. Only bool/int/float/str fields "
-                f"can be changed at runtime."
-            )
-    except (ValueError, TypeError) as exc:
-        return f"Invalid value '{value}' for {type(current).__name__} field '{key}': {exc}"
+    constraint = FIELD_CONSTRAINTS.get(key)
+    if constraint:
+        try:
+            coerced = coerce_and_validate(value, constraint)
+        except ValueError as exc:
+            return f"Invalid value '{value}' for '{key}': {exc}"
+    else:
+        # Fallback for fields without explicit constraints — coerce by current type
+        current = getattr(section, field_name)
+        try:
+            if isinstance(current, bool):
+                coerced = value.lower() in ("true", "1", "yes")
+            elif isinstance(current, int):
+                coerced = int(value)
+            elif isinstance(current, float):
+                coerced = float(value)
+            elif isinstance(current, str):
+                coerced = value
+            else:
+                return (
+                    f"Cannot set '{key}': unsupported field type "
+                    f"'{type(current).__name__}'. Only bool/int/float/str fields "
+                    f"can be changed at runtime."
+                )
+        except (ValueError, TypeError) as exc:
+            return f"Invalid value '{value}' for '{key}': {exc}"
 
     setattr(section, field_name, coerced)
-    return f"Set {key} = {coerced!r} (runtime only — not persisted)"
+    return f"Set {key} = {coerced!r}"

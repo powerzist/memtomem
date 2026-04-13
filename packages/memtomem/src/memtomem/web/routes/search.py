@@ -18,7 +18,7 @@ router = APIRouter(tags=["search"])
 @router.get("/search", response_model=SearchResponse)
 async def search(
     q: str = Query(..., description="Search query", min_length=1, max_length=10_000),
-    top_k: int = Query(10, ge=1, le=100),
+    top_k: int | None = Query(None, ge=1, le=500),
     source_filter: str | None = Query(None),
     tag_filter: str | None = Query(None),
     namespace: str | None = Query(None),

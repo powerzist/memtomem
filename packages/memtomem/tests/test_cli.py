@@ -12,7 +12,7 @@ import pytest
 from click.testing import CliRunner
 
 from memtomem.cli import cli
-from memtomem.cli.config_cmd import _coerce_and_validate, _FIELD_CONSTRAINTS
+from memtomem.config import FIELD_CONSTRAINTS, coerce_and_validate
 
 
 @pytest.fixture
@@ -139,62 +139,62 @@ class TestConfigCLI:
 
 
 class TestCoerceAndValidate:
-    """Test the _coerce_and_validate helper directly."""
+    """Test the coerce_and_validate helper directly."""
 
     def test_none_constraint(self) -> None:
-        assert _coerce_and_validate("hello", None) == "hello"
+        assert coerce_and_validate("hello", None) == "hello"
 
     def test_int_coercion(self) -> None:
         constraint = {"type": int, "min": 1, "max": 100}
-        assert _coerce_and_validate("42", constraint) == 42
+        assert coerce_and_validate("42", constraint) == 42
 
     def test_int_below_min(self) -> None:
         constraint = {"type": int, "min": 1, "max": 100}
         with pytest.raises(ValueError, match=">= 1"):
-            _coerce_and_validate("0", constraint)
+            coerce_and_validate("0", constraint)
 
     def test_int_above_max(self) -> None:
         constraint = {"type": int, "min": 1, "max": 100}
         with pytest.raises(ValueError, match="<= 100"):
-            _coerce_and_validate("200", constraint)
+            coerce_and_validate("200", constraint)
 
     def test_int_not_numeric(self) -> None:
         constraint = {"type": int}
         with pytest.raises(ValueError, match="cannot convert"):
-            _coerce_and_validate("abc", constraint)
+            coerce_and_validate("abc", constraint)
 
     def test_bool_true_variants(self) -> None:
         constraint = {"type": bool}
         for v in ("true", "1", "yes", True):
-            assert _coerce_and_validate(v, constraint) is True
+            assert coerce_and_validate(v, constraint) is True
 
     def test_bool_false_variants(self) -> None:
         constraint = {"type": bool}
         for v in ("false", "0", "no", False):
-            assert _coerce_and_validate(v, constraint) is False
+            assert coerce_and_validate(v, constraint) is False
 
     def test_bool_invalid(self) -> None:
         constraint = {"type": bool}
         with pytest.raises(ValueError, match="cannot convert"):
-            _coerce_and_validate("maybe", constraint)
+            coerce_and_validate("maybe", constraint)
 
     def test_float_coercion(self) -> None:
         constraint = {"type": float, "min": 0.0, "max": 1.0}
-        assert _coerce_and_validate("0.5", constraint) == 0.5
+        assert coerce_and_validate("0.5", constraint) == 0.5
 
     def test_allowed_constraint(self) -> None:
         constraint = {"type": str, "allowed": {"a", "b"}}
-        assert _coerce_and_validate("a", constraint) == "a"
+        assert coerce_and_validate("a", constraint) == "a"
         with pytest.raises(ValueError, match="must be one of"):
-            _coerce_and_validate("c", constraint)
+            coerce_and_validate("c", constraint)
 
     def test_field_constraints_are_well_formed(self) -> None:
-        """Sanity: every declared constraint has type, min, and max."""
-        for key, c in _FIELD_CONSTRAINTS.items():
+        """Sanity: every declared constraint has a type and consistent bounds."""
+        for key, c in FIELD_CONSTRAINTS.items():
             assert "type" in c, f"{key} missing type"
-            assert "min" in c, f"{key} missing min"
-            assert "max" in c, f"{key} missing max"
-            assert c["min"] < c["max"], f"{key} min >= max"
+            # When both min and max are present, min must be < max
+            if "min" in c and "max" in c:
+                assert c["min"] < c["max"], f"{key} min >= max"
 
 
 # ── Other subcommands (help text) ───────────────────────────────────────

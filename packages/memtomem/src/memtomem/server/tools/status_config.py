@@ -104,14 +104,17 @@ async def mem_status(
 async def mem_config(
     key: str | None = None,
     value: str | None = None,
+    persist: bool = False,
     ctx: CtxType = None,  # type: ignore[assignment]
 ) -> str:
-    """View or update memtomem configuration values at runtime.
+    """View or update memtomem configuration values.
 
     Args:
         key: Dot-notation key to read or write (e.g. "search.default_top_k").
              If omitted, returns the full configuration as JSON.
         value: New value to assign. Omit to read the current value.
+        persist: If True, save the change to ~/.memtomem/config.json so it
+                 survives server restarts. Default is runtime-only.
     """
     app = _get_app(ctx)
 
@@ -128,6 +131,14 @@ async def mem_config(
                 set_tokenizer(app.config.search.tokenizer)
                 count = await app.storage.rebuild_fts()
                 result += f"\nFTS index rebuilt ({count} chunks)."
+            # Persist to disk if requested
+            if persist:
+                from memtomem.config import save_config_overrides
+
+                save_config_overrides(app.config)
+                result += " (persisted to config.json)"
+            else:
+                result += " (runtime only — not persisted)"
         return result
 
     config_dict = app.config.model_dump()
