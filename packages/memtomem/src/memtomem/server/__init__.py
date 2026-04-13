@@ -50,6 +50,7 @@ from memtomem.server.tools.status_config import (
     mem_reset,
     mem_stats,
     mem_status,
+    mem_version,
 )  # noqa: E402, F401
 from memtomem.server.tools.namespace import (
     mem_ns_assign,

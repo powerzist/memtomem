@@ -1,7 +1,10 @@
 """Tests for mem_do meta-tool and tool_registry."""
 
+import json
+
 from memtomem.server.tool_registry import ACTIONS
 from memtomem.server.tools.meta import _help
+from memtomem.server.tools.status_config import mem_version
 
 
 class TestToolRegistry:
@@ -12,9 +15,23 @@ class TestToolRegistry:
     def test_all_categories_present(self):
         categories = {info.category for info in ACTIONS.values()}
         expected = {
-            "crud", "namespace", "tags", "sessions", "scratch", "relations",
-            "analytics", "maintenance", "policy", "entity", "multi_agent",
-            "importers", "ingest", "procedures", "advanced", "context", "search",
+            "crud",
+            "namespace",
+            "tags",
+            "sessions",
+            "scratch",
+            "relations",
+            "analytics",
+            "maintenance",
+            "policy",
+            "entity",
+            "multi_agent",
+            "importers",
+            "ingest",
+            "procedures",
+            "advanced",
+            "context",
+            "search",
         }
         assert categories == expected
 
@@ -71,3 +88,33 @@ class TestMemDoRouting:
         """Verify fuzzy matching would find similar actions."""
         similar = [k for k in ACTIONS if "tag" in k]
         assert len(similar) >= 2  # tag_list, tag_rename, tag_delete, auto_tag
+
+
+class TestMemVersion:
+    """Tests for mem_version (mem_do action='version')."""
+
+    def test_version_registered(self):
+        """version action should be in the ACTIONS registry."""
+        assert "version" in ACTIONS
+        assert ACTIONS["version"].category == "advanced"
+
+    async def test_version_returns_valid_json(self):
+        result = await mem_version()
+        parsed = json.loads(result)
+        assert "version" in parsed
+        assert "capabilities" in parsed
+
+    async def test_version_matches_package(self):
+        from memtomem import __version__
+
+        result = await mem_version()
+        parsed = json.loads(result)
+        assert parsed["version"] == __version__
+
+    async def test_capabilities_search_formats(self):
+        result = await mem_version()
+        parsed = json.loads(result)
+        formats = parsed["capabilities"]["search_formats"]
+        assert "compact" in formats
+        assert "verbose" in formats
+        assert "structured" in formats

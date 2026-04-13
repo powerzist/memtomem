@@ -1,10 +1,12 @@
-"""Tools: mem_stats, mem_status, mem_config, mem_embedding_reset."""
+"""Tools: mem_stats, mem_status, mem_config, mem_embedding_reset, mem_version."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from memtomem import __version__
 from memtomem.server import mcp
 from memtomem.server.context import CtxType, _get_app
 from memtomem.server.error_handler import tool_handler
@@ -284,3 +286,24 @@ async def mem_reset(
     deleted = await app.storage.reset_all()
     summary = ", ".join(f"{t}: {c}" for t, c in deleted.items() if c > 0)
     return f"Database reset complete. Deleted: {summary or 'empty'}. Run mem_index to re-index."
+
+
+@tool_handler
+@register("advanced")
+async def mem_version(
+    ctx: CtxType = None,  # type: ignore[assignment]
+) -> str:
+    """Return server version and supported capabilities for protocol negotiation.
+
+    Used by external systems (e.g. memtomem-stm) to discover which features
+    are available before using them. Callable via mem_do(action="version").
+    """
+    return json.dumps(
+        {
+            "version": __version__,
+            "capabilities": {
+                "search_formats": ["compact", "verbose", "structured"],
+            },
+        },
+        ensure_ascii=False,
+    )
