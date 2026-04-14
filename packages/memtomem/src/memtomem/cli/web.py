@@ -25,8 +25,11 @@ def _web_install_hint() -> str:
 @click.command("web")
 @click.option("--host", default="127.0.0.1", help="Host to bind to")
 @click.option("--port", default=8080, type=int, help="Port to bind to")
-@click.option("--headless", is_flag=True, help="Run without opening the browser")
-def web(host: str, port: int, headless: bool) -> None:
+@click.option("--open", "open_browser", is_flag=True, help="Run with opening the browser")
+@click.option(
+    "--timeout", default=30, type=int, help="Timeout for web opening (seconds). Zero is no timeout."
+)
+def web(host: str, port: int, open_browser: bool, timeout: int) -> None:
     """Launch the memtomem Web UI (FastAPI + SPA)."""
     missing = _missing_web_deps()
     if missing is not None:
@@ -50,10 +53,26 @@ def web(host: str, port: int, headless: bool) -> None:
 
     click.echo(f"Starting memtomem Web UI at http://{host}:{port}")
 
-    async def after_started(server: uvicorn.Server, headless: bool) -> None:
-        if headless:
+    async def after_started(server: uvicorn.Server, timeout: float) -> None:
+        if not open_browser:
             return
+        import time
+
+        if timeout == 0:
+            click.secho(
+                "Warning: No timeout for Web opening (timeout is set to 0).",
+                fg="yellow",
+            )
+            deadline = float("inf")
+        else:
+            deadline = time.monotonic() + timeout
         while not server.started:
+            if time.monotonic() >= deadline:
+                click.secho(
+                    "Warning: Web server did not start within the timeout period; not opening browser.",
+                    fg="yellow",
+                )
+                return
             await asyncio.sleep(0.1)
         import webbrowser
 
@@ -65,7 +84,7 @@ def web(host: str, port: int, headless: bool) -> None:
 
         await asyncio.gather(
             web_server.serve(),
-            after_started(web_server, headless),
+            after_started(web_server, timeout=float(timeout)),
         )
 
     asyncio.run(start_server())
