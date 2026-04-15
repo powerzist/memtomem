@@ -8,13 +8,19 @@ from unittest.mock import AsyncMock
 
 
 from memtomem.config import NamespaceConfig
-from memtomem.indexing.engine import IndexEngine, _merge_short_chunks, _add_overlap, _estimate_tokens
+from memtomem.indexing.engine import (
+    IndexEngine,
+    _merge_short_chunks,
+    _add_overlap,
+    _estimate_tokens,
+)
 from memtomem.models import Chunk, ChunkMetadata
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_chunk_with(
     content: str,
@@ -478,7 +484,9 @@ class TestIndexFile:
 
     async def test_index_markdown_file(self, components, memory_dir):
         """Index a markdown file with two headings; verify chunks stored."""
-        md_content = "# Section A\n\nContent for section A.\n\n# Section B\n\nContent for section B.\n"
+        md_content = (
+            "# Section A\n\nContent for section A.\n\n# Section B\n\nContent for section B.\n"
+        )
         md_path = memory_dir / "test_doc.md"
         md_path.write_text(md_content)
 
