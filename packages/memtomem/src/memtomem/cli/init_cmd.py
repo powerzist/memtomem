@@ -330,8 +330,10 @@ def _step_mcp(state: dict) -> None:
 # ── Write config & summary ────────────────────────────────────────────
 
 
-def _write_config_and_summary(state: dict, base_dir: Path = Path("~/").expanduser()) -> None:
+def _write_config_and_summary(state: dict, base_dir: Path | None) -> None:
     """Write config files and show summary (runs after all steps)."""
+    if base_dir is None:
+        base_dir = Path.home()
     config_dir = base_dir / ".memtomem"
     config_dir.mkdir(parents=True, exist_ok=True)
 
