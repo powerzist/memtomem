@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Sequence
 
 import httpx
 
@@ -30,6 +31,14 @@ class OpenAIEmbedder:
     def __init__(self, config: EmbeddingConfig) -> None:
         self._config = config
         self._client: httpx.AsyncClient | None = None
+
+    @property
+    def dimension(self) -> int:
+        return self._config.dimension
+
+    @property
+    def model_name(self) -> str:
+        return self._config.model
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -64,14 +73,14 @@ class OpenAIEmbedder:
         data.sort(key=lambda x: x["index"])
         return [item["embedding"] for item in data]
 
-    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+    async def embed_texts(self, texts: Sequence[str]) -> list[list[float]]:
         import asyncio
 
         if not texts:
             return []
 
         bs = self._config.batch_size
-        batches = [texts[i : i + bs] for i in range(0, len(texts), bs)]
+        batches = [list(texts[i : i + bs]) for i in range(0, len(texts), bs)]
         sem = asyncio.Semaphore(self._config.max_concurrent_batches)
 
         async def _safe_embed(batch: list[str]) -> list[list[float]]:
@@ -109,10 +118,10 @@ class OpenAIEmbedder:
             results.extend(br)
         return results
 
-    async def embed_query(self, text: str) -> list[float]:
-        if not text or not text.strip():
+    async def embed_query(self, query: str) -> list[float]:
+        if not query or not query.strip():
             raise EmbeddingError("Query text cannot be empty")
-        embeddings = await self.embed_texts([text])
+        embeddings = await self.embed_texts([query])
         if not embeddings:
             raise EmbeddingError("No embeddings returned for query")
         return embeddings[0]
