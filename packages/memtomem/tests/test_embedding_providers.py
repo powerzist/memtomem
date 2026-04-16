@@ -111,12 +111,9 @@ class TestEmbeddingProviderProtocol:
         assert hasattr(embedder, "close")
 
     def test_openai_has_required_attributes(self):
-        """OpenAIEmbedder has embed_texts, embed_query, close.
-
-        Note: OpenAIEmbedder does not currently expose dimension/model_name
-        properties (unlike OllamaEmbedder), so only the core methods are checked.
-        """
         embedder = OpenAIEmbedder(_openai_config())
+        assert hasattr(embedder, "dimension")
+        assert hasattr(embedder, "model_name")
         assert hasattr(embedder, "embed_texts")
         assert hasattr(embedder, "embed_query")
         assert hasattr(embedder, "close")
@@ -126,11 +123,10 @@ class TestEmbeddingProviderProtocol:
         assert embedder.dimension == 768
         assert embedder.model_name == "nomic-embed-text"
 
-    def test_openai_stores_config(self):
-        """OpenAIEmbedder stores config; dimension/model accessible via _config."""
+    def test_openai_dimension_and_model(self):
         embedder = OpenAIEmbedder(_openai_config(dimension=1536, model="text-embedding-3-small"))
-        assert embedder._config.dimension == 1536
-        assert embedder._config.model == "text-embedding-3-small"
+        assert embedder.dimension == 1536
+        assert embedder.model_name == "text-embedding-3-small"
 
 
 # ---------------------------------------------------------------------------
