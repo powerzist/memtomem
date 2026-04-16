@@ -5,6 +5,73 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Added
+- **ReStructuredText chunker**: `.rst` section-header-aware splitting.
+- **Web UI `--open` flag**: opt-in browser launch with configurable timeout
+  (replaces the old always-open default).
+- Numeric validation errors now include the offending value in MCP tool
+  responses.
+
+### Fixed
+- **Async I/O**: 6 blocking file read/write calls in MCP tool handlers
+  (`mem_add`, `mem_edit`, `mem_delete`, `mem_context_*`) wrapped with
+  `asyncio.to_thread` to prevent event loop starvation.
+- **Security**: parameterized query for namespace in `execute_auto_tag`
+  (#155); exception class names removed from web error responses and
+  `/health` endpoint (#80, #81).
+- **Logging**: silenced errors surfaced in health watchdog, search
+  pipeline, and consolidation engine (#164); silent `except: pass`
+  blocks in `sqlite_backend` and `status_config` now log warnings (#78).
+- **Auto-tag**: `namespace_filter` passed to `auto_tag_storage` to fix
+  silent failure of namespace-scoped policies (#114).
+- **CLI**: pass real `index_engine`/`config` to `FileWatcher` in
+  `watchdog run` (#111); warn when code chunkers unavailable due to
+  missing optional deps (#142).
+- File handle leak on `flock` failure; stale `--include` help text;
+  `response.ok` checks in `context-gateway.js` (#77).
+
+### Changed
+- **Single-source version** via `importlib.metadata` + Python 3.13
+  classifier (#76).
+- **Typing overhaul**: `CtxType` widened to `Optional` (drops 82
+  `type: ignore`, #90); `policy_engine` storage narrowed to
+  `SqliteBackend` (#89); 12 `union-attr` ignores eliminated (#100);
+  RST chunker annotations corrected (#126); `llm_provider` tightened
+  from `object` to `LLMProvider` (#130); 4 list/dict element types
+  tightened (#145).
+- Dead config sections removed (`conflict`, `entity_extraction`,
+  `timezone`) — `extra="ignore"` ensures old config files still load.
+- Refactored truncation magic numbers in consolidation engine;
+  watcher queue maxsize extracted to constant.
+- CI: ruff lint/format scope extended to `tests/`; notebooks CI job
+  and branch protection added.
+
+### Docs
+- Webhook config section and `indexing.supported_extensions` added to
+  configuration reference (#170 high tier).
+- MCP tool error response contract documented (#167).
+
+## [0.1.9] — 2026-04-13
+
+### Fixed
+- **Config robustness**: invalid `config.json` values now warn and fall
+  back to defaults instead of crashing on startup; `mm init` preserves
+  non-init config fields on re-run; 4 cross-path sync gaps closed
+  (CLI/Web/MCP all converge on the same read-merge-write logic);
+  save-path data-loss edge case eliminated.
+- **Embedding**: Ollama `base_url` defaults to `localhost:11434` when
+  the env var is set but empty.
+
+### Changed
+- Default LLM models updated to latest releases.
+
+### Docs
+- Official website link added to README.
+- Docs sweep: stale numbers, env vars, and notebook setup corrected
+  across 14 doc files; missing onnx extra and CLI commands added to
+  getting-started; Gemini CLI setup and tool categories added to
+  reference sections; core MCP tool docstrings corrected.
+
 ## [0.1.8] — 2026-04-13
 
 ### Added
