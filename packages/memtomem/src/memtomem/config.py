@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -383,7 +384,7 @@ def coerce_and_validate(value: object, constraint: dict | None) -> object:
 
     if expected_type is bool:
         if isinstance(value, bool):
-            coerced: object = value
+            coerced: bool | int | float | str | list[object] = value
         elif isinstance(value, str):
             low = value.lower()
             if low in ("true", "1", "yes"):
@@ -397,13 +398,17 @@ def coerce_and_validate(value: object, constraint: dict | None) -> object:
         else:
             raise ValueError(f"cannot convert to bool: {value}")
     elif expected_type is int:
+        if not isinstance(value, (str, int, float)):
+            raise ValueError(f"cannot convert '{value}' to int")
         try:
-            coerced = int(value)  # type: ignore[arg-type]
+            coerced = int(value)
         except (TypeError, ValueError):
             raise ValueError(f"cannot convert '{value}' to int")
     elif expected_type is float:
+        if not isinstance(value, (str, int, float)):
+            raise ValueError(f"cannot convert '{value}' to float")
         try:
-            coerced = float(value)  # type: ignore[arg-type]
+            coerced = float(value)
         except (TypeError, ValueError):
             raise ValueError(f"cannot convert '{value}' to float")
     elif expected_type is str:
@@ -424,12 +429,22 @@ def coerce_and_validate(value: object, constraint: dict | None) -> object:
         if expected_len is not None and len(coerced) != expected_len:
             raise ValueError(f"expected length {expected_len}, got {len(coerced)}")
     else:
-        coerced = value
+        coerced = cast("bool | int | float | str | list[object]", value)
 
-    if "min" in constraint and coerced < constraint["min"]:  # type: ignore[operator]
-        raise ValueError(f"must be >= {constraint['min']}")
-    if "max" in constraint and coerced > constraint["max"]:  # type: ignore[operator]
-        raise ValueError(f"must be <= {constraint['max']}")
+    min_val = constraint.get("min")
+    if (
+        isinstance(min_val, (int, float))
+        and isinstance(coerced, (int, float))
+        and coerced < min_val
+    ):
+        raise ValueError(f"must be >= {min_val}")
+    max_val = constraint.get("max")
+    if (
+        isinstance(max_val, (int, float))
+        and isinstance(coerced, (int, float))
+        and coerced > max_val
+    ):
+        raise ValueError(f"must be <= {max_val}")
     if "allowed" in constraint and coerced not in constraint["allowed"]:
         raise ValueError(f"must be one of {constraint['allowed']}")
 
