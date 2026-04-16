@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import logging
 
@@ -53,15 +53,16 @@ async def create_components(config: Mem2MemConfig | None = None) -> Components:
         set_tokenizer(config.search.tokenizer)
 
     storage = create_storage(config)
-    embedder = None
+    embedder: EmbeddingProvider | None = None
     try:
-        embedder = create_embedder(config.embedding)
+        embedder = cast("EmbeddingProvider", create_embedder(config.embedding))
         await storage.initialize()
     except Exception:
         if embedder is not None:
             await embedder.close()
         await storage.close()
         raise
+    assert embedder is not None
 
     # Build chunker registry with optional code chunkers
     chunkers: list[Chunker] = [
@@ -104,11 +105,11 @@ async def create_components(config: Mem2MemConfig | None = None) -> Components:
         reranker = create_reranker(config.rerank)
 
     # Create optional LLM provider (before SearchPipeline so it can be passed in)
-    llm = None
+    llm: LLMProvider | None = None
     if config.llm.enabled:
         from memtomem.llm.factory import create_llm
 
-        llm = create_llm(config.llm)
+        llm = cast("LLMProvider | None", create_llm(config.llm))
 
     search_pipeline = SearchPipeline(
         storage=storage,
