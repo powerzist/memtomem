@@ -100,7 +100,7 @@ async def _mem_add_core(
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         target = Path(base).expanduser().resolve() / f"{date_str}.md"
 
-    append_entry(target, content, title=title, tags=tags)
+    await asyncio.to_thread(append_entry, target, content, title=title, tags=tags)
 
     effective_ns = namespace or app.current_namespace
 
