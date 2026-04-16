@@ -100,7 +100,7 @@ async def _mem_add_core(
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         target = Path(base).expanduser().resolve() / f"{date_str}.md"
 
-    append_entry(target, content, title=title, tags=tags)
+    await asyncio.to_thread(append_entry, target, content, title=title, tags=tags)
 
     effective_ns = namespace or app.current_namespace
 
@@ -215,13 +215,15 @@ async def mem_edit(
 
     meta = chunk.metadata
     # Backup for rollback on indexing failure
-    original = meta.source_file.read_text(encoding="utf-8")
+    original = await asyncio.to_thread(meta.source_file.read_text, encoding="utf-8")
     try:
-        replace_lines(meta.source_file, meta.start_line, meta.end_line, new_content)
+        await asyncio.to_thread(
+            replace_lines, meta.source_file, meta.start_line, meta.end_line, new_content
+        )
         stats = await app.index_engine.index_file(meta.source_file, force=True)
         app.search_pipeline.invalidate_cache()
     except Exception as exc:
-        meta.source_file.write_text(original, encoding="utf-8")
+        await asyncio.to_thread(meta.source_file.write_text, original, encoding="utf-8")
         try:
             await app.index_engine.index_file(meta.source_file, force=True)
         except Exception:
@@ -275,13 +277,13 @@ async def mem_delete(
 
         meta = chunk.metadata
         # Backup for rollback on indexing failure
-        original = meta.source_file.read_text(encoding="utf-8")
+        original = await asyncio.to_thread(meta.source_file.read_text, encoding="utf-8")
         try:
-            remove_lines(meta.source_file, meta.start_line, meta.end_line)
+            await asyncio.to_thread(remove_lines, meta.source_file, meta.start_line, meta.end_line)
             stats = await app.index_engine.index_file(meta.source_file, force=True)
             app.search_pipeline.invalidate_cache()
         except Exception as exc:
-            meta.source_file.write_text(original, encoding="utf-8")
+            await asyncio.to_thread(meta.source_file.write_text, original, encoding="utf-8")
             try:
                 await app.index_engine.index_file(meta.source_file, force=True)
             except Exception:
