@@ -164,13 +164,15 @@ async def rendered_agent(
         for f in _ALL_OPTIONAL_FIELDS:
             field_map[f][gen_name] = f not in dropped_set
 
-    return JSONResponse(content={
-        "name": name,
-        "canonical_content": content,
-        "fields": _agent_to_dict(parsed),
-        "runtimes": runtimes,
-        "field_map": field_map,
-    })
+    return JSONResponse(
+        content={
+            "name": name,
+            "canonical_content": content,
+            "fields": _agent_to_dict(parsed),
+            "runtimes": runtimes,
+            "field_map": field_map,
+        }
+    )
 
 
 # ── Create ───────────────────────────────────────────────────────────────

@@ -147,11 +147,13 @@ async def rendered_command(
             }
         )
 
-    return JSONResponse(content={
-        "name": name,
-        "canonical_content": content,
-        "runtimes": runtimes,
-    })
+    return JSONResponse(
+        content={
+            "name": name,
+            "canonical_content": content,
+            "runtimes": runtimes,
+        }
+    )
 
 
 # ── Create ───────────────────────────────────────────────────────────────
