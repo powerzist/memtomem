@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from memtomem.config import EmbeddingConfig
 from memtomem.errors import ConfigError
 
+if TYPE_CHECKING:
+    from memtomem.embedding.base import EmbeddingProvider
 
-def create_embedder(config: EmbeddingConfig) -> object:
+
+def create_embedder(config: EmbeddingConfig) -> EmbeddingProvider:
     """Return the embedding provider for the configured provider name."""
     provider = config.provider.lower()
 
