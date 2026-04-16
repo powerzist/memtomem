@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from memtomem import __version__
 from memtomem.server import mcp
@@ -15,6 +15,7 @@ from memtomem.server.tool_registry import register
 from memtomem.server.helpers import _set_config_key
 
 if TYPE_CHECKING:
+    from memtomem.embedding.base import EmbeddingProvider
     from memtomem.server.context import AppContext
 
 logger = logging.getLogger(__name__)
@@ -191,7 +192,7 @@ def _revert_to_stored(app: AppContext) -> str:
     config.embedding.model = stored["model"]
     config.embedding.dimension = stored["dimension"]
 
-    new_embedder = create_embedder(config.embedding)
+    new_embedder: EmbeddingProvider = cast("EmbeddingProvider", create_embedder(config.embedding))
     app.embedder = new_embedder
 
     app.search_pipeline = SearchPipeline(
