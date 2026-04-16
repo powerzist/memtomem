@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from memtomem.config import LLMConfig
 from memtomem.errors import ConfigError
+
+if TYPE_CHECKING:
+    from memtomem.llm.base import LLMProvider
 
 # Provider-specific default models, used when config.model is empty.
 _DEFAULT_MODELS: dict[str, str] = {
@@ -13,7 +18,7 @@ _DEFAULT_MODELS: dict[str, str] = {
 }
 
 
-def create_llm(config: LLMConfig) -> object | None:
+def create_llm(config: LLMConfig) -> LLMProvider | None:
     """Return the LLM provider for the configured provider name.
 
     Returns ``None`` when ``config.enabled`` is ``False``.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import logging
 
@@ -55,7 +55,7 @@ async def create_components(config: Mem2MemConfig | None = None) -> Components:
     storage = create_storage(config)
     embedder: EmbeddingProvider | None = None
     try:
-        embedder = cast("EmbeddingProvider", create_embedder(config.embedding))
+        embedder = create_embedder(config.embedding)
         await storage.initialize()
     except Exception:
         if embedder is not None:
@@ -109,7 +109,7 @@ async def create_components(config: Mem2MemConfig | None = None) -> Components:
     if config.llm.enabled:
         from memtomem.llm.factory import create_llm
 
-        llm = cast("LLMProvider | None", create_llm(config.llm))
+        llm = create_llm(config.llm)
 
     search_pipeline = SearchPipeline(
         storage=storage,
