@@ -589,7 +589,7 @@ async def run_policy(
         )
 
     if ptype == "auto_consolidate":
-        result = await handler(
+        result = await execute_auto_consolidate(
             storage,
             policy.get("config", {}),
             policy.get("namespace_filter"),
