@@ -659,6 +659,54 @@ calibration options:
 
 Decision deferred to Phase 5 calibration.
 
+### Pre-measurement (IDF + body overlap, 2026-04-17)
+
+Per § 11.5 of the validation doc, query fairness (IDF token count
++ sum) and body overlap were measured via
+`tools/retrieval-eval/compute_idf_baseline.py` before running
+sensitivity at § 12. Topic token: `security` — canonical simple
+pattern matching `postgres` / `cost` convention, inherited
+unchanged from Phase 2b / 2c cost_opt.
+
+**IDF fairness** — both languages within caching-baseline ± 15%:
+
+| Lang | Mean tokens | Mean idf_sum | Status |
+|---|---|---|---|
+| ko | 6.25 (target 5.7-7.8, -7.4%) | 15.66 (target 12.67-17.14, +5.1%) | OK |
+| en | 6.50 (target 6.4-8.6, -13.3%) | 12.85 (target 12.04-16.28, -9.2%) | OK |
+
+"Weak query" confound excluded (query fairness rule per § "Locked
+decisions from Phase 2b" in handoff).
+
+**Body overlap** — 3 flagged queries (overlap ≥ 0.5):
+
+| Lang | Genre | Overlap ratio | Note |
+|---|---|---|---|
+| ko | postmortem | 0.50 | Same structural pattern as postgres / cost_opt ko postmortem (both flagged 0.50) — one topic token overlaps the shared `장애` genre-event vocabulary. |
+| en | postmortem | 1.00 | `security` appears in "applying the security patch" (Redis crypto-miner chunk). |
+| en | adr | 1.00 | `security` appears in "security posture gained from mitigating issues like CVE-2023-44487" (auto-patching chunk). |
+
+All other genre × lang combinations: 0.00 overlap (no flag).
+
+**Interpretation per § 11.5**: The three flagged genres produce
+"measurement-consistent but signal-confounded" divergence
+readings. At § 12, if BM25 and dense concordantly pick the correct
+genre top-1 for a flagged genre, the measurement remains valid as
+"concordant miss direction" (same precedent as cost_opt adr
+overlap=1.0 at § 11.5). If BM25 / dense diverge on a flagged
+genre, overlap is an alternative explanation and the divergence
+reading must be reported with the caveat.
+
+**Ambient-vocabulary observation**: security EN has 2 genre flags
+(vs postgres 0, cost_opt 1). `security` appears more ambiently in
+operations/security prose than `postgres` or `cost` as proper-
+noun topic tokens — "security patch", "security posture", etc. are
+natural English collocations. Future topics with common-English
+topic tokens (candidates: `networking`, `auth`, `observability`)
+are expected to show similar EN-side flag inflation. Phase 5
+threshold calibration should treat the ko ↔ en flag-count
+asymmetry as a topic-vocabulary property, not a corpus defect.
+
 ## Methodology discontinuities
 
 This section tracks points where measurement methodology changed
