@@ -714,6 +714,116 @@ are expected to show similar EN-side flag inflation. Phase 5
 threshold calibration should treat the ko ↔ en flag-count
 asymmetry as a topic-vocabulary property, not a corpus defect.
 
+### Observability pre-registration — drift × divergence (2026-04-17)
+
+Before observability Gemini run. Two independent measurements, jointly
+interpreted. Bucket boundaries locked; no post-hoc redefinition. Same
+structure as security pre-registration above; observability-specific
+interpretation captured below.
+
+**Subtopic cluster** (`observability/{metrics, logging, tracing,
+alerting, synthetic}`, per `b2-v2-design.md` § "Seed subtopics"): the
+"three pillars" (metrics ↔ logging ↔ tracing) share operational-surface
+vocabulary; alerting derives from metrics but has distinct notification-
+channel vocabulary; synthetic is end-to-end probe vocabulary distinct
+from the other four. Cross-topic pull from `cost_optimization/
+observability` possible but expected to stay adjacent-not-drift
+(SPEND-vs-MECHANICS rule from Phase 2c first half).
+
+**Genre-activity mapping (first genre-boundary candidate)**:
+- runbook = dashboard / PromQL / Grafana setup procedure
+- postmortem = incident narrative with timeline / MTTR / five-whys
+- adr = tool selection (Prometheus vs DataDog, Jaeger vs Tempo)
+- troubleshooting = alert fatigue / missing signals / cardinality
+
+Unlike postgres / cost_opt / security (where genre vocabulary was
+less differentiated from topic vocabulary), each observability genre
+maps to a distinct activity cluster. This is the mechanism motivating
+D2 prior elevation.
+
+**Drift prediction** (Gemini output vs closed vocab, Phase 3a):
+
+| Hypothesis | Drift range | Interpretation |
+|---|---|---|
+| H1 (structural cleanliness dominant) | 10-20% | Three-pillars overlap (metrics ↔ logging ↔ tracing) is the primary intra-vocab pressure, similar subtopic geometry to security's encryption ↔ access_control overlap. Expected near security's 21.9% or slightly below. |
+| H2 (prompt refinement dominant) | 0-5% | Prompt refinement transfer explains drift prevention independent of subtopic geometry. Would require observability to match cost_opt's 0% despite three-pillars overlap — unlikely at n=3 given security's 21.9%. |
+| H3 (mixed, unequal weights) | 5-10% | Both factors contribute; neither dominates. |
+
+**Divergence prediction** (BM25 vs dense top-3 agreement):
+
+| Hypothesis | Divergence range | Interpretation |
+|---|---|---|
+| D1 (topic-strong consistent) | 0-1/8 | Observability joins topic-strong cluster (n=4). Chunk-level artifact candidate extends first-support but still k < 4 without falsifying cases (§ 11.4). |
+| D2 (genre signal emerges, moderate) | 3-5/8 | **First D2 realization** in the v2 corpus. Universal topic-strong pattern (n=3 at 0/8 each) breaks; genre-activity vocabulary separates BM25 from dense. **Higher prior per handoff** — observability is the strongest genre-boundary candidate among remaining topics. |
+| D3 (genre signal dominates, strong) | 6-8/8 | Genre anchors fully emerge; observability chunks lack the chunk-level artifact anchors that carried postgres / cost_opt / security to 0/8. |
+| (D1/D2 boundary: 2/8) | 2/8 | Boundary; inconclusive, requires k8s for discrimination. |
+
+**Joint H × D interpretation matrix**:
+
+```
+              H1 (structural)    H2 (prompt)       H3 (mixed)
+           ┌──────────────────┬──────────────────┬──────────────────┐
+       D1  │ structural +     │ prompt +         │ mixed +          │
+           │ topic-strong     │ topic-strong     │ topic-strong     │
+           │ (n=4 universal)  │ (n=4 universal)  │ (n=4 universal)  │
+           │ ← chunk-level    │ ← strongest      │                  │
+           │ retained, H1     │ chunk-level      │                  │
+           │ heavy            │ support          │                  │
+           ├──────────────────┼──────────────────┼──────────────────┤
+      D2/3 │ structural +     │ PROMPT + GENRE   │ mixed + genre    │
+           │ GENRE EMERGES    │ EMERGES          │ emerges          │
+           │ (2-factor model) │ ← chunk-artifact │ (2-factor +      │
+           │                  │ FALSIFIED        │ weak structure)  │
+           └──────────────────┴──────────────────┴──────────────────┘
+```
+
+Cells of interest (differ from security pre-reg given observability's
+genre-boundary role):
+- **(any H, D2/D3)**: **first genre-boundary realization in the v2
+  corpus.** Universal topic-strong pattern breaks at n=4; genre
+  signal is real. Phase 5 confusion matrix must include observability
+  genre pairs as primary test cases.
+- **(H2, D2/D3)**: chunk-level artifact candidate **falsified** (same
+  cell as security pre-reg). Prompt-healthy + genre emerging means
+  chunk artifacts are NOT the dominant mechanism. Candidate
+  abandoned; reopen Phase 5 design.
+- **(H1, D2/D3)**: structural difficulty + genre signal emerging.
+  Two-factor model (structure + genre activity). Phase 5 threshold
+  calibration adopts both axes.
+- **(any H, D1)**: observability joins topic-strong cluster.
+  Chunk-level artifact candidate extends to n=4, still below k ≥ 4
+  confirmation. Continue with k8s for n=5.
+
+**Post-observability decision rules** (pre-registered to avoid post-
+hoc narrative fitting; mirrors handoff § "Phase 2d next actions"
+Step 9):
+
+- **0-2/8 (D1 realized)**: topic-strong cluster extends to n=4.
+  Next: k8s for clean topic-strong confirmation, then kafka
+  (confirmation-only per § 12.7). Chunk-level artifact candidate
+  continues unconfirmed (k < 4 without falsifying cases).
+- **3-5/8 (D2 realized)**: first genre signal. Confirm at k8s —
+  if k8s also D2, genre signal is not observability-specific.
+  Reopen structural-vs-artifact discrimination at Phase 5.
+- **6-8/8 + H2 drift (0-5%)**: chunk-level artifact candidate
+  **falsified**. Prompt quality explains prior invariance, not
+  chunk artifacts. Redesign for Phase 5.
+- **6-8/8 + H1 drift (10-20%)**: structural dominance + strong
+  genre emergence. Two-factor model supersedes chunk-level
+  candidate.
+
+**Body-overlap pre-measurement expectation** (per § 11.5 ambient-
+vocabulary observation in security pre-measurement): `observability`
+is a common-English term; expect EN-side flag inflation similar to
+`security` (possibly higher given frequency of "observability" in
+operations prose). Flags are measurement noise, not corpus defect;
+§ 12.5 concordance rule applies — if BM25 and dense concordantly pick
+the correct genre top-1 on a flagged genre, measurement remains valid.
+
+**Sunk-cost-bias guardrail**: all four decision paths recorded pre-
+observability so the post-result interpretation reads off a cell, not
+fits a narrative. Same principle as security pre-reg above.
+
 ## Methodology discontinuities
 
 This section tracks points where measurement methodology changed

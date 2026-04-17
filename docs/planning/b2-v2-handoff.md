@@ -29,7 +29,7 @@ open-prediction state.
 | 2b | ✅ | postgres × 4 genres × 2 langs = 32 chunks; topic-strong pipeline invariance identified (B-2) |
 | 2c (cost_opt) | ✅ | cost_optimization × 4 genres × 2 langs = 32 chunks; **counter-prediction realized — topic-strong despite topic-weak prediction** (0/8 divergence); drift 0/32 |
 | 2c (security) | ✅ | Gemini-regenerated; 32 chunks with 7 corrections = 21.9% drift (H1 supported, upper edge 10-20%); divergence **0/8** (D1 realized); joint cell (H1, D1) = chunk-level artifact candidate retained with H1 weighted heavily; § 12.7 decision: kafka → observability |
-| **2d (observability)** | **🔄 next** | replaces kafka per § 12.7 Kafka cadence contingency realization; predicted strongest genre-boundary-emergence candidate (runbook = dashboard setup, postmortem = incident narrative, adr = tool selection, troubleshooting = alert fatigue) |
+| **2d (observability)** | **🔄 in progress** (Step 2 pre-reg DONE 2026-04-17; Step 3 Gemini batches next) | replaces kafka per § 12.7 Kafka cadence contingency realization; predicted strongest genre-boundary-emergence candidate (runbook = dashboard setup, postmortem = incident narrative, adr = tool selection, troubleshooting = alert fatigue) |
 | 2d kafka / k8s | 📋 | kafka demoted to post-observability + k8s as confirmation-only; k8s retains clean topic-strong confirmation role |
 | 2e onwards | 📋 | 9 remaining topics × 8 batches each |
 | 3-7 | 📋 | full curation (per-topic drift), query portfolio, calibration, CI wiring, PR |
@@ -124,16 +124,14 @@ All Phase 2c steps complete across cost_opt + security:
    `b2-v2-phase1-validation.md` § 12 (security close,
    kafka → observability decision) → `b2-v2-query-portfolio.md`.
 
-2. **Pre-register observability joint H × D matrix** in
-   `b2-v2-phase2b-ledger.md` following the security pattern.
-   Ranges locked before Gemini run, no post-hoc redefinition.
-   Observability is the **genre-boundary candidate**: genres map
-   to distinct activities (runbook = dashboard/query setup,
-   postmortem = incident narrative, adr = tool selection,
-   troubleshooting = alert fatigue). Recommended divergence
-   prediction: D2 (3-5/8) higher prior than previous topics; D1
-   still possible given topic-strong cluster momentum. Drift
-   H1/H2/H3 ranges same as security (10-20% / 0-5% / 5-10%).
+2. ✅ **Pre-register observability joint H × D matrix** (DONE
+   2026-04-17) in `b2-v2-phase2b-ledger.md` § "Observability
+   pre-registration — drift × divergence". Locked: H1/H2/H3 drift
+   ranges same as security (10-20% / 0-5% / 5-10%); D1/D2/D3
+   divergence with D2 (3-5/8) prior elevated per handoff
+   guidance; joint H × D matrix + cells of interest + post-
+   observability decision rules + body-overlap expectation +
+   sunk-cost-bias guardrail. No post-hoc redefinition.
 
 3. **Run observability Gemini batches** — create 8 prompts
    (adr/runbook/postmortem/troubleshooting × ko/en) using the
