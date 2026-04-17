@@ -223,3 +223,82 @@ sensitivity contract.
 If Phase 2b's cross-rrf_weights sensitivity assertion fails (same
 top-K under [1,0] and [0,1] on genre-primary queries), pause and
 investigate before doing the remaining 14 topics.
+
+## 8. Phase 1 pre-scale sensitivity test (16 KO chunks)
+
+Before moving to Phase 2a, ran a sensitivity test on the 16 Phase 1
+chunks to confirm the anchor mechanism works at small scale. Eight
+genre-primary queries tested against `rrf_weights` configurations.
+
+Result: **8/8 queries diverged between `[1,0]` and `[0,1]`**, BM25-only
+top-1 matched expected genre in 8/8 queries, dense-only in 3/8. The
+anchor mechanism works as the theory predicted (BM25 senses genre via
+IDF-heavy markers; dense ignores genre in favor of topic).
+
+## 9. EN parity check (Phase 2a — caching × en × 4 genres)
+
+Ran the same separation and sensitivity analyses on the EN corpus
+(16 additional chunks, same topic and genres, independently drafted
+by Gemini with EN prompts).
+
+### 9.1 Lexical separation inverts compared to KO
+
+| Measure | KO (kiwipiepy) | EN (unicode61) |
+|---|---|---|
+| Intra-genre Jaccard mean | 0.097-0.144 | 0.125-0.178 |
+| Inter-genre Jaccard mean | 0.152-0.208 | 0.110-0.152 |
+| Intra vs Inter | **intra < inter** | **intra > inter** ✓ |
+
+**EN shows proper separation at Jaccard level**; KO does not. Likely
+cause: Korean morphological tokenization (kiwipiepy) splits particles
+and endings into separate tokens, diluting genre-specific vocabulary.
+English unicode61 preserves lemma-form tokens, keeping genre markers
+intact.
+
+**Implication**: raw Jaccard is a language-dependent metric and not a
+reliable cross-language indicator of genre separation. The
+**BM25-with-IDF anchor sensitivity test is the language-agnostic
+measurement** — and that works in both languages (see § 9.3).
+
+### 9.2 EN genre anchors
+
+High-IDF tokens appearing only in one genre, 4/4 frequency in home:
+
+- **adr**: `over`, `accepted` (both 4/4), `trade-off`, `adopted`,
+  `re-evaluate`, `revisit`, `instead`, `consistency.`, `will`, `our`
+- **postmortem**: `was`, `utc,`, `follow-up:` (all 4/4), `added`
+  (2/4) — parallels KO `후속/조치/KST`
+- **runbook**: weaker — most anchors at 1/4 frequency (`into`,
+  `stays`, `entries`, `purged`, `within`, `set\``). EN runbook is
+  harder to distinguish from troubleshooting lexically because both
+  use imperative English verbs.
+- **troubleshooting**: `workaround,`, `likely` (4/4), `clients`
+  (2/4), `configuration.`
+
+### 9.3 EN anchor sensitivity test
+
+8 EN genre-primary queries against same `rrf_weights` configs:
+
+- Diverges (top-3 differs between `[1,0]` and `[0,1]`): **6/8**
+- BM25-only top-1 matches expected genre: **8/8**
+- Dense-only top-1 matches expected genre: **6/8** (vs KO 3/8)
+
+**English dense embeddings capture genre better than Korean** — this
+is the expected multilingual MiniLM-L12 behavior (training data
+skews English). Two queries converged (both top-1 matched), which is
+signal agreement (both rankers pick the right genre), not signal
+degradation.
+
+### 9.4 Implications for v2
+
+- **Both languages pass the BM25 anchor test** (top-1 match 8/8).
+  Phase 2 go for both languages.
+- **EN rrf_weights sensitivity will be weaker than KO** (6/8 vs 8/8
+  divergence). Expect EN to catch fewer fusion-weight regressions on
+  genre-primary queries. This matches the MVP's "EN primary tests
+  are less sensitive" observation but now has a concrete mechanism:
+  EN dense already captures some genre info, so EN Δ(BM25-only vs
+  dense-only) is smaller.
+- **KO stays the primary regression signal**, EN acts as
+  cross-language parity check and best-effort additional coverage.
+  Document this asymmetry in the eventual PR description.
