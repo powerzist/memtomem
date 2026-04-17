@@ -410,6 +410,320 @@ established specifically for this case. Track whether other topics
 produce analogous patterns — if they don't, Principle 3 remains
 used-once.
 
+## Curation ledger — Phase 2c security, Claude-generated (design reference, superseded — see Gemini ledger below)
+
+### Generator discontinuity — critical caveat
+
+Security batches were **Claude Opus 4.7-generated**, not Gemini-
+generated, unlike postgres (Phase 2b), cost_optimization (Phase 2c
+first half), and caching (Phase 1/2a). Path decided on 2026-04-17
+as Option (i) below — the Claude batches are retained under
+`.claude/b2-v2-security-batches/` (gitignored) as design reference;
+the Gemini-regenerated security batches (2026-04-17, under
+`.claude/b2-v2-security-batches-gemini/`) are the authoritative
+source for H1/H2/H3 testing and Phase 3b fixtures. See the
+`## Methodology discontinuities` section for the full rationale
+and alternatives considered.
+
+The curation analysis below is on the Claude-generated batches as
+a completeness exercise. Its drift rate does NOT contribute to the
+pre-registered Gemini drift comparison (H1/H2/H3); that role
+belongs to the Gemini ledger section below.
+
+### Category distribution (Claude-generated, 4/32 = 12.5%)
+
+| Category | Count | Example |
+|---|---|---|
+| Out-of-vocab expansion | 0 | — |
+| Intra-vocab misclassification | 2 | `security/incident` tagged on CMK scheduled-deletion outage (ops error, not attacker action); `cost_optimization/storage` tagged on ADR mentioning KMS API request cost (not a storage-tier strategy) |
+| Absent-topic projection | 0 | — |
+| Claude over-correction | 0 | — |
+| **Missed secondary (new 5th category)** | 2 | Body-supported adjacencies missed at initial generation (e.g., CloudTrail audit → `observability/logging` missed on the HSM ADR; IRSA root cause → `security/access_control` missed on the external-secrets troubleshooting) |
+
+**On category #5 (missed secondary)**: formally established as a
+drift category at security, 2026-04-17. Postgres (Phase 2b) and
+cost_optimization (Phase 2c first half) were curated before this
+category existed; their reported drift rates (28% and 0%) may
+under-report missed-secondary instances. See the retrospective audit
+task in "Deferred decisions".
+
+### Per-chunk corrections (security Phase 2c, 4 total)
+
+| genre × lang | # (primary) | original secondary | final secondary | Category |
+|---|---|---|---|---|
+| adr KO | #2 secrets | `[]` | `[observability/logging]` | Missed secondary — CloudTrail audit log centralization body-supported |
+| adr EN | #3 encryption | `[cost_optimization/storage]` | `[security/access_control]` | Intra-vocab misclass — KMS request cost is not storage-tier optimization; per-tenant isolation + key-policy JSON are the body-supported `access_control` signals |
+| troubleshooting KO | #1 secrets | `[observability/logging]` | `[observability/logging, security/access_control]` | Missed secondary — IRSA / node-role root cause body-supported |
+| postmortem EN | #3 encryption | `[security/incident]` | `[security/access_control]` | Intra-vocab misclass — scheduled-deletion by a contractor's script = ops error near-miss, not breach / exploit / unauthorized-access. `security/incident` strict definition preserved; remediation explicitly scopes `kms:ScheduleKeyDeletion`, supporting `access_control` |
+
+### Borderline cases preserved via Principle 2 (not counted as drift)
+
+| genre × lang | # (primary) | secondary | Principle | Notes |
+|---|---|---|---|---|
+| runbook KO | #3 vulnerability | `[ci_cd/testing, observability/alerting]` | P2 (functional split) | Chunk describes a vuln-detection / management workflow (scan → triage → `.trivyignore` exception) with CI as the medium. The drift guide would swap primary to `ci_cd/testing` if the focus were CI wiring; the operational focus on vuln ops keeps `security/vulnerability` primary. `ci_cd/testing` already secondary — functional split acknowledged. |
+| runbook EN | #3 vulnerability | `[ci_cd/testing]` | P2 (functional split) | Same pattern as the KO counterpart (`dependency-check` + `osv-scanner` operational workflow). |
+
+### Rejected optional additions
+
+| genre × lang | # (primary) | proposed add | rejected because |
+|---|---|---|---|
+| postmortem KO | #4 access_control | `+security/incident` | Body states "staging 컴파일 잡이 **실수로** write access 획득" — ops error, not attacker action. `security/incident` strict definition (breach / exploit / unauthorized access BY ATTACKER) not met. Preserves the same strict-definition boundary used in the postmortem EN #3 intra-vocab correction above. |
+
+### Subtopic primary distribution skew (intentional)
+
+```
+security/vulnerability:   8/32
+security/access_control:  8/32
+security/encryption:      7/32
+security/secrets:         7/32
+security/incident:        2/32   ← skew
+```
+
+This skew is intentional, established at generation planning:
+- `incident` framing is natural for postmortem genre only
+- Forcing `incident` primary in adr / runbook / troubleshooting
+  yields unnatural prose
+- Rationale captured in `.claude/b2-v2-security-prompts.md` lines
+  45-67 ("Primary-diversity enforcement for security"), preserved
+  unchanged for the forthcoming Gemini regeneration
+
+Implication for Phase 5 threshold calibration:
+- incident-primary queries will match against 2 chunks only (vs
+  7-8 for other subtopics)
+- recall@10 for incident-primary queries has higher variance due to
+  the smaller relevant set
+- Threshold calibration must account; options:
+  - (a) exclude incident-primary queries from floor assertions, or
+  - (b) set a looser floor for incident-primary queries than other
+    subtopics
+- Decision deferred to Phase 5 calibration.
+
+### Post-curation secondary distribution
+
+All-secondary counts across 32 chunks (top entries):
+
+```
+ci_cd/testing:                   7
+ci_cd/pipeline:                  5
+observability/logging:           4
+security/incident:               4   ← all in postmortem batches only
+security/access_control:         3
+observability/alerting:          2
+auth/rbac:                       2
+observability/metrics:           2
+postgres/indexing:               1
+auth/mtls:                       1
+auth/oauth:                      1
+networking/load_balancing:       1
+incident_response/communication: 1
+api_design/rest:                 1
+ci_cd/deployment:                1
+```
+
+`security/incident` as secondary (4/32) is confined to postmortem
+batches — no bleeding into adr / runbook / troubleshooting.
+Postmortem incident framing preserved without primary dominance.
+
+## Curation ledger — Phase 2c security, Gemini-regenerated (7 corrections / 32 = 21.9%)
+
+### Generator transition executed (2026-04-17)
+
+Per Methodology Discontinuity 1 decision (Option i), security batches
+were regenerated with Gemini using the unchanged
+`.claude/b2-v2-security-prompts.md` (prompt identity verified
+structurally equivalent to cost_opt prompts: 5 legitimate
+topic-specific differences, no Claude-idiosyncratic content). Gemini
+output saved under `.claude/b2-v2-security-batches-gemini/`. This is
+the authoritative source for H1 / H2 / H3 pre-registration testing
+and for Phase 3b fixture conversion.
+
+### Batch 7 rerun — literal-example-copy failure mode
+
+Gemini's first attempt at Batch 7 (postmortem ko) returned all 4
+chunks with literal `YYYY-MM-DD` placeholder strings copied from
+the prompt's postmortem example tone ("At HH:MM UTC on YYYY-MM-DD").
+Per operator workflow ("reject and rerun rather than hand-patching"),
+Batch 7 was rerun; the second attempt produced real dates
+(2023-11-12, 2024-02-08, 2021-12-11, 2024-05-19).
+
+**New failure mode observed — "literal example copying"** — isolated
+to one batch of eight on first attempt, not systemic. Other 7
+batches produced real dates (Batch 8 English: 2023-10-15, 2023-11-02,
+2023-12-01, 2024-01-10). Mitigation: future prompt runs may benefit
+from explicit "replace YYYY-MM-DD with an actual date" instruction
+if the pattern recurs; for now, rerun-on-detection is the documented
+handling.
+
+### Category distribution (Gemini-generated, 7/32 = 21.9%)
+
+| Category | Count | Example |
+|---|---|---|
+| Out-of-vocab expansion | 0 | — |
+| Intra-vocab misclassification | 6 | `security/encryption` primary on service-to-service mTLS chunks (2 instances); `security/encryption` primary on ingress / Let's Encrypt TLS cert rotation chunks (2 instances); `security/access_control` primary on Kubernetes RBAC `RoleBinding` chunks (2 instances) |
+| Absent-topic projection | 1 | `k8s/storage` secondary on `ExternalSecrets` operator chunk — body discusses operator pod scheduling / control-plane overhead, not PV / PVC / volumes |
+| Claude over-correction | 0 | — |
+| Missed secondary | Not audited | Same limitation as postgres (Phase 2b) and cost_opt (Phase 2c first half); category was established at the Claude design-reference section above. Gemini security chunks are not re-audited for missed secondaries per the retrospective-audit task in Deferred decisions |
+
+### H1 / H2 / H3 pre-registration outcome
+
+| Hypothesis | Pre-reg range | Observed | Status |
+|---|---|---|---|
+| H1 (structural cleanliness dominant) | 10-20% | **21.9%** | **SUPPORTED** — just above range, but the postgres (28%) → security (21.9%) → cost_opt (0%) pattern is consistent with structural-difficulty explanation: both postgres (overlapping `indexing` / `vacuum` / `partitioning`) and security (overlapping `encryption` / `access_control` with adjacent `auth/*` and `networking/*`) produce meaningful drift, while cost_opt's sharp SPEND-vs-MECHANICS split produces minimal drift |
+| H2 (prompt refinement dominant) | 0-5% | 21.9% | Rejected — would have predicted drift near-zero regardless of subtopic geometry |
+| H3 (mixed, unequal weights) | 5-10% | 21.9% | Rejected — drift above the 5-10% band |
+
+**Decision**: H1 supported at n=3. Cost_opt remains the exceptional
+structural-cleanliness case; postgres and security are the baseline
+structural-difficulty cases. Kafka cadence contingency (see
+"Kafka cadence contingency" section) now resolves to the
+**structural-confirmation path**: kafka is expected to produce
+meaningful drift similar to postgres / security if its subtopics
+(`producer` / `consumer` / `topic` / `connect` / `streams`) have
+overlapping concerns, and minimal drift if they are cleanly
+separated.
+
+### Per-chunk corrections (security Phase 2c Gemini, 7 total)
+
+| genre × lang | # (original primary) | original → final primary | original → final secondary | Category |
+|---|---|---|---|---|
+| adr EN | #1 encryption | `security/encryption` → **`auth/mtls`** | `[auth/mtls]` → `[networking/tls]` | Intra-vocab: service-to-service strict mTLS via cert-manager. Drift guide: "Service-to-service mutual auth = auth/mtls" |
+| adr EN | #3 secrets | unchanged (`security/secrets`) | `[k8s/storage]` → `[]` | Absent-topic: body discusses operator pod overhead, not PV / PVC / volumes |
+| runbook KO | #2 encryption | `security/encryption` → **`networking/tls`** | `[networking/tls]` → `[networking/load_balancing]` | Intra-vocab: ingress cert rotation + LB TLS setting upload. Drift guide: "Ingress TLS termination = networking/tls" |
+| runbook EN | #1 encryption | `security/encryption` → **`auth/mtls`** | unchanged (`[networking/service_mesh]`) | Intra-vocab: Istio `PeerAuthentication` mTLS STRICT mode |
+| trouble KO | #1 access_control | `security/access_control` → **`auth/rbac`** | `[auth/rbac]` → `[security/access_control]` | Intra-vocab: `RoleBinding` + `edit` cluster role — "Kubernetes RBAC Role/RoleBinding YAML = auth/rbac" |
+| trouble KO | #2 encryption | `security/encryption` → **`networking/tls`** | `[networking/tls]` → `[]` | Intra-vocab: Let's Encrypt cert expiry, `certbot`, `Nginx reload` — transport-layer cert management |
+| postmortem KO | #2 access_control | `security/access_control` → **`auth/rbac`** | `[auth/rbac]` → `[security/access_control]` | Intra-vocab: `cluster-admin` `RoleBinding` + namespace deletion + `view` role — RBAC-specific |
+
+### Borderline cases preserved (Principle 2 or gray-area, not counted as drift)
+
+| genre × lang | # (primary) | secondary | Note |
+|---|---|---|---|
+| adr KO | #4 vulnerability | `[ci_cd/testing]` | Trivy 0.44.0 CI-gate ADR; operational focus on vuln management. P2 functional split |
+| runbook KO | #4 vulnerability | `[ci_cd/testing]` | `npm audit` + Trivy scanner workflow; same pattern as adr KO #4 |
+| trouble EN | #1 access_control | `[auth/oauth]` | JWT `iss` claim debugging at API gateway; gray — access_control (policy) vs auth/oauth (mechanism) |
+| trouble EN | #2 encryption | `[postgres/connection_pool]` | `sslmode=require` + `pg_hba.conf` debugging; drift guide "at-rest vs in-transit policies" lists in-transit policy under encryption, defensible |
+| trouble EN | #3 vulnerability | `[ci_cd/testing]` | Trivy + `.trivyignore` CI-failure debugging; same P2 pattern |
+| trouble EN | #4 secrets | `[networking/service_mesh]` | Vault agent CA injection failure manifesting as mTLS x509 error. Gray — secrets delivery mechanism vs mTLS validation symptom |
+| postmortem EN | #3 encryption | `[networking/tls]` | cert-manager Let's Encrypt auto-renewal failure breaking mTLS. Gray similar to runbook EN #1; secondary=`networking/tls` already captures the functional split |
+
+### Corpus composition after curation
+
+```
+Post-curation primary distribution (32 chunks, mixed after 6 reclassifications):
+
+security/secrets:          8/32
+security/vulnerability:    7/32
+security/access_control:   6/32   (−2 reclassified to auth/rbac)
+security/encryption:       4/32   (−2 → auth/mtls, −2 → networking/tls)
+security/incident:         1/32   ← skew (trouble KO only)
+auth/mtls:                 2/32   (from reclassification)
+auth/rbac:                 2/32   (from reclassification)
+networking/tls:            2/32   (from reclassification)
+```
+
+Total `security/*` primary: 26/32 (81%) after curation.
+Non-`security/*` primary: 6/32 (19%) — Gemini classified these as
+`security/*` during generation; drift guide places the underlying
+mechanism in adjacent topics (`auth/*`, `networking/*`). The chunks
+remain in the security batch directory (`corpus_v2/{ko,en}/security/`)
+because they were generated in the security batch; the corrected
+primary labels reflect true topic alignment per closed vocabulary.
+
+This 81/19 split is a Gemini-behavior data point: Gemini blurs
+topic boundaries toward the batch-announced topic. Claude (design
+reference) produced 32/32 `security/*` primaries, less prone to
+batch-topic-pull drift. Cross-generator observation worth tracking
+as future topics are generated.
+
+### Subtopic primary distribution skew — Gemini pattern
+
+security/incident primary: **1/32 (3.1%)** — differs from Claude
+design-reference (2/32). Specifically:
+
+- Gemini placed `security/incident` primary in **Batch 5
+  (troubleshooting ko) only** — an active SSH brute-force attack
+  detected from `auth.log`.
+- **Postmortem batches (7 and 8)** contain `security/incident` as
+  **secondary** on 3 chunks (postmortem ko #1, postmortem en #1,
+  postmortem en #2) but **never as primary**. Gemini appears to
+  follow the postmortem caveat "do not let `security/incident`
+  dominate" more strictly than Claude did — pushing it entirely to
+  secondary status in postmortems.
+
+Implication for Phase 5 threshold calibration (extends the Claude
+observation): recall variance for incident-primary queries is even
+higher than predicted (1-chunk relevant set vs 2). Threshold
+calibration options:
+- (a) exclude incident-primary queries from floor assertions, or
+- (b) set a markedly looser floor for incident-primary queries.
+
+Decision deferred to Phase 5 calibration.
+
+## Methodology discontinuities
+
+This section tracks points where measurement methodology changed
+across topics, preventing direct cross-topic comparison. Each entry
+records the discontinuity, its scope, and the decision made to
+handle it.
+
+### Discontinuity 1: Generator transition at security (2026-04-17)
+
+**Scope**: Phase 2c security batches only (not postgres, cost_opt,
+or caching).
+
+**Trigger**: A prior session generated security batches using
+Claude Opus 4.7 instead of Gemini (the generator used for postgres,
+cost_opt, caching). This breaks the generator-uniform assumption
+behind the pre-registered H1 / H2 / H3 drift hypotheses.
+
+**Why it matters**: H1 / H2 / H3 buckets (10-20%, 0-5%, 5-10% drift
+respectively) were calibrated against Gemini's drift distribution.
+Claude's closed-vocab awareness is structurally different (prompt
+is in-context; drift patterns differ). The measured 12.5% drift on
+the Claude-generated batches falls into the H3 range by arithmetic
+coincidence, but does NOT test H2 ("prompt refinement dominant")
+nor H1 ("structural cleanliness dominant") as defined.
+
+**Options considered**:
+
+| Option | Cost | Pro | Con | Phase 5 implication |
+|---|---|---|---|---|
+| (i) Regenerate security with Gemini; current Claude batches retained as design reference only | ~2 h (Gemini run + curation; subtopic / artifact planning from Claude work is reusable prompt context) | Clean methodology; H1 / H2 / H3 testable at security | Claude generation effort partially sunk (subtopic planning retained) | `cost_opt` H1 / H2 / H3 pre-registration becomes testable at security — preserves the B.2 v2 falsifiability framework |
+| (ii) Continue with Claude for remaining 10 topics (security + kafka + k8s + …) | Same Claude effort per topic going forward | No regeneration; faster cadence | postgres / cost_opt / caching become an isolated "Gemini subset"; H1 / H2 / H3 falsifiability abandoned | Two drift baselines maintained; Phase 5 threshold calibration needs cross-generator normalization; falsification framework lost |
+| (iii) Generate Claude-security + Gemini-security pair | ~2 h (Gemini run) in addition to Claude work already done | Direct generator-bias quantification; most scientifically clean | Security becomes a 64-chunk asymmetric corpus; doubles security weight in cross-topic evaluation | Generator bias becomes a measured correction factor; security uniquely double-weighted |
+
+**Decision**: **(i)** — confirmed 2026-04-17.
+
+Rationale:
+- Option (ii) abandons pre-registration falsifiability (the core
+  of the B.2 v2 framework). Rejected.
+- Option (iii) produces an asymmetric 64-chunk security corpus,
+  distorting cross-topic evaluation weights. The
+  generator-bias information is not worth the distortion.
+  Rejected.
+- Option (i) reuses the Claude subtopic / genre / artifact planning
+  as Gemini prompt-context preparation (reducing per-topic effort)
+  while preserving the H1 / H2 / H3 falsification paths.
+
+**Execution**:
+- Current Claude batches retained under
+  `.claude/b2-v2-security-batches/` (gitignored) as design reference.
+- Fresh Gemini-generated security batches will replace the Claude
+  content when committed as fixtures.
+- Prompt identity verified: `.claude/b2-v2-security-prompts.md` is
+  structurally equivalent to `.claude/b2-v2-cost-optimization-prompts.md`
+  with only topic-specific content substitution (verified
+  2026-04-17 — 5 legitimate differences enumerated: topic label,
+  Rule 6 example (Redis → TLS), Rule 2 intro wording, intra-vocab
+  confusion bullets (cost_opt → security), JSON template topic
+  prefix). Gemini run uses the prompt as-is, no reversion needed.
+
+**Status**: **Complete** (2026-04-17). Gemini regeneration executed;
+Batch 7 required one rerun for YYYY-MM-DD literal-example-copy
+quality defect; all 8 batches ledgered. See
+`## Curation ledger — Phase 2c security, Gemini-regenerated` above
+for the authoritative drift measurement.
+
 ## Deferred decisions (Phase 3b / Phase 5 / Option 2 backlog)
 
 - [ ] **Drift validator matrix (Phase 3b infra)** — three-tier rule
@@ -451,3 +765,21 @@ used-once.
   source per the verification protocol. If unverifiable invocations
   accumulate, tighten the protocol further (e.g., require explicit
   quote from the source rather than just a reference).
+
+- [ ] **Retrospective missed-secondary audit (postgres + cost_optimization)**
+  — **Trigger**: before Phase 5 threshold calibration, OR after
+  kafka topic completion, whichever comes first.
+  **Rationale**: "Missed secondary" was established as the 5th
+  drift category at security (Phase 2c, 2026-04-17). Postgres
+  (Phase 2b) and cost_optimization (Phase 2c first half) were
+  curated before this category existed; their reported drift rates
+  (28% and 0%) may under-report missed-secondary instances. Phase 5
+  cross-topic drift comparison requires comparable baselines.
+  **Scope**: re-examine all 32 postgres chunks for body-supported
+  secondaries not tagged at original curation; same for all 32
+  cost_opt chunks; update ledger drift rates if missed secondaries
+  are found; document "retrospectively audited YYYY-MM-DD, N missed
+  secondaries found, corrected rates: postgres X%, cost_opt Y%"
+  in the respective curation-ledger sections.
+  **Effort estimate**: ~90 minutes (2-3 min / chunk × 64 chunks).
+  **Not required for security PR merge**.
