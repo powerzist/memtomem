@@ -257,13 +257,21 @@ Key prompt constraints:
 | **0** | v2 branch + clean infrastructure (done) | — |
 | **1** | This design doc + Gemini prompt template + first cell sample (4 chunks) | user reviews sample for style/vocab quality |
 | **2** | Gemini batch drafts per cell (60 cells × 2 langs = 120 batches) | user generates, shares JSON |
-| **3** | Claude curates, normalizes subtopics, converts to markdown | user reviews per-batch |
-| **4** | Query portfolio final draft (80 queries) | user reviews |
-| **5** | Calibration (10-run determinism, threshold setting) | — |
+| **3a** | Claude curates: drift correction against closed vocabulary, evidence check against chunk body | user reviews per-batch — **mandatory human-in-the-loop step** |
+| **3b** | Claude converts curated batches to markdown; later (≥ 5 topics) extract drift validator rules | script-verifiable |
+| **4** | Query portfolio final draft (100 queries per language, includes genre-primary axis) | user reviews |
+| **5** | Calibration (10-run determinism, threshold setting, genre confusion matrix) | — |
 | **6** | Sensitivity check per query type (rrf_weights extremes) | — |
 | **7** | CI wiring + PR | user reviews PR |
 
-Phase 1 is the current cycle's scope.
+Phase 3 is **split into 3a (drift correction) and 3b (markdown conversion)** because
+curation consistently finds ~30% drift rate across topics (Phase 1 caching ko,
+Phase 2a caching en, Phase 2b postgres). Phase 3a is not optional — raw Gemini
+output does not meet the closed-vocabulary contract. See
+`b2-v2-phase2b-ledger.md` for the curation ledger.
+
+Phases 1, 2a, and 2b are complete at the time this revision lands (see
+`b2-v2-phase1-validation.md` § 8-10 for measurements).
 
 ## Verification strategy
 
@@ -291,6 +299,75 @@ discriminates rrf_weights), the v2 plan escalates to:
 - Or accept "EN is pipeline-invariant under current model
   configuration" as a documented limit and ship as KO-primary +
   EN-monitoring regression.
+
+### Postgres genre-primary pipeline invariance (B-2 finding, Phase 2b)
+
+Measured at Phase 2b checkpoint (`b2-v2-phase1-validation.md` § 10 has
+full data):
+
+- Strengthened-query divergence on genre-primary queries: **0/4 KO,
+  0/4 EN** under `rrf_weights=[1,0]` vs `[0,1]`
+- Cross-topic bleed (caching+postgres 64 chunks): **1/16 (6.3%)**,
+  below the pre-registered "medium+" threshold for redesigning genre
+  rotation
+- Top-1 genre accuracy: KO 3/4, EN 4/4 — accuracy healthy, **fusion
+  weight sensitivity absent**
+- Query IDF sum: KO 23.42 (+42% vs caching baseline), EN 18.67 (+19%
+  vs caching baseline). Both **exceed the measurement-matched target**,
+  ruling out "weak query" as the invariance cause — stronger queries
+  still produce zero divergence
+
+**Decision (B-2)**: demote postgres genre-primary floors to
+measurement-only (retained in the portfolio but not asserted against
+CI floors). Retain 10 genre-primary postgres queries for documentation
+and cross-topic bleed tracking. The rest of the postgres query-type
+floors (direct/paraphrase/underspecified/multi_topic/negation) remain
+active — only the genre-primary axis is demoted on this topic.
+
+### Topic-strong vs topic-weak — testable predictions
+
+**Hypothesis (pending validation across remaining 13 topics)**: a
+topic's genre-primary `rrf_weights` sensitivity is inversely related
+to the density of topic-proper-noun vocabulary that saturates the
+dense embedding regardless of genre framing.
+
+| Predicted profile | Topics | Expected genre-primary divergence |
+|---|---|---|
+| **Topic-strong** (command/API vocabulary dominates) | postgres ✓, k8s, kafka | Low: 0-2/8 divergence; genre-primary floors demoted |
+| **Topic-weak** (conceptual narrative) | caching ✓, security, cost_optimization | High: 6-8/8 divergence; genre-primary floors active |
+| **Middle** (mixed) | observability, ci_cd, auth, networking | 3-5/8 divergence; case-by-case |
+
+Checkmarks denote topics where the prediction has already been
+validated at the Phase 2b checkpoint.
+
+**Topic ordering for validation**: run topic-weak candidates first
+(cost_optimization, security) to establish the divergence pattern,
+then introduce the boundary case (kafka — proper-noun-heavy but
+concept-rich) before confirming the clean topic-strong case (k8s).
+Testing the boundary before the clean prediction improves hypothesis
+precision; see `b2-v2-handoff.md` Phase 2c actions for the full cadence.
+
+### Drift validator — Phase 3b infra TODO
+
+A three-tier rule set derived from the accumulated curation ledger
+(`b2-v2-phase2b-ledger.md`) will flag obvious drift at Phase 3a
+automatically. Not implemented yet; trigger condition is "≥ 5 topics
+ledgered" so that rules are not fit to a biased small sample.
+
+Tiers:
+
+- **Forbidden pairs** (auto-reject) — e.g. `postgres/* primary →
+  search/* secondary`, or any cross-domain vocabulary mixing the
+  closed vocabulary explicitly separates
+- **Manual-review pairs** (flag, not block) — ambiguous adjacencies
+  like `postgres/* primary → k8s/networking secondary` where the
+  correct classification depends on whether the chunk body mentions
+  autoscaling vs service mesh vs CNI
+- **Allowed pairs** (explicit greenlist) — common legitimate links
+  like `postgres/* primary → observability/metrics secondary`
+
+The validator is a drift-detection aid for the human curator, not a
+replacement. Phase 3a remains mandatory human-in-the-loop.
 
 ## What this plan is not
 

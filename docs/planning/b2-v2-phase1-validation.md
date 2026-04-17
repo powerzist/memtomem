@@ -302,3 +302,132 @@ degradation.
 - **KO stays the primary regression signal**, EN acts as
   cross-language parity check and best-effort additional coverage.
   Document this asymmetry in the eventual PR description.
+
+## 10. Phase 2b — postgres × 4 genres × 2 languages
+
+Second topic. Phase 2a validated genre rotation on caching in both
+languages. Phase 2b asks: does the methodology reproduce on a
+different topic? Answer: **partially — the sensitivity contract
+breaks on postgres, the accuracy contract holds.**
+
+### 10.1 Anchor vocabulary profile
+
+Applied the same tokenizer + distinctive-token definition as Phase 1
+(`presence ≥ 3/4 home genre AND ≤ 1/4 in each other genre`) to the
+combined 32-chunk postgres corpus, comparing against caching:
+
+| Lang | Topic | runbook | postmortem | adr | troubleshooting |
+|---|---|---|---|---|---|
+| ko | caching | baseline | 4 | 5 | 6 |
+| ko | **postgres** | **1** | 5 | 7 | **3** |
+| en | caching | 2 | 6 | 5 | 3 |
+| en | postgres | 3 | 4 | 4 | 4 |
+
+KO postgres runbook has **one** distinctive token (`명령` ≈
+"command"); KO postgres troubleshooting has only polite-form
+morphemes (`~시오`, `~세요`, `~니다`) — no content-bearing anchors.
+ADR and postmortem vocabulary strengths match caching.
+
+The pattern: postgres proper-noun vocabulary (`pg_stat_*`, `VACUUM`,
+`autovacuum`, `pgbouncer`) saturates every chunk regardless of genre,
+leaving the runbook↔troubleshooting pair without lexical
+differentiation in Korean.
+
+### 10.2 Sensitivity experiments
+
+Two experiments after the first spot-check hit the Phase 1 stop-gate
+(0/8 divergence on topic-sparse queries):
+
+**Experiment 1 — strengthened queries (postgres-only 32 chunks)**
+Queries rebuilt to match caching baseline IDF sum (KO 16.45, EN
+15.68). Postgres strengthened queries ended up **above** the baseline
+(KO 23.42 = +42%, EN 18.67 = +19%), so any divergence drop cannot be
+attributed to weaker queries.
+
+| Metric | KO | EN |
+|---|---|---|
+| `rrf_weights` divergence top-3 | **0/4** | **0/4** |
+| BM25-only top-1 matches expected genre | 3/4 | 4/4 |
+| Dense-only top-1 matches expected genre | 3/4 | 4/4 |
+
+Single KO miss: postgres troubleshooting query → postgres runbook
+top-1 (vacuum troubleshooting shares diagnostic verbs with vacuum
+runbook procedure). Consistent with pre-registered runbook↔
+troubleshooting pair prediction.
+
+**Experiment 2 — cross-topic (64 chunks, caching + postgres)**
+Both caching queries (4) and strengthened postgres queries (4) run
+against the combined corpus, per language.
+
+| Metric | KO | EN |
+|---|---|---|
+| `rrf_weights` divergence top-3 | **0/8** | **0/8** |
+| Top-1 genre accuracy (BM25 / dense) | 8,8/8 | 8,8/8 |
+| Top-1 bled to wrong topic | **1/8** | 0/8 |
+
+Single KO bleed: postgres troubleshooting query → caching
+troubleshooting top-1. The troubleshooting anchor vocabulary
+(`증상`/`의심`/`점검`/`세요`) is topic-agnostic and binds to the
+troubleshooting genre across topics. **This is positive evidence**
+that genre anchors exist in the corpus; they lose to topic signal in
+topic-strong topics but still assert themselves in cross-topic
+collisions.
+
+### 10.3 Verdict — B-2 (accept as pipeline-invariant subset)
+
+Pre-registered decision framework (`b2-v2-handoff.md` § "Scenario-B
+preference"):
+
+- B-2 default: accept postgres as pipeline-invariant, demote floors,
+  continue 14 topics
+- B-1 override: redesign genre rotation iff cross-topic bleed ≥
+  medium threshold
+- B-3: reject upfront (cost equals redoing Phase 2a-b)
+
+Measured bleed 1/16 = 6.3% is well below "medium+", so **B-2
+activates**. Postgres genre-primary floors are demoted to
+measurement-only; other query-type floors (direct / paraphrase /
+underspecified / multi_topic / negation) remain active on postgres.
+
+### 10.4 Hypothesis test outcome vs pre-registered matrix
+
+Pre-experiment interpretation matrix (locked in handoff before
+running experiments):
+
+| Hypothesis | Predicted (div / bleed) | Measured | Judgment |
+|---|---|---|---|
+| H1 — query topic-token too sparse | 6-8/8 / weak | 0/8 / weak | ✗ — stronger query confirms it |
+| H2 — postgres anchors genre-agnostic | 3-5/8 / weak | 0/8 / weak | **✓ extreme variant** — topic signal *completely* dominates, exceeding H2's moderate prediction |
+| H3 — postgres corpus itself genre-weak | 0-1/8 / **medium+** | 0/8 / **weak** | ✗ — bleed condition unmet |
+| H1+H3 mix | 3-4/8 / some | — | ✗ |
+
+H2's predicted 3-5/8 divergence under-estimated how thoroughly
+topic-specific vocabulary would suppress BM25's anchor response.
+Actual mechanism: `autovacuum`, `pg_stat_*`, `pgbouncer` token IDFs
+exceed the genre anchor IDFs, so BM25 follows topic signal to the
+same chunk as dense — convergence, not weak genre signal.
+
+### 10.5 Implications for remaining topics
+
+- **Topic-strong vs topic-weak is now a first-class axis**, not an
+  afterthought. `b2-v2-design.md` § "Topic-strong vs topic-weak"
+  records the full prediction set.
+- **Sensitivity floors must be per-topic**, not corpus-wide. The
+  original 30-constant scheme (5 types × 3 metrics × 2 langs)
+  expands to ~30 × 15 topics, most of which will share values but
+  diverge on the topic-strong subset.
+- **Cross-topic bleed tracking** becomes a retained metric even
+  after Phase 2b. At 6.3% it's quiet; at 15-20% in some later
+  combination it would signal subtopic leakage worth investigating.
+
+### 10.6 Open questions (deferred to later phases)
+
+- Does the topic-strong profile hold for k8s and kafka? `b2-v2-
+  handoff.md` Phase 2c cadence tests kafka (boundary case) before
+  k8s (expected clean confirmation) to maximize prediction-
+  precision information gain.
+- Does a denser genre anchor vocabulary (e.g. drafting postmortem
+  prompts with explicit `root cause` / `follow-up` scaffolding)
+  restore divergence on topic-strong topics? Out of Phase 2
+  scope; candidate for Phase 5 if topic-strong topics aggregate
+  too much demoted floor coverage.
