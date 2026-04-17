@@ -107,12 +107,29 @@ embeddings for the same topic.
 - Each cell mixes ≥ 2 different primary subtopics (avoids
   subtopic-monoculture within a cell)
 
-## Subtopic vocabulary (seed, with emergence policy)
+## Subtopic vocabulary (frozen 2026-04-17)
 
-Topic-level is frozen; subtopic-level starts with 3-5 seeds per topic
-and allows emergent additions. Freeze trigger: after the first 80
-chunks (two cells × 2 languages × 10 chunks on average), no new
-subtopics admitted — only re-use.
+Topic-level is frozen from the start. Subtopic-level started with 3-5
+seeds per topic in "emergent + mid-way freeze" mode; freeze trigger
+was after the first 80 chunks (two cells × 2 languages × 10 chunks on
+average).
+
+**Freeze declared 2026-04-17** at 96 chunks (caching 32 + postgres 32
++ cost_optimization 32). No new subtopics emerged during the first
+three topics; closed vocabulary below proved sufficient.
+
+**Post-freeze amendment protocol** (see
+`b2-v2-phase2b-ledger.md` § "Subtopic freeze declaration"):
+- If a chunk cannot be mapped to any existing subtopic, route to the
+  nearest closest entry and log the mismatch in the ledger as
+  "unresolved gap".
+- When unresolved-gap entries accumulate ≥ 3 distinct cases (same
+  conceptual gap across ≥ 3 topics), trigger deliberate vocabulary
+  expansion review — documented amendment with rationale, not
+  emergency addition.
+- Silent vocabulary expansion is the failure mode to prevent; the
+  protocol exists so "we had to add a subtopic" is always a
+  conscious decision with its own ledger entry.
 
 ### Seed subtopics
 
@@ -289,6 +306,30 @@ stays pipeline-invariant on BOTH languages under all three configs,
 that type is demoted from floor assertion (measured but not
 enforced) — document as residual limit.
 
+**Divergence — formal definition** (Phase 2b-established, frozen):
+
+```python
+# For each genre-primary query q in language L against corpus C:
+bm25_res, _  = await search(q, top_k=3, rrf_weights=[1.0, 0.0])
+dense_res, _ = await search(q, top_k=3, rrf_weights=[0.0, 1.0])
+diverge = 1 if [r.chunk.id for r in bm25_res] != [r.chunk.id for r in dense_res] else 0
+```
+
+Divergence rate = Σ diverge(q) / N_queries, reported as "X/N KO,
+Y/N EN". All 14 topics use this exact definition. Post-hoc
+redefinition (top-5, set-equality, top-1-only) prohibited. See
+`b2-v2-phase2b-ledger.md` § "Formal definitions" for canonical
+reference.
+
+**Query-body overlap pre-measurement rule** (Phase 2c-established):
+
+Before running divergence for any topic, measure genre-primary
+queries against that topic's fixtures. Target overlap < 0.5 (ratio
+of query topic-tokens also appearing in target-genre body). If
+≥ 0.5, flag in ledger; the divergence reading for that genre
+becomes "measurement-consistent but signal-confounded". See
+`b2-v2-phase1-validation.md` § 11.5 for the cost_opt adr precedent.
+
 ### Chunk-size / corpus-scale contingency
 
 If 200 chunks/lang still produces EN-wide collapse (no query type
@@ -326,26 +367,46 @@ active — only the genre-primary axis is demoted on this topic.
 
 ### Topic-strong vs topic-weak — testable predictions
 
-**Hypothesis (pending validation across remaining 13 topics)**: a
-topic's genre-primary `rrf_weights` sensitivity is inversely related
-to the density of topic-proper-noun vocabulary that saturates the
-dense embedding regardless of genre framing.
+**Original hypothesis (Phase 2b)**: a topic's genre-primary
+`rrf_weights` sensitivity is inversely related to the density of
+topic-proper-noun vocabulary that saturates the dense embedding
+regardless of genre framing.
 
-| Predicted profile | Topics | Expected genre-primary divergence |
-|---|---|---|
-| **Topic-strong** (command/API vocabulary dominates) | postgres ✓, k8s, kafka | Low: 0-2/8 divergence; genre-primary floors demoted |
-| **Topic-weak** (conceptual narrative) | caching ✓, security, cost_optimization | High: 6-8/8 divergence; genre-primary floors active |
-| **Middle** (mixed) | observability, ci_cd, auth, networking | 3-5/8 divergence; case-by-case |
+**Status as of Phase 2c (2026-04-17): falsified by cost_optimization
+counter-prediction**. Cost_opt subtopics (compute/storage/network/
+database/observability) are generic cloud-engineering concepts, not
+proper-noun-dense, yet cost_opt measured 0/8 divergence — same as
+postgres (proper-noun-heavy). See `b2-v2-phase1-validation.md` § 11.3.
 
-Checkmarks denote topics where the prediction has already been
-validated at the Phase 2b checkpoint.
+**Revised candidate hypothesis** (n=2, pending security
+falsification): chunk-level artifact density dominates topic-level
+vocabulary density in determining BM25/dense agreement. Every chunk
+in both postgres and cost_opt contains 2+ distinctive technical
+artifacts (commands, config keys, proper nouns) that anchor both
+retrievers to the same result. Full falsification conditions in
+`b2-v2-phase1-validation.md` § 11.4.
+
+| Predicted profile (original) | Topics | Expected genre-primary divergence | Measured |
+|---|---|---|---|
+| **Topic-strong** (command/API vocabulary dominates) | postgres ✓, k8s, kafka | Low: 0-2/8 | postgres 0/8 ✓ |
+| **Topic-weak** (conceptual narrative) | caching ✓, security, cost_optimization | High: 6-8/8 | **cost_opt 0/8 ✗ — counter-prediction** |
+| **Middle** (mixed) | observability, ci_cd, auth, networking | 3-5/8 | not yet measured |
+
+**Revised ordering rationale** (post-cost_opt): kafka's information
+value as "boundary test" reduced since cost_opt (conceptual) already
+shows topic-strong. If security also shows topic-strong, kafka
+shifts to confirmation-only and alternative boundary candidates
+(observability) may replace it. Decision deferred to post-security
+per `b2-v2-phase2b-ledger.md` § "Kafka cadence contingency".
+
+Checkmarks denote topics where divergence has been measured.
 
 **Topic ordering for validation**: run topic-weak candidates first
-(cost_optimization, security) to establish the divergence pattern,
-then introduce the boundary case (kafka — proper-noun-heavy but
-concept-rich) before confirming the clean topic-strong case (k8s).
-Testing the boundary before the clean prediction improves hypothesis
-precision; see `b2-v2-handoff.md` Phase 2c actions for the full cadence.
+(cost_optimization ✓ measured, security next) to establish the
+divergence pattern, then introduce the boundary case (kafka —
+proper-noun-heavy but concept-rich) before confirming the clean
+topic-strong case (k8s). See `b2-v2-handoff.md` Phase 2c actions
+for the full cadence.
 
 ### Drift validator — Phase 3b infra TODO
 

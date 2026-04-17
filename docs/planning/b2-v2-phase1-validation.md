@@ -431,3 +431,149 @@ same chunk as dense — convergence, not weak genre signal.
   restore divergence on topic-strong topics? Out of Phase 2
   scope; candidate for Phase 5 if topic-strong topics aggregate
   too much demoted floor coverage.
+
+## 11. Phase 2c cost_optimization measurements (counter-prediction realized)
+
+Pre-registered prediction (see `b2-v2-handoff.md` action 4 and
+`b2-v2-phase2b-ledger.md` § "Hypotheses"): cost_optimization was
+classed topic-weak, predicting genre-primary query divergence
+6-8/8 KO, 5-7/8 EN under `rrf_weights=[1,0]` vs `[0,1]`.
+
+### 11.1 Measurement setup
+
+- Corpus: cost_optimization-only, 32 chunks (4 genres × 2 languages ×
+  4 chunks).
+- Queries: 8 simple queries (4 genres × 2 langs), `cost` prefix +
+  genre-anchor vocabulary. Format mirrors `/tmp/phase2b_postgres_sensitivity.py`
+  exactly — same tokenizers, same `rrf_weights`, same divergence
+  definition (top-3 ordered chunk IDs under `[1.0, 0.0]` vs
+  `[0.0, 1.0]`).
+- Determinism: 2 consecutive runs with `PYTHONHASHSEED=0
+  OMP_NUM_THREADS=1` produced byte-identical output.
+- Methodology anchor: postgres script (`/tmp/phase2b_postgres_sensitivity.py`)
+  re-executed same session, reproduced 0/8 divergence + 7/8 BM25 +
+  7/8 dense exactly — § 10.2 numbers are stable.
+
+### 11.2 Results
+
+| Metric | Measured | Pre-registered topic-weak range |
+|---|---|---|
+| `rrf_weights` divergence top-3 (combined) | **0/8** | 11-15/16 combined (~6-8/8 KO + 5-7/8 EN) |
+| `rrf_weights` divergence top-3 KO | 0/4 | 6-8/8 (but denominator 4) |
+| `rrf_weights` divergence top-3 EN | 0/4 | 5-7/8 (but denominator 4) |
+| BM25-only top-1 genre match | 6/8 (3/4 KO, 3/4 EN) | — |
+| Dense-only top-1 genre match | 6/8 (3/4 KO, 3/4 EN) | — |
+
+Top-1 mismatches (BM25 and dense agree on the wrong answer):
+- KO runbook query "cost 절차 접속 CONFIG SET 수행" → top-1 is
+  `troubleshooting.md` for both. Body of ko/cost_opt/troubleshooting
+  contains "점검"/"진단" and diagnostic procedure vocabulary that
+  the simple query aliases onto.
+- EN runbook query "cost configure run verify inspect command" →
+  top-1 is `adr.md` for both. Body of en/cost_opt/adr contains
+  "inspect"-adjacent decision verbiage.
+
+These are BM25↔dense agreement-on-miss cases, not divergence cases.
+
+### 11.3 Verdict — counter-prediction realized, topic-strong confirmed
+
+Pre-registered decision rule (`b2-v2-handoff.md` action 4): "If
+divergence ≤ 2/8, cost_optimization falls into topic-strong despite
+prediction — record and continue; the prediction is pre-registered,
+not assumed."
+
+**0/8 < 2/8 threshold → cost_optimization reclassifies topic-strong.**
+
+This falsifies the subtopic-vocabulary-density hypothesis (per
+`b2-v2-design.md` § "Topic-strong vs topic-weak"): cost_optimization
+subtopics (compute/storage/network/database/observability) are
+generic cloud-engineering concepts, not proper-noun-dense like
+postgres's (VACUUM/autovacuum/pg_stat_*). The density hypothesis
+predicted topic-weak; measurement contradicts.
+
+### 11.4 Revised hypothesis — chunk-level distinctiveness
+
+Based on n=2 observations (postgres, cost_optimization), both showing
+0/8 divergence despite structural differences (cost_opt = generic
+concepts, postgres = proper-noun-heavy), the original hypothesis
+"topic-level vocabulary density drives pipeline invariance" is
+**insufficient**.
+
+**Candidate alternative** (registered for falsification): "chunk-level
+artifact density dominates topic-level vocabulary density in
+determining BM25/dense agreement."
+
+Mechanism:
+- Each chunk contains 2+ highly distinctive technical artifacts
+  (pg_repack, Karpenter, Datadog, pg_partman, pg_stat_replication,
+  NATGateway-Bytes, etc.) that act as chunk-level anchors.
+- BM25 finds the chunk via literal token match; dense finds it via
+  semantic match. Both converge on the same chunk regardless of
+  `rrf_weights`.
+
+**Epistemic status**:
+- n=2 is insufficient for confirmation.
+- Candidate is registered here to enable falsification at security
+  (conceptual/mixed) and kafka (proper-noun-heavy).
+- **Numerical falsification conditions** (locked before security
+  runs):
+  - **Candidate falsified** if security realizes H2 (drift 0-5%)
+    AND divergence ≥ 4/8: topic-weak with high prompt quality can
+    still diverge, meaning prompt ≠ chunk artifacts and the
+    candidate's "artifact density" framing is wrong.
+  - **Candidate gains first support** if security shows 0-2/8
+    divergence: topic-strong extends to third topic; n=3 reached
+    but still not confirmed.
+  - **Ambiguous** if security shows 3/8: neither falsification nor
+    support; kafka data needed for discrimination.
+  - Confirmation status "candidate supported across n=k topics" is
+    only claimed when k ≥ 4 with no falsifying cases.
+- Post-hoc bucket-boundary adjustment prohibited.
+
+### 11.5 Body-overlap pre-measurement rule (Phase 2c-established)
+
+Measured at cost_opt Phase 2c: adr queries (KO and EN) showed body
+overlap = 1.0 (every topic-token of the query appears in the target
+genre's body). Adr top-1 matched expected genre in both languages,
+so overlap did not invalidate the divergence measurement — but it
+reduces signal quality.
+
+**Rule for Phase 2c onward** (security, kafka, k8s, remaining 9):
+
+- Target body overlap **< 0.5** for all genre-primary queries.
+- Measure overlap via `scripts/b2-v2/compute_idf_baseline.py` (or
+  equivalent) **before** running divergence.
+- If overlap ≥ 0.5 for any query:
+  1. Flag in ledger with rationale (e.g., "cost_opt domain
+     vocabulary is proper-noun-dense, sub-0.5 not achievable
+     without unnatural queries").
+  2. Note in result section that the divergence reading for that
+     genre is "measurement-consistent but signal-confounded".
+- Post-hoc "overlap was high in retrospect" commentary is
+  insufficient; the pre-measurement step is the enforcement.
+
+This rule applies retroactively to cost_opt adr results: flagged as
+overlap=1.0 signal-confounded, but since both BM25 and dense landed
+on adr.md top-1 the measurement stays valid as "concordant miss
+direction" not "divergence-masking overlap".
+
+### 11.6 Corpus status checkpoint
+
+- Measured topics: 3 (caching Phase 1/2a, postgres Phase 2b,
+  cost_optimization Phase 2c). All show topic-strong behavior under
+  simple genre-primary queries.
+- Topics pending: 12 (security, kafka boundary, k8s clean, +9
+  remaining).
+- Active hypothesis: chunk-level distinctiveness dominates topic-
+  level vocabulary density. Test vehicle: security (mixed subtopic
+  distinctiveness), kafka (proper-noun dense with conceptual
+  narrative).
+
+### 11.7 H1/H2/H3 discrimination — still pending
+
+The H1/H2/H3 pre-registration in `b2-v2-phase2b-ledger.md` is about
+**curation drift rate** (Phase 3a corrections), not divergence.
+Cost_optimization drift = 0/32 = 0%. This alone doesn't discriminate
+between H1 / H2 / H3 — security result is still the primary
+discriminator. Recording both metrics (drift 0%, divergence 0/8) as
+input for security-phase interpretation.
