@@ -218,7 +218,19 @@ failure mode.
    all absent). Methodology Discontinuity 1 protocol held. **Next**:
    user runs 8 batches offline, returns JSON arrays → Phase 3a
    curation (Step 3).
-3. **Phase 3a curate**; log to new ledger section.
+3. ✅ **Phase 3a curate** (DONE 2026-04-18). 11 chunks affected, 13
+   events (40.6% event-count) → **Upper-outlier band (32-45%)**
+   realized, above observability's 28.1% by 12.5 pp. Two systematic
+   Gemini patterns drove 6/13 events: (1) `kubectl logs` diagnostic
+   conflated with `observability/logging` subtopic (3× in trouble /
+   runbook batches); (2) postmortem genre conflated with
+   `incident_response/postmortem` subtopic (3× in postmortem
+   batches). Both are Phase 3b drift-validator "forbidden pair"
+   candidates. Category distribution: absent-topic 11, missed
+   secondary 2, out-of-vocab 0, intra-vocab 0, over-correction 0.
+   Chunk-count sensitivity check: 11/32 = 34.4%, still Upper-
+   outlier (band-realization robust to convention). Full writeup at
+   ledger § "Curation ledger — Phase 2e k8s, Gemini-generated".
 4. **Pre-measure IDF + body overlap**; add k8s QUERY set to
    `compute_idf_baseline.py` + dispatch.
 5. **Phase 3b fixtures** at `corpus_v2/{ko,en}/k8s/`.

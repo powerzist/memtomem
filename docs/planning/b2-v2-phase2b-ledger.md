@@ -1094,6 +1094,137 @@ measurement-valid per § 12.5 concordance rule.
 2 divergence bands + extreme-drift escalation) recorded pre-k8s so
 post-result interpretation reads off a cell, not fits a narrative.
 
+## Curation ledger — Phase 2e k8s, Gemini-generated (13 events / 32 = 40.6%, 11 chunks affected)
+
+Event-count convention per § "Formal definitions" above (carried
+forward from observability). Chunks affected and event count reported
+separately; cross-topic drop+add counts as 2 events.
+
+### Category distribution (event-count)
+
+| Category | Count | Note |
+|---|---|---|
+| Out-of-vocab expansion | 0 | — |
+| Intra-vocab misclassification | 0 | — |
+| Absent-topic projection | 11 | Majority; two systematic Gemini patterns drive 6/11 (see below) |
+| Claude over-correction | 0 | — |
+| Missed secondary | 2 | Both paired with cross-topic absent drops (B1 #4, B8 #4) |
+| **Total events** | **13 / 32 = 40.6%** | 11 chunks affected (B1 #4 and B8 #4 contribute 2 events each = cross-topic drop + add) |
+
+### Systematic Gemini patterns (6 / 13 events)
+
+Two recurring confusions drove ~46% of drift events:
+
+**Pattern 1 — `kubectl logs` conflated with `observability/logging`**
+(3 events: B3 #2, B5 #1, B6 #2)
+
+Gemini tagged `observability/logging` as secondary on chunks where
+`kubectl logs` was used as a *diagnostic command* (retrieve container
+stdout for troubleshooting), not where *logging as a system* was
+discussed. Per § "Drift to avoid" bullet in k8s prompts,
+`observability/logging` = structured event stream (Fluentd / Loki /
+ELK pipeline, log-level field). Ad-hoc `kubectl logs` retrieval ≠
+logging pipeline. All three chunks drop `observability/logging` to
+`[]`.
+
+**Pattern 2 — postmortem genre conflated with
+`incident_response/postmortem` subtopic** (3 events: B7 #1, B7 #2,
+B8 #2)
+
+Gemini tagged `incident_response/postmortem` as secondary on
+postmortem-genre chunks, conflating the genre axis (frontmatter
+`genre: "postmortem"`) with the subtopic axis (`incident_response/
+postmortem` = IR process step of writing a postmortem — RCA template,
+blameless culture, action-item tracking). None of the three chunks
+discuss the postmortem *process*; they ARE postmortems about k8s
+topics. All three drop `incident_response/postmortem`.
+
+Both patterns are candidates for Phase 3b drift validator rule-tier
+inclusion (see § "Deferred decisions" below) once k ≥ 5 topics
+complete — Pattern 1 fits "forbidden pair" tier (kubectl logs context
+≠ observability/logging), Pattern 2 fits "forbidden pair" tier
+(postmortem genre ≠ incident_response/postmortem subtopic).
+
+### Per-chunk corrections (11 chunks affected, 13 events)
+
+| Batch | Chunk (primary) | Original secondary | Final secondary | Events | Category |
+|---|---|---|---|---|---|
+| adr ko | #4 scheduling | `[cost_optimization/compute]` | `[k8s/scaling]` | 2 (drop + add, cross-topic) | Absent-topic (drop `cost_optimization/compute`; body says "효율적인 노드 점유" with no cost / spot / right-sizing framing) + Missed secondary (add `k8s/scaling`; body explicitly "`k8s/scaling`이 원활하게 작동하도록 돕는 결정") |
+| runbook ko | #1 storage | `[k8s/rollout]` | `[]` | 1 drop | Absent-topic — PVC expansion op (`kubectl edit pvc`, `FileSystemResizePending`); no Deployment rollout / RollingUpdate / `kubectl rollout` discussion |
+| runbook ko | #2 networking | `[observability/logging]` | `[]` | 1 drop | Absent-topic — Pattern 1; `kubectl logs -l app.kubernetes.io/name=ingress-nginx` to check config errors, not logging pipeline discussion |
+| runbook ko | #4 scheduling | `[cost_optimization/compute]` | `[]` | 1 drop | Absent-topic — GPU `nodeSelector` placement runbook; no cost / spot / right-sizing framing |
+| runbook en | #1 rollout | `[k8s/scheduling]` | `[]` | 1 drop | Absent-topic — `kubectl set image` + `kubectl rollout status` + `kubectl rollout undo`; no scheduling (node selectors, taints, placement) content |
+| trouble ko | #1 rollout | `[observability/logging]` | `[]` | 1 drop | Absent-topic — Pattern 1; `kubectl logs <pod-name> --previous` for CrashLoopBackOff diagnosis |
+| trouble en | #2 networking | `[observability/logging]` | `[]` | 1 drop | Absent-topic — Pattern 1; `kubectl logs -n ingress-nginx` for 504 upstream-timeout diagnosis |
+| postmortem ko | #1 networking | `[incident_response/postmortem]` | `[]` | 1 drop | Absent-topic — Pattern 2; CNI MTU issue + fix + probe addition; no IR-process discussion |
+| postmortem ko | #2 scaling | `[k8s/scheduling, incident_response/postmortem]` | `[k8s/scheduling]` | 1 drop | Absent-topic — Pattern 2; HPA `minReplicas` + autoscaler cascade; `k8s/scheduling` retained (body: "스케줄링 루프") |
+| postmortem en | #2 networking | `[networking/dns, incident_response/postmortem]` | `[networking/dns]` | 1 drop | Absent-topic — Pattern 2; CoreDNS `ConfigMap` error + `CrashLoopBackOff`; `networking/dns` retained |
+| postmortem en | #4 scaling | `[observability/metrics]` | `[k8s/scheduling]` | 2 (drop + add, cross-topic) | Absent-topic (drop `observability/metrics`; body has no metric name / Prometheus / observability discussion — just VPA behavior) + Missed secondary (add `k8s/scheduling`; body explicitly "mass eviction of pods", "scheduling bottleneck") |
+
+### Per-batch drift distribution
+
+| Batch | Events | Chunks affected | Category mix |
+|---|---|---|---|
+| B1 adr ko | 2 | 1/4 | 1 cross-topic replacement (cost_opt → k8s/scaling) |
+| B2 adr en | 0 | 0/4 | — clean batch |
+| B3 runbook ko | 3 | 3/4 | 3 absent-topic (1× Pattern 1, 2× non-pattern) |
+| B4 runbook en | 1 | 1/4 | 1 absent-topic |
+| B5 trouble ko | 1 | 1/4 | 1 absent-topic (Pattern 1) |
+| B6 trouble en | 1 | 1/4 | 1 absent-topic (Pattern 1) |
+| B7 postmortem ko | 2 | 2/4 | 2 absent-topic (2× Pattern 2) |
+| B8 postmortem en | 3 | 2/4 | 1 Pattern 2 drop + 1 cross-topic replacement |
+
+B3 runbook ko is the most-affected cell (3/4 chunks corrected). No
+single pattern dominates B3; drift is distributed across different
+absent-topic shapes (rollout on storage, logging on networking,
+cost_opt on scheduling). B2 adr en is the only zero-drift batch.
+
+### Pre-registered drift outcome at k8s
+
+Pre-registered bands (per § "K8s pre-registration — drift × divergence"
+above): Baseline-match 20-32%, Lower-outlier 0-15%, Upper-outlier
+32-45%, Extreme 45%+ or 0-5%.
+
+Measured: **40.6% event-count**.
+
+Band realized: **Upper-outlier (32-45%)**. Drift exceeds observability's
+28.1% by 12.5 pp. Falls within pre-registered Upper-outlier range —
+reads off the pre-registered cell, not a novel failure mode.
+
+Post-k8s decision rule matrix pending divergence (Step 6):
+- (Upper-outlier, 0-2/8 D1) → continue to kafka as confirmation-only;
+  baseline true range wider than the tentative ~25-30% observation;
+  H1/H2/H3 reformulation at kafka per (A)-path deferral
+- (Upper-outlier, 3-8/8 D2/D3) → worst case (genre signal emerges at
+  n=5 alongside rising drift); escalate before kafka
+
+### Observation update (not pre-registered, tentative, to be tested at kafka)
+
+Drift rates across topics measured so far:
+
+| Topic | Phase | Convention | Drift |
+|---|---|---|---|
+| postgres | 2b | chunk-count | 28% (9/32) |
+| cost_optimization | 2c | chunk-count | 0% (0/32) |
+| security Gemini | 2c | chunk-count | 21.9% (7/32) |
+| observability | 2d | event-count | 28.1% (9/32 events) |
+| **k8s** | **2e** | **event-count** | **40.6% (13/32 events)** |
+
+Previous observation at observability (n=1 event-count): baseline
+Gemini drift for this prompt structure may be ~25-30%, with cost_opt
+as topic-specific outlier. **Updated at k8s (n=2 event-count)**:
+event-count drifts span 28.1% to 40.6% across the two event-count
+topics. The "prompt-structure drift as constant ~25-30%" hypothesis
+is weakened — topic-level variance in drift rate appears real. Formal
+reformulation of H1/H2/H3 still deferred to kafka per (A)-path; no
+promotion to working hypothesis at n=2.
+
+**Chunk-count comparison sensitivity check**: k8s has 2 cross-topic
+replacements (B1 #4, B8 #4) contributing 4/13 events. Under chunk-
+count convention, k8s drift would be 11/32 = 34.4%, still in the
+Upper-outlier band. The event-count convention does not flip the
+band realization.
+
 ## Methodology discontinuities
 
 This section tracks points where measurement methodology changed
