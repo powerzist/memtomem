@@ -1,15 +1,17 @@
-# B.2 v2 — Phase 2c → security handoff for next session
+# B.2 v2 — Phase 2d observability handoff for next session
 
 **If you are a new Claude session picking this up**: read this file
 first, then `b2-v2-design.md`, `b2-v2-phase1-validation.md`
-(§§ 8-11 for Phase 2a-c measurements — § 11 is the cost_opt
-counter-prediction writeup; § 12 reserved for security sensitivity),
-`b2-v2-phase2b-ledger.md` (curation patterns + 3 boundary-case
-principles + formal definitions + security pre-registration +
-Methodology Discontinuity 1 [security generator transition] +
-Gemini-regenerated security curation ledger), and
-`b2-v2-query-portfolio.md` in that order. That gives full
-methodology context + the current open-prediction state.
+(§§ 8-12 for Phase 2a-c measurements — § 11 is cost_opt
+counter-prediction, § 12 is security (H1, D1) realization +
+kafka → observability decision), `b2-v2-phase2b-ledger.md`
+(curation patterns + 3 boundary-case principles + formal
+definitions + security pre-registration + Methodology
+Discontinuity 1 [security generator transition] + Gemini-
+regenerated security curation ledger + Kafka cadence contingency
+with realized decision), and `b2-v2-query-portfolio.md` in that
+order. That gives full methodology context + the current
+open-prediction state.
 
 ## Branch state
 
@@ -26,12 +28,13 @@ methodology context + the current open-prediction state.
 | 2a | ✅ | caching × en × 4 genres; EN parity confirmed |
 | 2b | ✅ | postgres × 4 genres × 2 langs = 32 chunks; topic-strong pipeline invariance identified (B-2) |
 | 2c (cost_opt) | ✅ | cost_optimization × 4 genres × 2 langs = 32 chunks; **counter-prediction realized — topic-strong despite topic-weak prediction** (0/8 divergence); drift 0/32 |
-| **2c (security)** | **🔄 3a done** | Gemini-regenerated (Methodology Discontinuity 1 → Option i); 32 chunks curated with 7 corrections = 21.9% drift (H1 supported); authoritative source `.claude/b2-v2-security-batches-gemini/`; IDF pre-measure + 3b fixtures + sensitivity + § 12 pending |
-| 2c kafka / k8s | 📋 | kafka role may change post-security (see Kafka cadence contingency in ledger) |
-| 2d onwards | 📋 | 11 remaining topics × 8 batches each |
+| 2c (security) | ✅ | Gemini-regenerated; 32 chunks with 7 corrections = 21.9% drift (H1 supported, upper edge 10-20%); divergence **0/8** (D1 realized); joint cell (H1, D1) = chunk-level artifact candidate retained with H1 weighted heavily; § 12.7 decision: kafka → observability |
+| **2d (observability)** | **🔄 next** | replaces kafka per § 12.7 Kafka cadence contingency realization; predicted strongest genre-boundary-emergence candidate (runbook = dashboard setup, postmortem = incident narrative, adr = tool selection, troubleshooting = alert fatigue) |
+| 2d kafka / k8s | 📋 | kafka demoted to post-observability + k8s as confirmation-only; k8s retains clean topic-strong confirmation role |
+| 2e onwards | 📋 | 9 remaining topics × 8 batches each |
 | 3-7 | 📋 | full curation (per-topic drift), query portfolio, calibration, CI wiring, PR |
 
-## Current state summary (2026-04-17, security Phase 3a complete)
+## Current state summary (2026-04-17, Phase 2c complete)
 
 **Cost_optimization measurements**:
 - Phase 3a drift: **0/32** (0%, vs postgres 9/32 = 28%). Category
@@ -43,30 +46,39 @@ methodology context + the current open-prediction state.
   **topic-strong**. Original "subtopic-vocabulary-density" hypothesis
   **falsified**.
 
-**Security Phase 3a measurements (Gemini-regenerated, 2026-04-17)**:
+**Security measurements (2026-04-17, closes Phase 2c)**:
 - Methodology Discontinuity 1 resolved via Option i: security
-  regenerated with Gemini for H1 / H2 / H3 testability. Prior Claude
-  Opus batches at `.claude/b2-v2-security-batches/` preserved as
-  design reference only. See `b2-v2-phase2b-ledger.md` §
-  "Methodology discontinuities".
+  regenerated with Gemini for H1 / H2 / H3 testability.
 - Drift: **7 / 32 = 21.9%** — H1 "structural cleanliness dominant"
-  **supported** (postgres 28% → security 21.9% → cost_opt 0% pattern
-  consistent with structural-difficulty explanation).
-- Correction pattern: 6 intra-vocab reclassifications (encryption ↔
-  `auth/mtls`, encryption ↔ `networking/tls`, access_control ↔
-  `auth/rbac`) + 1 absent-topic secondary drop. Post-curation:
-  81% `security/*` primary + 19% reclassified to adjacent topics.
-- Subtopic skew: `security/incident` primary only 1/32 (Gemini pushes
-  it to postmortem-secondary more strictly than Claude's 2/32).
-  Phase 5 threshold calibration decision deferred (exclude incident-
-  primary from floor assertions, or looser floor).
-- **Sensitivity still pending** — n=2 → n=3 hypothesis update awaits
-  `measure_sensitivity.py --topic security` result.
+  **supported** (upper edge of 10-20% range). Ordering: postgres
+  28% → security 21.9% → cost_opt 0% correlates with subtopic-
+  geometry overlap.
+- Divergence: **0/8** — D1 "topic-strong consistent" realized.
+  BM25 7/8, dense 7/8 (EN runbook concordant miss on
+  troubleshooting.md; same failure mode as cost_opt EN runbook).
+- **Joint cell (H1, D1) realized**: "structural dominance +
+  universal topic-strong → chunk-level artifact candidate retained
+  (H1 weighted heavily)". Two factors (structure + chunk-level
+  artifacts) not mutually exclusive. Full writeup at
+  `b2-v2-phase1-validation.md` § 12.
+- Reclassification pattern: 6 intra-vocab reclassifications +
+  1 absent-topic secondary drop. Post-curation: 81% `security/*`
+  primary + 19% reclassified (`auth/mtls` ×2, `auth/rbac` ×2,
+  `networking/tls` ×2).
+- Subtopic skew: `security/incident` primary only 1/32 (Gemini
+  pushes it to postmortem-secondary more strictly than Claude's
+  2/32). Phase 5 threshold calibration decision deferred.
+- Body-overlap flags (3 total: ko postmortem 0.50, en postmortem
+  1.00, en adr 1.00) all produced concordant correct-direction
+  top-1 — measurement valid per § 11.5.
 
-**Revised candidate hypothesis** (n=2, pending security
-falsification): chunk-level artifact density dominates topic-level
-vocabulary density. See `b2-v2-phase1-validation.md` § 11.4 for full
-numerical falsification conditions.
+**Revised candidate hypothesis** (n=3, first support reached):
+chunk-level artifact density dominates topic-level vocabulary
+density. Not falsified at security ((H2, D2/D3) discriminating
+cell did not realize). Confirmation threshold (k ≥ 4 topics with
+no falsifying cases) pending observability + k8s + remaining 9
+topics. See `b2-v2-phase1-validation.md` § 11.4 for falsification
+conditions, § 12.4 for status update.
 
 **Boundary-case principles established** (Phase 3a cost_opt review),
 applied to all future topics:
@@ -88,89 +100,113 @@ redefinition prohibited.
 **Security pre-registration** (joint H×D matrix) locked at
 `b2-v2-phase2b-ledger.md` § "Security pre-registration".
 
-## Phase 2c next actions (in order)
+## Phase 2c recap (closed 2026-04-17)
+
+All Phase 2c steps complete across cost_opt + security:
+
+| # | Step | Commit / ref |
+|---|---|---|
+| 1 | Cost_opt Gemini + curation + sensitivity (0/8) | 5b68bf7 |
+| 2 | Security Gemini regen (Methodology Discontinuity 1 Option i) | `.claude/b2-v2-security-batches-gemini/` |
+| 3 | Security Phase 3a curation (7/32 = 21.9% drift) | 5fbb47f (ledger) |
+| 4 | Security IDF + body overlap pre-measure | 68b2f89 |
+| 5 | Security Phase 3b fixtures (32 chunks) | 68b2f89 |
+| 6 | Security sensitivity (0/8 divergence, 7/8 top-1) | this commit |
+| 7 | § 12 joint (H1, D1) realization record | this commit |
+| 8 | Kafka → observability decision | this commit (§ 12.7 + ledger "Realized") |
+
+## Phase 2d next actions (in order)
 
 1. **Read current state** — if new session, load these files in
-   order: this handoff → `b2-v2-design.md` → `b2-v2-phase2b-ledger.md`
-   (principles + formal defs + security pre-reg) →
-   `b2-v2-phase1-validation.md` § 11 (cost_opt counter-prediction) →
-   `b2-v2-query-portfolio.md`. Do NOT run security Gemini until after
-   reading.
+   order: this handoff → `b2-v2-design.md` →
+   `b2-v2-phase2b-ledger.md` (principles + formal defs + security
+   pre-reg + Kafka cadence contingency realization) →
+   `b2-v2-phase1-validation.md` § 12 (security close,
+   kafka → observability decision) → `b2-v2-query-portfolio.md`.
 
-2. ✅ **Run security Gemini batches** (2026-04-17). Regenerated with
-   Gemini per Methodology Discontinuity 1 Option i after prior
-   session generated with Claude Opus 4.7. Output at
-   `.claude/b2-v2-security-batches-gemini/` (gitignored, 8 JSON
-   files = 32 chunks). Prior Claude batches retained at
-   `.claude/b2-v2-security-batches/` as design reference.
+2. **Pre-register observability joint H × D matrix** in
+   `b2-v2-phase2b-ledger.md` following the security pattern.
+   Ranges locked before Gemini run, no post-hoc redefinition.
+   Observability is the **genre-boundary candidate**: genres map
+   to distinct activities (runbook = dashboard/query setup,
+   postmortem = incident narrative, adr = tool selection,
+   troubleshooting = alert fatigue). Recommended divergence
+   prediction: D2 (3-5/8) higher prior than previous topics; D1
+   still possible given topic-strong cluster momentum. Drift
+   H1/H2/H3 ranges same as security (10-20% / 0-5% / 5-10%).
 
-3. ✅ **Phase 3a curate** (2026-04-17). **7 / 32 corrections =
-   21.9% drift** — H1 supported. 6 intra-vocab reclassifications to
-   `auth/mtls` (2), `auth/rbac` (2), `networking/tls` (2) + 1
-   absent-topic secondary drop. Full ledger at
-   `b2-v2-phase2b-ledger.md` § "Curation ledger — Phase 2c security,
-   Gemini-regenerated". P1/P2/P3 principles applied (see borderline
-   cases subsection). Claude-generated section of the ledger
-   superseded by Gemini section.
+3. **Run observability Gemini batches** — create 8 prompts
+   (adr/runbook/postmortem/troubleshooting × ko/en) using the
+   `.claude/b2-v2-security-prompts.md` template with topic-
+   specific substitution (topic label, Rule 6 example, intra-
+   vocab confusion bullets, JSON template prefix). Verify prompt
+   structural equivalence per Methodology Discontinuity 1
+   protocol before execution. User runs offline, returns 8 JSON
+   arrays.
 
-4. **Pre-measure IDF + body overlap** for security queries BEFORE
-   divergence (Phase 2c-established rule, § 11.5). Build queries
-   from chunks at `.claude/b2-v2-security-batches-gemini/`
-   (authoritative source):
+4. **Phase 3a curate** observability batches. Apply P1/P2/P3
+   principles for boundary cases (cite sources for P1). Log
+   corrections under new subsection
+   `b2-v2-phase2b-ledger.md` § "Curation ledger — Phase 2d
+   observability, Gemini-generated".
+
+5. **Pre-measure IDF + body overlap** (§ 11.5 rule) via
+   `tools/retrieval-eval/compute_idf_baseline.py`. Topic token
+   recommendation: `observability` (canonical simple pattern;
+   ambient English vocabulary so expect higher EN body-overlap
+   flags similar to security). Add observability query set to
+   `QUERY_SETS` and update `main()` topic dispatch.
+
+6. **Phase 3b** convert curated batches to
+   `packages/memtomem/tests/fixtures/corpus_v2/{ko,en}/
+   observability/*.md`.
+
+7. **Run observability sensitivity** (add to `measure_sensitivity.py`
+   `QUERIES["observability"]` first):
    ```bash
-   # Add security queries to tools/retrieval-eval/compute_idf_baseline.py
-   # QUERY_SETS, then:
-   uv run python tools/retrieval-eval/compute_idf_baseline.py
-   ```
-   Target: body overlap < 0.5. Flag in ledger if ≥ 0.5.
-
-5. **Phase 3b** convert curated batches to
-   `packages/memtomem/tests/fixtures/corpus_v2/{ko,en}/security/*.md`.
-
-6. **Run security sensitivity**:
-   ```bash
-   # Add security queries to tools/retrieval-eval/measure_sensitivity.py
-   # QUERIES dict (follow cost_opt structure), then:
    PYTHONHASHSEED=0 OMP_NUM_THREADS=1 uv run python \
-       tools/retrieval-eval/measure_sensitivity.py --topic security
+       tools/retrieval-eval/measure_sensitivity.py --topic observability
    ```
    Run twice for byte-identical determinism check.
 
-7. **Record measurement** in `b2-v2-phase1-validation.md` § 12 (new
-   section). Read off the pre-registered H × D matrix cell; no
+8. **Record measurement** in `b2-v2-phase1-validation.md` § 13
+   (new section). Read off the pre-registered H × D cell; no
    narrative rationalization.
 
-8. **Post-security decision points**:
-   - If security shows 0-2/8 divergence: **revised hypothesis gains
-     first support** (n=3). Consider replacing kafka with
-     observability per `phase2b-ledger.md` § "Kafka cadence
-     contingency". Decide explicitly.
-   - If security shows 3-5/8: ambiguous; kafka retains original role.
-   - If security shows 6-8/8 + H2 drift (0-5%): **revised hypothesis
-     falsified**. Reopen design.
+9. **Post-observability decision points**:
+   - **0-2/8 divergence**: topic-strong cluster extends to n=4.
+     Chunk-level artifact candidate continues unconfirmed
+     (still k < 4 without falsifying cases). Next: k8s for
+     clean confirmation, then kafka as confirmation-only.
+   - **3-5/8 divergence**: **first D2 realization**. Genre
+     signal emerging — confirm at k8s, reopen structural-vs-
+     artifact discrimination at Phase 5.
+   - **6-8/8 + H2 drift (0-5%)**: chunk-level artifact candidate
+     **falsified**. Reopen design; prompt quality explains
+     invariance better than chunk artifacts.
 
-9. **Then kafka OR alternative boundary** (decision per step 8)
-   following same cadence. Following k8s is topic-strong clean
-   confirmation.
+10. **Then k8s** (topic-strong clean confirmation) → **kafka**
+    (confirmation-only per § 12.7 demotion).
 
-10. **Remaining 9 topics** after security/kafka/k8s: observability,
-    ci_cd, auth, networking, kafka/streams, ml_ops, data_pipelines,
-    incident_response, api_design. Most expected middle (3-5/8)
-    but the cost_opt counter-prediction shows priors are weak.
+11. **Remaining 8 topics** after observability/k8s/kafka: ci_cd,
+    auth, networking, ml_ops, data_pipelines, incident_response,
+    api_design, + topic 15 per `b2-v2-design.md`.
 
-11. **After topic 5** (postgres + cost_opt + security + kafka + k8s):
-    implement Phase 3b drift validator rule tiers from accumulated
-    ledger. Earlier than that risks fitting to biased sample.
+12. **After topic 5-6** (postgres + cost_opt + security +
+    observability + k8s ± kafka): implement Phase 3b drift
+    validator rule tiers from accumulated ledger. Earlier risks
+    fitting to biased sample.
 
-12. **Phases 4-7** proceed once 15-topic corpus complete.
+13. **Phases 4-7** proceed once 15-topic corpus complete.
 
 ## Key invariants (do not drift from these)
 
 - Topic vocabulary is frozen at 15 topics (see `b2-v2-design.md`).
   No additions without explicit plan update.
-- Subtopic vocabulary **frozen 2026-04-17** at 96 chunks (caching 32
-  + postgres 32 + cost_opt 32). 15 topics × 5 subtopics = 75. No
-  silent additions — amendment protocol in `b2-v2-design.md`.
+- Subtopic vocabulary **frozen 2026-04-17** at 75 subtopics
+  (15 topics × 5). Corpus: 128 chunks as of security close
+  (caching + postgres + cost_opt + security, 32 each). No silent
+  subtopic additions — amendment protocol in `b2-v2-design.md`.
 - Genre-primary queries are a **required** Phase 4 axis (not deferred
   memo). Portfolio: 100 queries per language.
 - KO is primary regression signal; EN is parity + best-effort.
@@ -184,8 +220,7 @@ redefinition prohibited.
   optional. Raw Gemini output has ~30% drift rate.
 - AI attribution opt-in: include `Co-Authored-By: Claude` in commits
   per user's prior explicit approval for v2 PR work. Check with user
-  before continuing this policy if Phase 2c generation spans a long
-  pause.
+  before continuing this policy at the start of each new session.
 
 ## Locked decisions from Phase 2b (do not revisit without cause)
 

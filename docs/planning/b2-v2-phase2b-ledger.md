@@ -379,6 +379,13 @@ topic-strong. Kafka shifts from "boundary test" to
 avoidance. Record both paths here so post-security decision is
 informed, not ad-hoc.
 
+**Realized 2026-04-17**: security sensitivity = 0/8 divergence
+(joins topic-strong cluster). Contingency path triggered →
+**kafka replaced with observability** in the Phase 2d slot.
+Kafka moves later (post-observability + k8s) as redundant
+confirmation. Full rationale in `b2-v2-phase1-validation.md`
+§ 12.7.
+
 ## Observations (evidence collected at Phase 2c)
 
 ### 1. No intra-topic drift despite cross-topic vocabulary pull

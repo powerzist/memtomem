@@ -65,6 +65,16 @@ QUERIES = {
         ("cost chose over accepted re-evaluate revisit", "en", "adr"),
         ("cost likely root cause workaround symptom", "en", "troubleshooting"),
     ],
+    "security": [
+        ("security 절차 접속 CONFIG SET 수행", "ko", "runbook"),
+        ("security KST 원인 후속 조치 장애", "ko", "postmortem"),
+        ("security 대신 채택 결정 trade-off 감수", "ko", "adr"),
+        ("security 증상 의심 만약 점검 진단", "ko", "troubleshooting"),
+        ("security configure run verify inspect command", "en", "runbook"),
+        ("security at UTC root cause follow-up", "en", "postmortem"),
+        ("security chose over accepted re-evaluate revisit", "en", "adr"),
+        ("security likely root cause workaround symptom", "en", "troubleshooting"),
+    ],
     # Add new topic query sets here as Phase 2c progresses. Keep the
     # structure identical to preserve result comparability.
 }

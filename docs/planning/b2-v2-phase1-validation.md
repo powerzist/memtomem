@@ -577,3 +577,149 @@ Cost_optimization drift = 0/32 = 0%. This alone doesn't discriminate
 between H1 / H2 / H3 — security result is still the primary
 discriminator. Recording both metrics (drift 0%, divergence 0/8) as
 input for security-phase interpretation.
+
+## 12. Phase 2c security measurements (joint H×D realized)
+
+Pre-registered joint drift × divergence matrix locked at
+`b2-v2-phase2b-ledger.md` § "Security pre-registration". Phase 3a
+drift and Phase 2c sensitivity are jointly interpreted; individual
+ranges are fixed, no post-hoc redefinition.
+
+### 12.1 Measurement setup
+
+- Corpus: security-only, 32 chunks (4 genres × 2 languages × 4
+  chunks) at `packages/memtomem/tests/fixtures/corpus_v2/{en,ko}/
+  security/`. Primary-label distribution after Gemini regeneration
+  + 7-correction curation: 81% `security/*` (26 chunks) + 19%
+  reclassified to adjacent topics (`auth/mtls` ×2, `auth/rbac` ×2,
+  `networking/tls` ×2).
+- Queries: 8 simple queries (4 genres × 2 langs), topic token
+  `security` + genre-anchor vocabulary. Canonical format identical
+  to postgres / cost_opt (§ 11.1). Query set at
+  `tools/retrieval-eval/measure_sensitivity.py` `QUERIES["security"]`.
+- Pre-measurement (IDF + body overlap per § 11.5):
+  - IDF fairness: KO mean tokens 6.25 (target 5.7-7.8), mean
+    idf_sum 15.66 (target 12.67-17.14); EN mean tokens 6.50
+    (target 6.4-8.6), mean idf_sum 12.85 (target 12.04-16.28) —
+    both within caching baseline ± 15%.
+  - Body overlap: 3 flags (ko postmortem 0.50, en postmortem 1.00,
+    en adr 1.00). Full writeup in `b2-v2-phase2b-ledger.md`
+    § "Pre-measurement (IDF + body overlap, 2026-04-17)".
+- Determinism: 2 consecutive runs with `PYTHONHASHSEED=0
+  OMP_NUM_THREADS=1` produced byte-identical measurement output.
+- Methodology anchor: identical to postgres / cost_opt (same
+  tokenizers, `rrf_weights`, divergence definition).
+
+### 12.2 Results
+
+| Metric | Measured | Pre-registered D1/D2/D3 |
+|---|---|---|
+| `rrf_weights` divergence top-3 (combined) | **0/8** | D1: 0-1/8 (**realized**), D2: 3-5/8, D3: 6-8/8 |
+| `rrf_weights` divergence top-3 KO | 0/4 | — |
+| `rrf_weights` divergence top-3 EN | 0/4 | — |
+| BM25-only top-1 genre match | 7/8 (4/4 KO, 3/4 EN) | — |
+| Dense-only top-1 genre match | 7/8 (4/4 KO, 3/4 EN) | — |
+| Phase 3a drift (recap) | 7/32 = 21.9% | H1: 10-20% (**supported**, just above) |
+
+Top-1 miss (BM25 and dense concordant):
+- EN runbook query "security configure run verify inspect command"
+  → top-1 is `troubleshooting.md` for both. Body of
+  en/security/troubleshooting contains `inspect the API gateway
+  error logs` matching the query's `inspect` token. Same failure
+  mode as cost_opt EN runbook miss on adr.md (§ 11.2) — the
+  simple-query runbook anchors (`inspect`, `verify`) are not
+  genre-exclusive in practice.
+
+This is a concordant miss, not divergence.
+
+### 12.3 Verdict — joint cell (H1, D1) realized
+
+Pre-registered interpretation for the (H1, D1) cell (per ledger
+§ "Joint H × D interpretation matrix"): "structural dominance +
+universal topic-strong = chunk-level artifact candidate retained
+(but H1 weighted heavily)."
+
+- **H1 supported**: drift 21.9% at the upper edge of 10-20%.
+  Structural cleanliness is a material factor: postgres 28% >
+  security 21.9% > cost_opt 0% correlates with subtopic-geometry
+  overlap (postgres has overlapping indexing / vacuum /
+  partitioning; security has encryption / access_control with
+  adjacent `auth/*` / `networking/*`; cost_opt has sharp
+  SPEND-vs-MECHANICS split).
+- **D1 realized**: divergence 0/8 joins postgres + cost_opt
+  topic-strong cluster.
+- **Combined**: Structure matters (H1) AND the chunk-level
+  artifact density candidate gains first support (n=3). The two
+  factors are not mutually exclusive.
+
+The (H2, D2/D3) "best discriminating cell" for chunk-level
+artifact falsification did NOT realize. Candidate remains
+unconfirmed but consistent across all three measured topics.
+
+### 12.4 Hypothesis status update
+
+**Chunk-level artifact density candidate** (§ 11.4):
+- n=2 → n=3. First support reached; still unconfirmed.
+- Confirmation threshold (§ 11.4) requires k ≥ 4 topics with no
+  falsifying cases. Pending: observability (replaces kafka — see
+  § 12.7) + k8s + 9 remaining topics.
+- Falsification conditions (§ 11.4): not realized. The
+  (H2, D2/D3) cell did not occur at security.
+
+**Structural cleanliness as a material factor** (H1):
+- Three-topic drift ordering (28% / 21.9% / 0%) supports a
+  subtopic-geometry-overlap explanation. Phase 5 threshold
+  calibration should weight both chunk-artifact density AND
+  structural cleanliness.
+
+### 12.5 Body-overlap flag outcome (per § 11.5)
+
+Three genres were flagged at pre-measurement (ko postmortem 0.50,
+en postmortem 1.00, en adr 1.00). Post-sensitivity status:
+
+- All three produced **concordant correct-direction** top-1: BM25
+  and dense both landed on the target genre.
+- No divergence occurred on flagged genres, so the
+  "divergence-masking overlap" alternative explanation does not
+  apply. Flags are recorded per § 11.5 but the measurements are
+  valid (same precedent as cost_opt adr overlap=1.0).
+
+### 12.6 Corpus status checkpoint
+
+- Measured topics: 4 (caching Phase 1/2a, postgres Phase 2b,
+  cost_opt Phase 2c first-half, security Phase 2c second-half).
+  All four show topic-strong behavior under simple genre-primary
+  queries.
+- Topics pending: 11 (observability Phase 2d [replaces kafka per
+  § 12.7] + k8s clean confirmation + 9 remaining).
+- Active hypothesis: chunk-level distinctiveness (n=3, first
+  support). Falsification tests continue — observability has the
+  strongest genre-boundary-emergence candidate mechanism among
+  remaining topics.
+
+### 12.7 Post-security decision — kafka → observability
+
+Per ledger § "Kafka cadence contingency" (added post-cost_opt):
+"If security also shows 0-2/8 divergence (joining topic-strong
+cluster): kafka's information value ≈ confirmation only. Consider
+replacing kafka with a candidate alternative boundary topic."
+
+**Security result**: 0/8 divergence → kafka becomes
+confirmation-only.
+
+**Decision (2026-04-17)**: replace kafka with **observability** in
+the Phase 2d slot.
+
+Rationale:
+- Observability genres map naturally to distinct activities
+  (runbook = dashboard/query setup, postmortem = incident
+  narrative, adr = tool selection, troubleshooting = alert
+  fatigue) — the strongest genre-boundary-emergence candidate
+  among remaining topics.
+- Kafka moves later (post-observability + k8s) as redundant
+  confirmation of the topic-strong cluster. Not abandoned.
+- Decision is pre-registered; no post-hoc re-evaluation without
+  an explicit design-doc amendment.
+
+This closes B.2 v2 Phase 2c (postgres + cost_opt + security).
+Next: Phase 2d observability.
