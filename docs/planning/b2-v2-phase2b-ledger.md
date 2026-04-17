@@ -271,21 +271,42 @@ Post-hoc redefinition prohibited (e.g. "top-5 instead", "top-1 only",
 "set equality instead of ordered list"). All 14 topics use this exact
 definition.
 
-**Drift** (curation-side):
+**Drift** (curation-side, event-count convention from Phase 2d
+observability forward):
 ```
 For topic T, Phase 3a curator processes Gemini output with:
   N_chunks   = total chunks reviewed (8 batches × 4 = 32)
-  N_drift    = count of chunks requiring a secondary-subtopic correction
+  N_events   = count of independent correction events (rules below)
   Categories = {out-of-vocab expansion, intra-vocab misclassification,
-                absent-topic projection, Claude over-correction}
+                absent-topic projection, Claude over-correction,
+                missed secondary}
 
-Drift rate per topic = N_drift / N_chunks
-Reported as "N/32 (P%)" plus category distribution table.
+Correction event rules (2026-04-18, supersedes chunk-count):
+- Same-parent-topic replacement (e.g. security/incident →
+  security/access_control within one chunk) = 1 event,
+  category = intra-vocab misclassification
+- Cross-topic drop+add (e.g. cost_optimization/observability
+  removed + observability/alerting added within one chunk) =
+  2 events: 1 drop (absent-topic projection) + 1 add (missed
+  secondary). The two observations are independent — body lacks A,
+  body contains B — and are counted separately
+- Drop-only, add-only, or primary reclassification = 1 event each
+
+Drift rate per topic = N_events / N_chunks
+Reported as "N events / 32 (P%)" plus chunks-affected count and
+category distribution table.
 ```
 
 Boundary cases resolved via Principles 1-3 (this section above) are
 NOT counted as drift — they are documented as "decisions per
 established principles" with the principle cited.
+
+**Retrospective application note**: postgres (Phase 2b, chunk-count
+9/32 = 28%) and security Gemini (Phase 2c, chunk-count 7/32 = 21.9%)
+were counted under the pre-convention scheme. Convention change
+applies prospectively from observability (Phase 2d) forward;
+retroactive recount pending per Deferred decisions §
+"Retrospective drift count audit".
 
 ### Security pre-registration — drift × divergence (updated 2026-04-17)
 
@@ -824,6 +845,85 @@ the correct genre top-1 on a flagged genre, measurement remains valid.
 observability so the post-result interpretation reads off a cell, not
 fits a narrative. Same principle as security pre-reg above.
 
+## Curation ledger — Phase 2d observability, Gemini-generated (9 events / 32 = 28.1%, 8 chunks affected)
+
+Event-count convention established at this topic — see § "Formal
+definitions" above. Chunks affected and event count reported
+separately; cross-topic drop+add counts as 2 events.
+
+### Category distribution (event-count)
+
+| Category | Count | Note |
+|---|---|---|
+| Out-of-vocab expansion | 0 | — |
+| Intra-vocab misclassification | 2 | Both are k8s-subtopic misplacements: `k8s/scheduling` tagged on a Prometheus service-discovery chunk (scrape annotation, not pod placement); `k8s/networking` tagged on an otel-collector OOM chunk (memory, not networking) |
+| Absent-topic projection | 6 | Majority category; 5 unsupported secondaries dropped + 1 cross-topic drop on B7 #3 |
+| Claude over-correction | 0 | — |
+| Missed secondary | 1 | B7 postmortem ko #3: body explicitly mentions "비정상 수치를 감시하는 알람 구축"; `observability/alerting` omitted by Gemini |
+| **Total events** | **9 / 32 = 28.1%** | 8 chunks affected (B7 #3 contributes 2 events = absent drop + missed add, cross-topic) |
+
+### Per-chunk corrections (8 chunks affected, 9 events)
+
+| Batch | Chunk (primary) | Original secondary | Final secondary | Events | Category |
+|---|---|---|---|---|---|
+| runbook ko | #2 logging | `[k8s/storage]` | `[]` | 1 drop | Absent-topic — `Mem_Buf_Limit` is memory buffer, not storage volume / PVC |
+| runbook ko | #4 alerting | `[incident_response/oncall]` | `[]` | 1 drop | Absent-topic — Slack webhook change + `amtool config check` + reload; oncall rotation / triage not mentioned |
+| trouble ko | #2 logging | `[k8s/networking]` | `[]` | 1 drop | Absent-topic — "네트워크 지연" is generic latency, no CNI / service-mesh / pod-to-pod specifics |
+| trouble ko | #3 tracing | `[api_design/rest]` | `[]` | 1 drop | Absent-topic — `traceparent` HTTP header propagation; REST API design (conventions, idempotency, etc.) not discussed |
+| trouble ko | #4 alerting | `[incident_response/detection]` | `[]` | 1 drop | Absent-topic — alertmanager `group_interval` tuning = internal delay debugging, not IR detection phase |
+| trouble en | #2 metrics | `[k8s/scheduling]` | `[]` | 1 drop | Intra-vocab — `kubernetes_sd_configs` + `prometheus.io/scrape` annotation = service discovery; `k8s/scheduling` covers pod placement, not discovery |
+| postmortem ko | #3 logging | `[cost_optimization/observability]` | `[observability/alerting]` | 2 (drop + add, cross-topic) | Absent-topic (drop `cost_optimization/observability`; body has `log_level: debug` volume surge + `throttle` filter, no billing content) + Missed secondary (add `observability/alerting`; "비정상 수치 감시 알람 구축" body-supported) |
+| postmortem en | #3 tracing | `[k8s/networking]` | `[]` | 1 drop | Intra-vocab — otel-collector OOM + `memory_limiter` threshold + memory limit 2Gi; memory / resource issue, not networking |
+
+### Borderline cases preserved (not counted as drift)
+
+| Batch | Chunk (primary) | Secondary kept | Rationale |
+|---|---|---|---|
+| adr en | #1 synthetic | `[observability/metrics]` | "primary indicator for our global health dashboard" = explicit dashboard mention; weak-but-defensible per body-supported rule. Same precedent as security trouble EN #2 `[postgres/connection_pool]` (Phase 2c Gemini ledger) |
+
+### Pre-registered H1/H2/H3 outcome at observability
+
+| Hypothesis | Pre-reg range | Observed | Status |
+|---|---|---|---|
+| H1 (structural cleanliness dominant) | 10-20% | 28.1% | **Rejected** — above range; observability-specific H1 wording ("near security's 21.9%") also exceeded |
+| H2 (prompt refinement dominant) | 0-5% | 28.1% | Rejected |
+| H3 (mixed, unequal weights) | 5-10% | 28.1% | Rejected |
+
+**None of H1/H2/H3 fits observability at 28.1%.** Formal retirement
+or reformulation **deferred to kafka measurement or Phase 5** — this
+ledger records the observation without acting on the framework
+decision. No "three-pillars overlap hypothesis supported" or similar
+framing is warranted by this data.
+
+### Observation (not pre-registered, tentative, to be tested at kafka)
+
+Drift rates across topics measured so far:
+
+| Topic | Phase | Convention | Drift |
+|---|---|---|---|
+| postgres | 2b | chunk-count | 28% (9/32) |
+| cost_optimization | 2c | chunk-count | 0% (0/32) |
+| security Gemini | 2c | chunk-count | 21.9% (7/32) |
+| observability | 2d | event-count | **28.1% (9/32 events, 8 chunks)** |
+
+Pattern: postgres and observability sit ~28%, cost_opt is an outlier
+at 0%, security at 21.9%. Emerging hypothesis (not pre-registered):
+baseline Gemini drift for this prompt structure may be ~25-30%, with
+cost_opt as a topic-specific outlier explained by the AWS service
+category cleanliness registered at Phase 2c cost_opt ledger.
+
+**Not promoted to a working hypothesis.** kafka provides the next
+data point; formal reformulation of H1/H2/H3 happens at that
+measurement, not earlier. Recording as observation to prevent
+post-hoc drift in future interpretation.
+
+### Divergence measurement
+
+Pending — Step 7 of handoff Phase 2d next actions. IDF + body overlap
+pre-measurement (Step 5) precedes divergence measurement (Step 7).
+Joint H × D cell reading to be recorded at `b2-v2-phase1-validation.md`
+§ 13.
+
 ## Methodology discontinuities
 
 This section tracks points where measurement methodology changed
@@ -948,3 +1048,24 @@ for the authoritative drift measurement.
   in the respective curation-ledger sections.
   **Effort estimate**: ~90 minutes (2-3 min / chunk × 64 chunks).
   **Not required for security PR merge**.
+
+- [ ] **Retrospective drift count audit (postgres + security Gemini)**
+  — **Trigger**: before Phase 5 threshold calibration, OR when n ≥ 5
+  topics complete, whichever comes first.
+  **Rationale**: event-count drift convention adopted at Phase 2d
+  observability (2026-04-18). Postgres (Phase 2b, 9/32 = 28%) and
+  security Gemini (Phase 2c, 7/32 = 21.9%) were counted under
+  chunk-count; cross-topic drop+add cases in those topics may be
+  undercounted under the new convention. Event-count and chunk-count
+  can differ by up to 2× if a ledger contains several cross-topic
+  replacements.
+  **Scope**: re-examine per-chunk corrections tables in the postgres
+  Phase 2b ledger (9 entries) and the security Gemini Phase 2c
+  ledger (7 entries). For each row, determine whether it was a
+  same-parent-topic replacement (1 event) or cross-topic drop+add
+  (2 events). Recompute N_events / 32 for each topic. Update the
+  drift-rates table in Phase 2d observability curation § "Observation"
+  with the corrected numbers.
+  **Effort estimate**: ~30 minutes (two ledger sections, ~16 rows).
+  **Coordinate with the missed-secondary audit above** — same review
+  pass can cover both conventions.

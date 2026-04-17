@@ -29,7 +29,7 @@ open-prediction state.
 | 2b | ✅ | postgres × 4 genres × 2 langs = 32 chunks; topic-strong pipeline invariance identified (B-2) |
 | 2c (cost_opt) | ✅ | cost_optimization × 4 genres × 2 langs = 32 chunks; **counter-prediction realized — topic-strong despite topic-weak prediction** (0/8 divergence); drift 0/32 |
 | 2c (security) | ✅ | Gemini-regenerated; 32 chunks with 7 corrections = 21.9% drift (H1 supported, upper edge 10-20%); divergence **0/8** (D1 realized); joint cell (H1, D1) = chunk-level artifact candidate retained with H1 weighted heavily; § 12.7 decision: kafka → observability |
-| **2d (observability)** | **🔄 in progress** (Step 2 pre-reg DONE 2026-04-17; Step 3 Gemini batches next) | replaces kafka per § 12.7 Kafka cadence contingency realization; predicted strongest genre-boundary-emergence candidate (runbook = dashboard setup, postmortem = incident narrative, adr = tool selection, troubleshooting = alert fatigue) |
+| **2d (observability)** | **🔄 in progress** (Steps 2-4 DONE 2026-04-17/18: pre-reg + prompts + Gemini run + Phase 3a curation 9 events / 32 = 28.1%, 8 chunks affected; Step 5 IDF/body-overlap pre-measure next) | replaces kafka per § 12.7 Kafka cadence contingency realization; predicted strongest genre-boundary-emergence candidate (runbook = dashboard setup, postmortem = incident narrative, adr = tool selection, troubleshooting = alert fatigue) |
 | 2d kafka / k8s | 📋 | kafka demoted to post-observability + k8s as confirmation-only; k8s retains clean topic-strong confirmation role |
 | 2e onwards | 📋 | 9 remaining topics × 8 batches each |
 | 3-7 | 📋 | full curation (per-topic drift), query portfolio, calibration, CI wiring, PR |
@@ -133,20 +133,29 @@ All Phase 2c steps complete across cost_opt + security:
    observability decision rules + body-overlap expectation +
    sunk-cost-bias guardrail. No post-hoc redefinition.
 
-3. **Run observability Gemini batches** — create 8 prompts
-   (adr/runbook/postmortem/troubleshooting × ko/en) using the
-   `.claude/b2-v2-security-prompts.md` template with topic-
-   specific substitution (topic label, Rule 6 example, intra-
-   vocab confusion bullets, JSON template prefix). Verify prompt
-   structural equivalence per Methodology Discontinuity 1
-   protocol before execution. User runs offline, returns 8 JSON
-   arrays.
+3. **Run observability Gemini batches** — ✅ prompts created
+   2026-04-17 at `.claude/b2-v2-observability-prompts.md` (gitignored;
+   1836 lines, 8 fenced blocks). Structural equivalence verified
+   against `.claude/b2-v2-security-prompts.md`: 5 legitimate deltas
+   (topic label, Rule 6 example `Prometheus rate(http_requests_total
+   [5m])`, intra-vocab confusion bullets = three-pillars + alerting/
+   synthetic/cost_opt/detection boundaries, JSON template prefix,
+   "This batch" genre/language per-batch field). No additional
+   structural changes — Methodology Discontinuity 1 protocol held.
+   **Next**: user runs 8 batches offline, returns JSON arrays →
+   Phase 3a curation (Step 4).
 
-4. **Phase 3a curate** observability batches. Apply P1/P2/P3
-   principles for boundary cases (cite sources for P1). Log
-   corrections under new subsection
-   `b2-v2-phase2b-ledger.md` § "Curation ledger — Phase 2d
-   observability, Gemini-generated".
+4. ✅ **Phase 3a curate** observability batches (DONE 2026-04-18).
+   8 chunks affected, 9 correction events under new event-count
+   convention established at this topic (see ledger § "Formal
+   definitions" drift block + § "Curation ledger — Phase 2d
+   observability, Gemini-generated"). Category distribution: absent-
+   topic 6, intra-vocab 2, missed secondary 1, out-of-vocab 0,
+   over-correction 0. Pre-registered H1/H2/H3 all rejected at
+   28.1% — formal retirement / reformulation deferred to kafka or
+   Phase 5 per § "Observation (not pre-registered, tentative)".
+   Retrospective chunk-count → event-count audit for postgres +
+   security Gemini added to Deferred decisions.
 
 5. **Pre-measure IDF + body overlap** (§ 11.5 rule) via
    `tools/retrieval-eval/compute_idf_baseline.py`. Topic token
