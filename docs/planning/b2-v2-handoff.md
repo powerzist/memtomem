@@ -195,13 +195,29 @@ additional methodology meta-discussion. Deliverables per step
 identical to observability unless the measurement surfaces a novel
 failure mode.
 
-1. **Pre-register k8s joint H × D matrix** in ledger. Expected cell:
-   D1 (topic-strong confirmation). Drift prediction under new
-   baseline observation: ~25-30% event-count. Explicit "confirmation
-   test" framing — no new hypothesis introduced.
-2. **Run k8s Gemini batches** (8 prompts, topic-specific substitution
-   from `.claude/b2-v2-observability-prompts.md` template; 5 legitimate
-   deltas apply). Verify structural equivalence.
+1. ✅ **Pre-register k8s joint H × D matrix** (DONE 2026-04-18,
+   commit `6e9ef6f`) in `b2-v2-phase2b-ledger.md` § "K8s
+   pre-registration — drift × divergence". Locked: confirmation-
+   test framing per (A)-path; drift bands Baseline-match 20-32% /
+   Lower-outlier 0-15% / Upper-outlier 32-45% / Extreme; divergence
+   D1 (0-1/8 expected) / D2 (3-5/8) / D3 (6-8/8); joint
+   interpretation matrix + cells of interest + post-k8s decision
+   rules + body-overlap expectation + sunk-cost-bias guardrail.
+   H1/H2/H3 not re-applied (deferred to kafka or Phase 5).
+2. **Run k8s Gemini batches** — ✅ prompts created 2026-04-18 at
+   `.claude/b2-v2-k8s-prompts.md` (gitignored; 1934 lines, 8 fenced
+   blocks). Structural equivalence verified against
+   `.claude/b2-v2-observability-prompts.md`: 5 legitimate deltas
+   (topic label `k8s`, Rule 6 example `kubectl rollout status
+   deployment/api -n prod`, intra-vocab confusion bullets =
+   scheduling/scaling + rollout/ci_cd + networking/service_mesh +
+   storage/postgres + scheduling/cost_opt boundaries, JSON template
+   prefix `k8s/<subtopic>`, "This batch" genre/language per-batch
+   field). No observability-specific content leaked (three pillars,
+   fluent-bit, Prometheus rate, blackbox-exporter, histogram_quantile
+   all absent). Methodology Discontinuity 1 protocol held. **Next**:
+   user runs 8 batches offline, returns JSON arrays → Phase 3a
+   curation (Step 3).
 3. **Phase 3a curate**; log to new ledger section.
 4. **Pre-measure IDF + body overlap**; add k8s QUERY set to
    `compute_idf_baseline.py` + dispatch.
