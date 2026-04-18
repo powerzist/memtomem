@@ -119,6 +119,7 @@ class IndexingConfig(BaseSettings):
     chunk_overlap_tokens: int = 0
     structured_chunk_mode: str = "original"  # "original" or "recursive"
     paragraph_split_threshold: int = 800  # split long prose into paragraphs above this token count
+    exclude_patterns: list[str] = Field(default_factory=list)
 
     @field_validator(
         "max_chunk_tokens",
@@ -382,6 +383,7 @@ MUTABLE_FIELDS: dict[str, set[str]] = {
         "target_chunk_tokens",
         "chunk_overlap_tokens",
         "structured_chunk_mode",
+        "exclude_patterns",
     },
     "embedding": {"batch_size"},
     "decay": {"enabled", "half_life_days"},
@@ -402,6 +404,7 @@ FIELD_CONSTRAINTS: dict[str, dict] = {
     "indexing.target_chunk_tokens": {"type": int, "min": 0, "max": 8192},
     "indexing.chunk_overlap_tokens": {"type": int, "min": 0, "max": 512},
     "indexing.structured_chunk_mode": {"type": str, "allowed": {"original", "recursive"}},
+    "indexing.exclude_patterns": {"type": list, "item_type": str},
     "embedding.batch_size": {"type": int, "min": 1, "max": 1024},
     "decay.enabled": {"type": bool},
     "decay.half_life_days": {"type": float, "min": 0.1},
