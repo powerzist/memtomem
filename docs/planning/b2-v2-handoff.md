@@ -315,14 +315,15 @@ failure mode.
     measurability (every tag has ≥ 1 primary-matching chunk in the
     query language), core-topic coverage (≥ 3 × per lang), and
     multi_topic / genre_primary target-set shape.
-12. **H1/H2/H3 retirement / reformulation decision** at **Phase 5**
-    (kafka skipped per user 2026-04-18 — decision venue moved from
-    "kafka completion or Phase 5" to "Phase 5" only). Evidence base:
-    observability 28.1% + k8s 40.6% both rejected all three bands;
-    no additional topic measurement required to decide. Recorded in
-    ledger § "Curation ledger — Phase 2d observability" "Observation
-    (not pre-registered, tentative)" + § "Observation update" under
-    Phase 2e k8s curation ledger.
+12. ✅ **H1/H2/H3 retirement + chunk-level artifact candidate
+    promotion** (DONE 2026-04-18 at `b2-v2-phase1-validation.md`
+    § 15). Six-topic evidence: drift span 0% to 40.6%; no topic
+    fits any band consistently. H1/H2/H3 all retired; no
+    reformulation adopted (drift rate is descriptive per topic, not
+    predictive from a global prior). Chunk-level artifact candidate
+    → working hypothesis (n=5 cluster, k ≥ 4 threshold met). **CI
+    gate contract**: drift-rate thresholds do NOT enter; divergence
+    0/8 across 6-topic corpus is the regression signal.
 
 ## Key invariants (do not drift from these)
 

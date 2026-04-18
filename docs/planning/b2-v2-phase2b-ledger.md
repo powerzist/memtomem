@@ -917,6 +917,15 @@ data point; formal reformulation of H1/H2/H3 happens at that
 measurement, not earlier. Recording as observation to prevent
 post-hoc drift in future interpretation.
 
+**Resolved at Phase 5 (2026-04-18)**: kafka skipped per user;
+H1/H2/H3 formally retired at `b2-v2-phase1-validation.md` § 15.1
+based on six-topic evidence (0% to 40.6% drift span; no topic fits
+any band consistently). No reformulation adopted — chunk-level
+artifact candidate (§ 15.2) is the working hypothesis for
+divergence; drift rate is descriptive per topic, not predictive
+from a global prior. Future reformulation requires new
+pre-registered ranges before data collection.
+
 ### Pre-measurement (IDF + body overlap, 2026-04-18)
 
 Per § 11.5 of the validation doc, query fairness (IDF token count +

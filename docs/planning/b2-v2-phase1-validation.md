@@ -976,5 +976,106 @@ monitor this — if the flip-flop recurs, the script's determinism
 controls need hardening (e.g., explicit RNG seeding deeper in the
 embedding / indexing pipeline).
 
-This closes B.2 v2 Phase 2e (k8s). Next: Phase 2d kafka
-(confirmation-only per § 12.7).
+This closes B.2 v2 Phase 2e (k8s). Kafka is skipped per user
+(2026-04-18) — n=5 cluster already confirmed, additional
+confirmation ROI low; H1/H2/H3 retirement moves to § 15 below.
+
+## 15. Phase 5 framework decisions (2026-04-18, six-topic corpus)
+
+Two locked decisions using only evidence already on the record.
+Neither requires new measurement; both were pre-committed as Phase 5
+outcomes at `b2-v2-phase2b-ledger.md` § "Observation (not
+pre-registered, tentative)" and § 11.4's confirmation threshold.
+
+### 15.1 H1 / H2 / H3 formally retired
+
+Pre-registered ranges (H1 10-20%, H2 0-5%, H3 5-10%) were drift-rate
+hypotheses for Phase 3a curation. Six-topic evidence:
+
+| Topic | Phase | Convention | Drift | H1 10-20% | H2 0-5% | H3 5-10% |
+|---|---|---|---|---|---|---|
+| postgres | 2b | chunk-count | 28.1% (9/32) | ✗ above | ✗ | ✗ |
+| cost_optimization | 2c | chunk-count | 0% (0/32) | ✗ below | **✓** | ✗ |
+| security | 2c | chunk-count | 21.9% (7/32) | ✓ upper-edge | ✗ | ✗ |
+| observability | 2d | event-count | 28.1% (9/32) | ✗ above | ✗ | ✗ |
+| k8s | 2e | event-count | 40.6% (13/32) | ✗ above | ✗ | ✗ |
+
+**Status**:
+- **H1 (structural cleanliness dominant, 10-20%)**: rejected. Only
+  security fits; postgres + observability + k8s all above range;
+  cost_opt below range.
+- **H2 (prompt refinement dominant, 0-5%)**: rejected. Only cost_opt
+  fits (0%); all other topics well above.
+- **H3 (mixed unequal weights, 5-10%)**: rejected. No topic fits.
+
+**Decision**: all three retired. Drift rate is **not** a
+band-categorizable constant under the current Gemini prompt
+structure. Observed span is 0% to 40.6% across five drift-curated
+topics; the variance is topic-level and real, not random noise.
+
+**Reformulation**: none adopted. "Topic-level drift variance is
+real; the chunk-level artifact candidate (§ 15.2) is the working
+hypothesis for divergence behavior; drift rate is descriptive per
+topic, not predictive from a global prior." Any future reformulation
+requires new pre-registered ranges *before* data collection.
+
+**Consequence for Phase 6 CI gate**: drift-rate thresholds do not
+enter the regression gate. Divergence (0/8 target) remains the
+primary signal.
+
+### 15.2 Chunk-level artifact candidate → working hypothesis
+
+Per § 11.4 confirmation threshold ("k ≥ 4 topics with no falsifying
+cases, candidate is supported"): six-topic evidence meets the bar.
+
+| Topic | Divergence | Falsification condition | Fulfilled? |
+|---|---|---|---|
+| postgres | 0/8 | drift ≥ 28% AND divergence ≥ 4/8 | no (0/8) |
+| cost_optimization | 0/8 | drift 0-5% AND divergence ≥ 4/8 | no (0/8) |
+| security | 0/8 | drift 0-5% AND divergence ≥ 4/8 | no (0/8) |
+| observability | 0/8 | — | no (0/8) |
+| k8s | 0/8 | — | no (0/8) |
+
+Falsification conditions were defined against security and k8s
+specifically (§ 11.4); neither realized. Caching (Phase 1/2a) also
+produced 0/8 divergence but is the methodology anchor, not a
+confirmation topic.
+
+**Promotion**: chunk-level artifact candidate → **working
+hypothesis**. Statement:
+
+> Chunk-level artifact density (≥ 2 distinctive technical artifacts
+> per chunk: proper nouns, command strings, metric names, config
+> keys) dominates topic-level vocabulary density in determining
+> BM25 ↔ dense agreement. BM25 locates the chunk via literal token
+> match; dense locates it via semantic match; both converge on the
+> same chunk regardless of `rrf_weights`, producing 0/8 divergence.
+
+**Consequence for Phase 6 CI gate**: CI asserts 0/8 divergence
+across the 6-topic corpus as a regression gate. Any future corpus
+addition that violates 0/8 triggers reinvestigation of the working
+hypothesis.
+
+**Follow-up work deferred to post-merge**:
+- Retrospective missed-secondary audit (postgres + cost_optimization,
+  ledger § "Deferred decisions") — affects drift numbers only, not
+  divergence.
+- Retrospective drift-count audit (postgres + security Gemini
+  chunk-count → event-count normalization) — same.
+- Graded-secondary Option 2 calibration (ledger § "Deferred
+  decisions") — decision pending Phase 5d floor-sensitivity output.
+
+### 15.3 Six-topic corpus status
+
+- Measured topics: 6 (caching + postgres + cost_opt + security +
+  observability + k8s), all at divergence 0/8.
+- Corpus size: 192 chunks (6 × 32). Subtopic list frozen at 75
+  (2026-04-17). Drift validator (Phase 3b) locks closed-vocab.
+- Remaining 9 topics deferred as regression-test expansion
+  (`b2-v2-design.md` § "Scope narrowed to 6 topics" triggers).
+- Query portfolio: 100 queries locked at
+  `tools/retrieval-eval/query_portfolio.py` (Phase 4).
+
+This closes B.2 v2 methodology / framework Phase 5 decisions.
+Remaining Phase 5 items (calibration infra, genre confusion matrix)
+are measurement tasks, not framework decisions.
