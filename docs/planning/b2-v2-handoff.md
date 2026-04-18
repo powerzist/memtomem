@@ -1,23 +1,28 @@
-# B.2 v2 — Phase 3b closed, corpus scope narrowed to 6 topics, Phase 4 next
+# B.2 v2 — Phases 3b + 4 closed, scope 6 topics, Phase 5 next
 
-**If you are a new Claude session picking this up**: corpus building
-is paused at 6 topics (caching + postgres + cost_opt + security +
-observability + k8s, 192 chunks total) per user decision 2026-04-18.
-The chunk-level artifact candidate hypothesis hit its k ≥ 4
-confirmation threshold at k8s; further topics would be
-confirmation-only. Phase 3b drift validator is implemented
-(`tools/retrieval-eval/drift_validator.py` + 23 tests, commit
-`eb25fd4`). **Next work = Phase 4 query portfolio across 6 topics**;
-remaining 9 topics are deferred, not cancelled (trigger conditions
-for resumption live in `b2-v2-design.md` § "Scope narrowed to 6
-topics").
+**If you are a new Claude session picking this up**: corpus is
+finalized at 6 topics (caching + postgres + cost_opt + security +
+observability + k8s, 192 chunks) per user decision 2026-04-18. The
+chunk-level artifact candidate hypothesis hit its k ≥ 4 confirmation
+threshold at k8s; further topics deferred as regression-test
+expansion. Infrastructure phases complete:
 
-Reading order for full methodology context: this file first, then
-`b2-v2-design.md` (incl. new § "Scope narrowed to 6 topics"),
+- Phase 3b drift validator: `tools/retrieval-eval/drift_validator.py`
+  + 23 tests (commit `eb25fd4`)
+- Phase 4 query portfolio: `tools/retrieval-eval/query_portfolio.py`
+  + 12 tests — 100 queries (50 EN + 50 KO across 6 types)
+
+**Next work = Phase 5 calibration**: per-topic floor setup,
+H1/H2/H3 retirement / reformulation (evidence already decisive at
+observability 28.1% + k8s 40.6%), genre confusion matrix,
+graded-secondary Option 2 decision.
+
+Reading order: this file first, then `b2-v2-design.md` (§ "Scope
+narrowed to 6 topics", § "Query portfolio"),
 `b2-v2-phase1-validation.md` (§§ 8-14 for Phase 2a-e measurements),
 `b2-v2-phase2b-ledger.md` (curation patterns, formal definitions,
-all topic pre-registrations, drift validator rules), and
-`b2-v2-query-portfolio.md`.
+pre-registrations, drift validator rules, Deferred decisions —
+Phase 5 action items), and `b2-v2-query-portfolio.md`.
 
 ## Branch state
 
@@ -40,8 +45,9 @@ all topic pre-registrations, drift validator rules), and
 | 2d (kafka) | 🚫 skipped (user 2026-04-18) | originally confirmation-only per § 12.7; skipped per user — n=5 cluster already confirmed at k8s (k ≥ 4 threshold met), additional confirmation ROI low; H1/H2/H3 reformulation deferred to Phase 5 instead of kafka |
 | 3b | ✅ | drift validator (`tools/retrieval-eval/drift_validator.py`) + 23 tests; 2 forbidden + 3 manual-review rules derived from 6-topic ledger; current corpus passes with zero violations |
 | **scope narrowed** | **2026-04-18** | **corpus paused at 6 topics** per user; chunk-level artifact candidate k ≥ 4 threshold already met, further topics confirmation-only at diminishing ROI. Remaining 9 topics deferred (not cancelled — trigger conditions in `b2-v2-design.md` § "Scope narrowed to 6 topics") |
-| **next** | **📋** | Phase 4 query portfolio (100 queries × 2 langs across 6 topics) |
-| 3-7 | 📋 | query portfolio, calibration (incl. H1/H2/H3 retirement at Phase 5), sensitivity check, CI wiring, PR |
+| 4 | ✅ | 100-query portfolio (`tools/retrieval-eval/query_portfolio.py`: 50 EN + 50 KO across 6 types — direct / paraphrase / underspecified / multi_topic / negation / genre_primary) + 12 tests enforcing counts / target measurability / core-topic coverage |
+| **next** | **📋** | Phase 5 calibration — per-topic thresholds, H1/H2/H3 retirement, genre confusion matrix, graded-secondary Option 2 decision |
+| 5-7 | 📋 | calibration, sensitivity check per query type, CI wiring, PR |
 
 ## Current state summary (2026-04-17, Phase 2c complete)
 
@@ -300,10 +306,15 @@ failure mode.
     as regression-test expansion candidates, not cancelled. Trigger
     conditions for resumption in `b2-v2-design.md` § "Scope narrowed
     to 6 topics". Phase 4-7 proceed on the 6-topic corpus.
-11. 📋 **Phase 4 next**: query portfolio (100 queries per language)
-    across 6 topics × 4 genres = 24 base queries, expanded by
-    paraphrase / difficulty variants. Genre-primary axis required.
-    KO primary, EN parity.
+11. ✅ **Phase 4 query portfolio** (DONE 2026-04-18). 100 queries at
+    `tools/retrieval-eval/query_portfolio.py` (50 EN + 50 KO across
+    direct / paraphrase / underspecified / multi_topic / negation /
+    genre_primary). 12 tests at
+    `packages/memtomem/tests/test_query_portfolio.py` enforce count
+    spec (EN 10/10/8/7/5/10, KO 10/10/10/7/3/10), target
+    measurability (every tag has ≥ 1 primary-matching chunk in the
+    query language), core-topic coverage (≥ 3 × per lang), and
+    multi_topic / genre_primary target-set shape.
 12. **H1/H2/H3 retirement / reformulation decision** at **Phase 5**
     (kafka skipped per user 2026-04-18 — decision venue moved from
     "kafka completion or Phase 5" to "Phase 5" only). Evidence base:

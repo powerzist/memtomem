@@ -1,14 +1,36 @@
-# B.2 Query portfolio draft
+# B.2 Query portfolio — 100 queries, locked 2026-04-18
 
-80 queries total (40 EN + 40 KO), 5 types per language. Each query has
-a target tag set (primary topic/subtopic strings) and a declared type
-that drives per-type threshold assertions.
+100 queries total (50 EN + 50 KO) at
+`tools/retrieval-eval/query_portfolio.py` after the 2026-04-18
+scope narrowing (6-topic corpus: caching, postgres, cost_optimization,
+security, observability, k8s). Validated by
+`packages/memtomem/tests/test_query_portfolio.py` (12 tests — counts
+match spec, every target has ≥ 1 primary-matching chunk in the query
+language, every core topic appears ≥ 3× per language, multi_topic
+queries span ≥ 2 topics, genre_primary queries have ≥ 2 targets).
 
-Full portfolio emerges after corpus is drafted (subtopic vocabulary is
-finalized during corpus generation — see emergence policy in
-`b2-multilingual-regression-v2.md`). This doc holds the **seed
-examples** that illustrate each type's structure and the **count
-distribution** per type.
+Per language (50 queries each):
+
+| Type | EN | KO |
+|---|---|---|
+| direct | 10 | 10 |
+| paraphrase | 10 | 10 |
+| underspecified | 8 | 10 |
+| multi_topic | 7 | 7 |
+| negation | 5 | 3 |
+| genre_primary | 10 | 10 |
+
+KO redistributes the 5/3 negation gap into underspecified (+2)
+because Korean negation often reads stilted in technical prose.
+`genre_primary` is the v2-specific axis promoted from Phase 1
+validation — see § "REQUIRED (Phase 4): genre-primary queries as
+core axis" below.
+
+This document retains the seed examples and sensitivity expectation
+tables (used during design); the concrete runnable portfolio lives
+in `query_portfolio.py`. Edits to the portfolio go through the
+tests — they catch count drift, unmeasurable targets (primary tag
+absent from language corpus), and core-topic coverage regressions.
 
 ## Structure
 
