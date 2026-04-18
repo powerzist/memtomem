@@ -408,27 +408,32 @@ proper-noun-heavy but concept-rich) before confirming the clean
 topic-strong case (k8s). See `b2-v2-handoff.md` Phase 2c actions
 for the full cadence.
 
-### Drift validator — Phase 3b infra TODO
+### Drift validator — Phase 3b (implemented 2026-04-18)
 
-A three-tier rule set derived from the accumulated curation ledger
-(`b2-v2-phase2b-ledger.md`) will flag obvious drift at Phase 3a
-automatically. Not implemented yet; trigger condition is "≥ 5 topics
-ledgered" so that rules are not fit to a biased small sample.
+Implemented at `tools/retrieval-eval/drift_validator.py` after the
+n=5 topic-strong cluster satisfied the "≥ 5 topics ledgered"
+trigger. Two tiers locked; greenlist deferred until a false-positive
+case appears.
 
-Tiers:
+- **Forbidden** (auto-reject, CLI exit 1): closed-vocab violations
+  (unknown topic, unknown subtopic, malformed tag) plus the
+  `genre-postmortem-vs-ir-postmortem-subtopic` rule (k8s Pattern 2,
+  3 events).
+- **Manual-review** (warn, no block): three body-contextual rules
+  — `kubectl logs` diagnostic vs `observability/logging` subtopic
+  (k8s Pattern 1, 3 events); `security/access_control` primary with
+  RBAC-specific body (security ledger, 2 events); `security/encryption`
+  primary with transport-layer body (security ledger, 3 events;
+  suppressed if secondary already names `networking/tls` or
+  `auth/mtls`, matching borderline-preserved curation precedent).
 
-- **Forbidden pairs** (auto-reject) — e.g. `postgres/* primary →
-  search/* secondary`, or any cross-domain vocabulary mixing the
-  closed vocabulary explicitly separates
-- **Manual-review pairs** (flag, not block) — ambiguous adjacencies
-  like `postgres/* primary → k8s/networking secondary` where the
-  correct classification depends on whether the chunk body mentions
-  autoscaling vs service mesh vs CNI
-- **Allowed pairs** (explicit greenlist) — common legitimate links
-  like `postgres/* primary → observability/metrics secondary`
+Rule sources are documented inline in `drift_validator.py` with
+ledger citations. Tests at `packages/memtomem/tests/test_drift_validator.py`
+(23 tests). Current corpus passes with zero violations.
 
 The validator is a drift-detection aid for the human curator, not a
-replacement. Phase 3a remains mandatory human-in-the-loop.
+replacement. Phase 3a remains mandatory human-in-the-loop. CI wiring
+lands at Phase 6.
 
 ## What this plan is not
 

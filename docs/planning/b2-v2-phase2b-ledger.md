@@ -1454,17 +1454,38 @@ apples-to-apples (all within ± 15% of caching baseline).
 
 ## Deferred decisions (Phase 3b / Phase 5 / Option 2 backlog)
 
-- [ ] **Drift validator matrix (Phase 3b infra)** — three-tier rule
-  set derived from accumulated curation ledger:
-  - *Forbidden pairs* (auto-reject): `postgres/* primary → search/*
-    secondary`, similar cross-domain vocab mixing
-  - *Manual-review pairs* (flag, not block): `postgres/* primary →
-    k8s/networking secondary` and similar ambiguous adjacencies
-  - *Allowed pairs* (explicit greenlist): `postgres/* primary →
-    observability/metrics secondary` — the common legitimate links
+- [x] **Drift validator matrix (Phase 3b infra)** — DONE 2026-04-18 after
+  n=5 topic-strong cluster (chunk-level artifact candidate k ≥ 4
+  threshold met). Implemented at `tools/retrieval-eval/drift_validator.py`
+  + tests at `packages/memtomem/tests/test_drift_validator.py` (23
+  tests). Two tiers (forbidden + manual_review) locked against the
+  6-topic ledger; greenlist deferred until a false-positive case is
+  seen.
 
-  Do not implement until at least 5 topics are ledgered; earlier
-  automation fixes rules based on a biased small sample.
+  **Forbidden rules** (auto-reject, exit 1):
+  - Closed-vocab enforcement (unknown topic / subtopic / bad format)
+  - `genre-postmortem-vs-ir-postmortem-subtopic`: postmortem-genre
+    chunk with non-IR primary cannot tag
+    `incident_response/postmortem` as secondary (k8s Pattern 2,
+    3 events).
+
+  **Manual-review rules** (warn, no block):
+  - `kubectl-logs-diagnostic-vs-observability-logging`: k8s/* primary
+    + obs/logging secondary + body contains `kubectl logs`
+    (k8s Pattern 1, 3 events).
+  - `security-access-control-primary-with-rbac-body`:
+    security/access_control primary + body mentions RBAC resources
+    (security ledger trouble KO #1, postmortem KO #2).
+  - `security-encryption-primary-with-transport-body`:
+    security/encryption primary + body mentions TLS/mTLS/cert-manager
+    AND secondary does not already contain networking/tls or
+    auth/mtls (security ledger adr EN #1, runbook KO #2, trouble
+    KO #2; suppressed for borderline-preserved cases like postmortem
+    EN #3 and runbook EN #1 where curator already tagged
+    networking/tls as secondary).
+
+  **Validation on current corpus**: zero forbidden, zero manual-review
+  (post-curation 6-topic corpus passes cleanly). CI wiring at Phase 6.
 
 - [ ] **Graded secondary relevance (Option 2 for Phase 5)** — if
   Phase 5 calibration shows binary secondary presence under-

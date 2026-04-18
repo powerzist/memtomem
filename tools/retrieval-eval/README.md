@@ -17,6 +17,7 @@ numbers without access to a specific contributor's local setup.
 |---|---|
 | `measure_sensitivity.py` | Runs genre-primary divergence spot-check for one topic. Produces `X/N divergence + Y/N BM25 top-1 + Z/N dense top-1` output. |
 | `compute_idf_baseline.py` | Pre-measurement IDF + body-overlap check for any new topic's queries. Enforces "overlap < 0.5" rule from phase1-validation § 11.5. |
+| `drift_validator.py` | CI guard for `corpus_v2` fixtures. Three-tier rule set (closed-vocab + forbidden + manual-review) derived from the 6-topic curation ledger. Exits 1 on any forbidden violation. Tests: `packages/memtomem/tests/test_drift_validator.py`. |
 
 ## Workflow for each new topic
 
