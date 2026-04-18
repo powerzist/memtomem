@@ -1,28 +1,37 @@
-# B.2 v2 — Phases 3b + 4 closed, scope 6 topics, Phase 5 next
+# B.2 v2 — Phases 3b + 4 + 5 closed, Phase 6 CI + Phase 7 PR next
 
-**If you are a new Claude session picking this up**: corpus is
-finalized at 6 topics (caching + postgres + cost_opt + security +
-observability + k8s, 192 chunks) per user decision 2026-04-18. The
-chunk-level artifact candidate hypothesis hit its k ≥ 4 confirmation
-threshold at k8s; further topics deferred as regression-test
-expansion. Infrastructure phases complete:
+**If you are a new Claude session picking this up**: all
+infrastructure phases complete on the 6-topic corpus (192 chunks,
+paused per user 2026-04-18). Remaining 9 topics deferred as
+regression-test expansion — not cancelled. Commits on this branch:
 
 - Phase 3b drift validator: `tools/retrieval-eval/drift_validator.py`
   + 23 tests (commit `eb25fd4`)
 - Phase 4 query portfolio: `tools/retrieval-eval/query_portfolio.py`
-  + 12 tests — 100 queries (50 EN + 50 KO across 6 types)
+  + 12 tests — 100 queries (50 EN + 50 KO × 6 types) (commit `d677825`)
+- Phase 5a + 5b: H1/H2/H3 retired + chunk-level artifact candidate
+  promoted (validation doc § 15) (commit `cd3e7c5`)
+- Phase 5d + 5e: calibration + genre confusion matrix
+  (`tools/retrieval-eval/calibrate_portfolio.py` + 12 tests)
+  (commit `90b4d79`)
+- Phase 5c + 5f: deferred (retrospective audits + graded-secondary)
 
-**Next work = Phase 5 calibration**: per-topic floor setup,
-H1/H2/H3 retirement / reformulation (evidence already decisive at
-observability 28.1% + k8s 40.6%), genre confusion matrix,
-graded-secondary Option 2 decision.
+**Next work = Phase 6 CI wiring + Phase 7 PR**:
+- Phase 6: wire `drift_validator` + fast sanity test (the 35 tool
+  tests) into CI. The full calibration run is expensive (ONNX
+  indexing); consider CI job that runs `--runs 1 --factor 0.9` and
+  asserts no regressions against committed floors, or runs the
+  fast tests only and leaves calibration to an on-demand workflow.
+- Phase 7: PR of the full `feat/multilingual-regression-v2` branch
+  against `main`.
 
 Reading order: this file first, then `b2-v2-design.md` (§ "Scope
-narrowed to 6 topics", § "Query portfolio"),
-`b2-v2-phase1-validation.md` (§§ 8-14 for Phase 2a-e measurements),
-`b2-v2-phase2b-ledger.md` (curation patterns, formal definitions,
-pre-registrations, drift validator rules, Deferred decisions —
-Phase 5 action items), and `b2-v2-query-portfolio.md`.
+narrowed to 6 topics", § "Query portfolio", § "Drift validator"),
+`b2-v2-phase1-validation.md` (§§ 8-15 for Phase 2a-e measurements +
+§ 15 for Phase 5 framework decisions), `b2-v2-phase2b-ledger.md`
+(curation patterns, formal definitions, pre-registrations, drift
+validator rules, Deferred decisions — 5c + 5f items), and
+`b2-v2-query-portfolio.md`.
 
 ## Branch state
 
@@ -46,8 +55,10 @@ Phase 5 action items), and `b2-v2-query-portfolio.md`.
 | 3b | ✅ | drift validator (`tools/retrieval-eval/drift_validator.py`) + 23 tests; 2 forbidden + 3 manual-review rules derived from 6-topic ledger; current corpus passes with zero violations |
 | **scope narrowed** | **2026-04-18** | **corpus paused at 6 topics** per user; chunk-level artifact candidate k ≥ 4 threshold already met, further topics confirmation-only at diminishing ROI. Remaining 9 topics deferred (not cancelled — trigger conditions in `b2-v2-design.md` § "Scope narrowed to 6 topics") |
 | 4 | ✅ | 100-query portfolio (`tools/retrieval-eval/query_portfolio.py`: 50 EN + 50 KO across 6 types — direct / paraphrase / underspecified / multi_topic / negation / genre_primary) + 12 tests enforcing counts / target measurability / core-topic coverage |
-| **next** | **📋** | Phase 5 calibration — per-topic thresholds, H1/H2/H3 retirement, genre confusion matrix, graded-secondary Option 2 decision |
-| 5-7 | 📋 | calibration, sensitivity check per query type, CI wiring, PR |
+| 5a + 5b | ✅ | H1/H2/H3 retired + chunk-level artifact candidate promoted (validation doc § 15) |
+| 5d + 5e | ✅ | calibration + genre confusion matrix (`tools/retrieval-eval/calibrate_portfolio.py`, 12 helper tests). Runs on CLI (ONNX indexing is too slow for unit-test loop); produces per-(lang, type, metric) floors at `round(mean × 0.9, 2)` and a per-(lang, expected_genre, observed_top_1_genre) confusion tally from the 20 genre_primary queries |
+| 5c + 5f | 📋 deferred | retrospective missed-secondary + drift-count audits; graded-secondary Option 2 decision — deferred to post-merge per user 2026-04-18 |
+| **next** | **📋** | Phase 6 CI wiring (drift_validator + calibration smoke check) + Phase 7 PR |
 
 ## Current state summary (2026-04-17, Phase 2c complete)
 
