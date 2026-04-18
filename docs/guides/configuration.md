@@ -336,6 +336,74 @@ mem_index(path="~/.claude/projects/<...>/memory",
           namespace="claude:memory")
 ```
 
+### Namespace rules (path-based auto-tagging)
+
+Instead of passing `namespace=` on every `mem_index` call, declare
+path → namespace rules in your config so the indexer applies them
+automatically. Rules match **before** `enable_auto_ns` and lose to an
+explicit `namespace` argument.
+
+Example `~/.memtomem/config.d/10-namespace-rules.json`:
+
+```json
+{
+  "namespace": {
+    "rules": [
+      { "path_glob": "~/.claude/projects/*/memory/**",      "namespace": "claude:memory" },
+      { "path_glob": "~/.claude/projects/*/*/subagents/**", "namespace": "claude:subagents" },
+      { "path_glob": "~/.codex/memories/**",                "namespace": "codex:memories" },
+      { "path_glob": "~/.gemini/**",                        "namespace": "gemini:{parent}" },
+      { "path_glob": "~/Library/CloudStorage/GoogleDrive-*/**/memtomem-memories/*/**",
+        "namespace": "gdrive:{parent}" }
+    ]
+  }
+}
+```
+
+**Semantics:**
+
+- Patterns use **gitignore syntax** (`**` for recursive, `*` for a
+  single segment). Leading `~/` is expanded at load time.
+- Matching is **case-insensitive** and runs against the absolute
+  resolved file path — the same engine as `indexing.exclude_patterns`.
+- **First match wins.** Order rules from most specific to least within
+  a fragment.
+- `{parent}` in the namespace string expands to the immediate parent
+  folder name. If that name would be empty, the rule is skipped and the
+  next rule / `auto_ns` / `default_namespace` is tried.
+- Merge strategy is **APPEND**: multiple `config.d/*.json` fragments
+  contribute rules without overwriting. **Fragments load in
+  alphabetical filename order**, so use numeric prefixes
+  (`10-claude.json`, `20-gdrive.json`, `99-override.json`) to control
+  precedence across fragments.
+- Placeholder whitelist: only `{parent}` is supported in this release.
+  Unknown placeholders (e.g. `{unknown}`) cause config load to fail so
+  typos are caught at startup.
+
+**Verifying your rules:**
+
+```bash
+# Show effective config including merged rules:
+mm config show | grep -A 20 namespace
+
+# After editing rules, force re-index so existing chunks pick up the
+# new namespace:
+mm mem index ~/.claude/projects --force
+
+# Inspect namespace distribution:
+mm session list             # CLI
+# http://localhost:8080/#sources   # Web UI Sources view (colon prefixes
+                                   # group into collapsible sections)
+```
+
+Search results surface the namespace label, so you can confirm a rule
+fired:
+
+```bash
+mm mem search "your query"
+# → "[claude:memory] …"
+```
+
 ## Policy
 
 | Variable | Default | Description |
