@@ -459,7 +459,8 @@ class TestSaveConfigOverrides:
                     "search": {"default_top_k": -5, "rrf_k": 80},
                     "decay": {"enabled": True},
                 }
-            )
+            ),
+            encoding="utf-8",
         )
 
         cfg = Mem2MemConfig()
