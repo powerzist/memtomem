@@ -92,6 +92,55 @@ def _path_is_excluded(
     return False
 
 
+async def memory_dir_stats(
+    storage: "StorageBackend",
+    memory_dirs: Iterable[str | Path],
+) -> list[dict[str, object]]:
+    """Return per-dir index status for each configured ``memory_dir``.
+
+    Shape: ``[{path, chunk_count, source_file_count, exists}]`` in the
+    same order as ``memory_dirs``. Drives the web UI's "(N chunks)" /
+    "(not indexed)" badges so the user can see which dirs still need a
+    manual reindex (the file watcher only reacts to change events, so
+    pre-existing files in a newly added ``memory_dir`` stay invisible
+    until the user clicks the ↻ button).
+
+    Aggregation: one ``get_source_files_with_counts()`` call over the
+    whole ``chunks`` table, bucketed in Python by normalised-path prefix
+    — avoids N LIKE queries for large dir lists.
+    """
+    from memtomem.storage.sqlite_helpers import norm_path
+
+    rows = await storage.get_source_files_with_counts()
+
+    out: list[dict[str, object]] = []
+    for d in memory_dirs:
+        dir_path = Path(d).expanduser()
+        exists = dir_path.exists()
+        prefix = norm_path(dir_path) if exists else str(dir_path)
+        if not prefix.endswith("/"):
+            prefix = prefix + "/"
+
+        chunk_count = 0
+        source_file_count = 0
+        for row in rows:
+            # row = (Path, chunk_count, last_updated, namespaces, ...)
+            source_path, count = row[0], row[1]
+            if norm_path(source_path).startswith(prefix):
+                chunk_count += count
+                source_file_count += 1
+
+        out.append(
+            {
+                "path": str(d),
+                "chunk_count": chunk_count,
+                "source_file_count": source_file_count,
+                "exists": exists,
+            }
+        )
+    return out
+
+
 class _IndexFileBase(TypedDict):
     total: int
     indexed: int

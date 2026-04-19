@@ -1201,3 +1201,123 @@ class TestFileWatcher:
             debounce_ms=2000,
         )
         assert watcher._debounce_s == 2.0
+
+
+# ===========================================================================
+# 11. memory_dir_stats — per-dir index status for the web widget
+# ===========================================================================
+
+
+class _FakeStorageForStats:
+    """Minimal storage stub — only ``get_source_files_with_counts`` is
+    exercised by ``memory_dir_stats``. Keeps tests free of embedding
+    setup while pinning the aggregation semantics."""
+
+    def __init__(self, rows: list[tuple]) -> None:
+        # Shape matches ``SqliteBackend.get_source_files_with_counts``:
+        # (path, chunk_count, last_updated, namespaces, avg, min, max)
+        self._rows = list(rows)
+
+    async def get_source_files_with_counts(self) -> list[tuple]:
+        return list(self._rows)
+
+
+def _row(path: Path, chunks: int) -> tuple:
+    return (path, chunks, "2026-04-19", "default", 100, 50, 200)
+
+
+class TestMemoryDirStats:
+    """``memory_dir_stats`` feeds the web widget's per-dir "(N chunks)" /
+    "(not indexed)" badges so users can see which ``memory_dirs`` still
+    need a manual reindex."""
+
+    async def test_empty_input_returns_empty(self, tmp_path):
+        from memtomem.indexing.engine import memory_dir_stats
+
+        storage = _FakeStorageForStats([])
+        assert await memory_dir_stats(storage, []) == []
+
+    async def test_missing_dir_reports_exists_false(self, tmp_path):
+        from memtomem.indexing.engine import memory_dir_stats
+
+        storage = _FakeStorageForStats([])
+        nonexistent = tmp_path / "does-not-exist"
+        result = await memory_dir_stats(storage, [nonexistent])
+        assert len(result) == 1
+        entry = result[0]
+        assert entry["exists"] is False
+        assert entry["chunk_count"] == 0
+        assert entry["source_file_count"] == 0
+
+    async def test_empty_dir_has_zero_counts(self, tmp_path):
+        from memtomem.indexing.engine import memory_dir_stats
+
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+        storage = _FakeStorageForStats([])
+        result = await memory_dir_stats(storage, [empty_dir])
+        assert result[0]["exists"] is True
+        assert result[0]["chunk_count"] == 0
+        assert result[0]["source_file_count"] == 0
+
+    async def test_dir_with_indexed_files_is_aggregated(self, tmp_path):
+        from memtomem.indexing.engine import memory_dir_stats
+
+        indexed_dir = tmp_path / "indexed"
+        indexed_dir.mkdir()
+        file_a = indexed_dir / "a.md"
+        file_b = indexed_dir / "b.md"
+        file_a.write_text("# a")
+        file_b.write_text("# b")
+
+        storage = _FakeStorageForStats([_row(file_a, 3), _row(file_b, 5)])
+        result = await memory_dir_stats(storage, [indexed_dir])
+        assert result[0]["chunk_count"] == 8
+        assert result[0]["source_file_count"] == 2
+
+    async def test_per_dir_bucketing(self, tmp_path):
+        """Rows under each dir should be attributed only to that dir,
+        not leak into sibling entries."""
+        from memtomem.indexing.engine import memory_dir_stats
+
+        a = tmp_path / "a"
+        b = tmp_path / "b"
+        a.mkdir()
+        b.mkdir()
+        file_in_a = a / "x.md"
+        file_in_b = b / "y.md"
+        file_in_a.write_text("#")
+        file_in_b.write_text("#")
+
+        storage = _FakeStorageForStats([_row(file_in_a, 2), _row(file_in_b, 7)])
+        result = await memory_dir_stats(storage, [a, b])
+        by_path = {r["path"]: r for r in result}
+        assert by_path[str(a)]["chunk_count"] == 2
+        assert by_path[str(b)]["chunk_count"] == 7
+
+    async def test_nested_files_count_toward_ancestor_dir(self, tmp_path):
+        from memtomem.indexing.engine import memory_dir_stats
+
+        parent = tmp_path / "parent"
+        nested = parent / "sub" / "deep"
+        nested.mkdir(parents=True)
+        deep_file = nested / "note.md"
+        deep_file.write_text("# deep")
+
+        storage = _FakeStorageForStats([_row(deep_file, 4)])
+        result = await memory_dir_stats(storage, [parent])
+        assert result[0]["chunk_count"] == 4
+        assert result[0]["source_file_count"] == 1
+
+    async def test_preserves_input_order(self, tmp_path):
+        from memtomem.indexing.engine import memory_dir_stats
+
+        a = tmp_path / "a"
+        b = tmp_path / "b"
+        c = tmp_path / "c"
+        for d in (a, b, c):
+            d.mkdir()
+
+        storage = _FakeStorageForStats([])
+        result = await memory_dir_stats(storage, [c, a, b])
+        assert [r["path"] for r in result] == [str(c), str(a), str(b)]
