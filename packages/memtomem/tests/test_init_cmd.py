@@ -3780,15 +3780,17 @@ class TestReinstallEmbeddingReconciliation:
 
 
 class TestInitialSeedThreshold:
-    """Opt-in initial-seed prompt at wizard end (PR #374 follow-up).
+    """Opt-in initial-seed prompt at wizard end.
 
-    Policy pins: two-axis (file count AND total bytes) threshold so the
-    wizard doesn't silently block for minutes on CPU-heavy embedders when
-    the user has a large pre-existing memory dir (PR #295 failure mode).
-    Both axes must be under the ceiling to trigger the prompt; either over
-    falls back to a cyan hint pointing at `mm web` Reindex + manual
-    `mm index`. Non-TTY (CI / piped stdin) always skips silently so
-    scripted `mm init -y` pipelines keep passing."""
+    Two-axis threshold (file count AND total bytes) classifies the dir as
+    small vs large; **both** cases prompt (TTY only, default No), but the
+    large case gets a provider-specific advisory first so the user sees
+    an ETA expectation before committing. The seed itself runs via
+    ``index_path_stream`` with a click progress bar so minutes-long
+    embedder runs don't look hung — Ctrl-C cancels and is resumable via
+    ``mm index`` (hash-dedup idempotent). Non-TTY (CI / piped stdin)
+    always skips silently so scripted ``mm init -y`` pipelines keep
+    passing."""
 
     @staticmethod
     def _write_md(dir_: Path, name: str, body: str) -> Path:
@@ -3819,14 +3821,46 @@ class TestInitialSeedThreshold:
 
         assert _collect_seed_scale(tmp_path / "does-not-exist") == (0, 0)
 
-    def test_maybe_seed_large_by_count_emits_hint_no_prompt(
+    def test_format_size_boundaries(self) -> None:
+        """Sub-KB totals display as ``<1 KB`` not ``0 KB``. Regression
+        guard: 15 tiny memo files triggered the large-by-count branch
+        and showed "(0 KB)" to the user, who'd reasonably think it was
+        a display bug. Also pin the MB boundary (>= 1024 KB) to catch
+        off-by-one rounding."""
+        from memtomem.cli.init_cmd import _format_size
+
+        assert _format_size(0) == "0 bytes"
+        assert _format_size(500) == "<1 KB"
+        assert _format_size(1024) == "1 KB"
+        assert _format_size(65 * 1024) == "65 KB"
+        assert _format_size(1024 * 1024) == "1 MB"
+        assert _format_size(12 * 1024 * 1024) == "12 MB"
+
+    def test_provider_seed_hint_variants(self) -> None:
+        """Provider-specific advisory strings. Pins the four known
+        providers so a silent change (e.g. dropping ``openai``) fails a
+        test instead of landing a wrong ETA in production. Unknown
+        providers return None so the caller falls back to a generic
+        progress-bar message rather than fabricating a number."""
+        from memtomem.cli.init_cmd import _provider_seed_hint
+
+        assert "bge-m3" in (_provider_seed_hint("onnx") or "")
+        assert "Ollama" in (_provider_seed_hint("ollama") or "")
+        assert "OpenAI" in (_provider_seed_hint("openai") or "")
+        assert "BM25" in (_provider_seed_hint("none") or "")
+        assert _provider_seed_hint("") is None
+        assert _provider_seed_hint("novel-provider") is None
+
+    def test_maybe_seed_large_by_count_prompts_with_advisory(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """11 small files (>10) → skip + hint. Prompt never fires (ensures
-        a hypothetical click.confirm mock would not be called)."""
+        """11 files (>_SEED_MAX_FILES) → advisory + prompt, default No.
+        Regression guard: pre-#375-followup version skipped large cases
+        silently; now users always get a choice (with a visible progress
+        bar under the hood) so "파일 많을 때 수동만 가능" UX gap is closed."""
         from memtomem.cli import init_cmd
 
         memory_dir = tmp_path / "memories"
@@ -3834,28 +3868,29 @@ class TestInitialSeedThreshold:
         for i in range(11):
             self._write_md(memory_dir, f"m{i}.md", f"memo {i}")
 
-        called = {"confirm": False}
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        confirm_fired = {"yes": False}
+        monkeypatch.setattr(
+            "click.confirm",
+            lambda *a, **kw: confirm_fired.__setitem__("yes", True) or False,
+        )
 
-        def _fail_confirm(*a: object, **kw: object) -> bool:
-            called["confirm"] = True
-            return False
-
-        monkeypatch.setattr("click.confirm", _fail_confirm)
-
-        assert init_cmd._maybe_seed_initial_index(memory_dir) is False
-        assert called["confirm"] is False
+        state = {"provider": "onnx"}
+        assert init_cmd._maybe_seed_initial_index(memory_dir, state) is False
+        assert confirm_fired["yes"] is True  # prompt DID fire this time
         out = capsys.readouterr().out
         assert "11 file(s)" in out
-        assert f"mm index {memory_dir}" in out
+        assert "bge-m3" in out  # provider-specific advisory
+        assert "Ctrl-C" in out
 
-    def test_maybe_seed_large_by_bytes_emits_hint_no_prompt(
+    def test_maybe_seed_large_by_bytes_also_prompts(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """5 files but total > 64KB → skip too. Proves the AND-semantics
-        (count OK alone isn't enough when bytes axis trips)."""
+        """5 files but total > 64 KB → same path (large branch prompts).
+        Exercises the AND-semantics on the bytes axis, not just count."""
         from memtomem.cli import init_cmd
 
         memory_dir = tmp_path / "memories"
@@ -3863,17 +3898,48 @@ class TestInitialSeedThreshold:
         for i in range(5):
             self._write_md(memory_dir, f"big{i}.md", "x" * 20_000)  # 100 KB total
 
-        called = {"confirm": False}
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        confirm_fired = {"yes": False}
         monkeypatch.setattr(
             "click.confirm",
-            lambda *a, **kw: called.__setitem__("confirm", True) or False,
+            lambda *a, **kw: confirm_fired.__setitem__("yes", True) or False,
         )
 
-        assert init_cmd._maybe_seed_initial_index(memory_dir) is False
-        assert called["confirm"] is False
+        state = {"provider": "ollama"}
+        assert init_cmd._maybe_seed_initial_index(memory_dir, state) is False
+        assert confirm_fired["yes"] is True
         out = capsys.readouterr().out
         assert "5 file(s)" in out
-        assert "KB)" in out
+        assert "Ollama" in out  # provider advisory reflects state["provider"]
+
+    def test_maybe_seed_large_accept_invokes_seed(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Large + Yes → _seed_with_progress fires. Stubs the seeder so
+        the test doesn't need a working embedder; the seeder failure
+        path is exercised separately by
+        test_seed_with_progress_failure_is_graceful."""
+        from memtomem.cli import init_cmd
+
+        memory_dir = tmp_path / "memories"
+        memory_dir.mkdir()
+        for i in range(11):
+            self._write_md(memory_dir, f"m{i}.md", f"memo {i}")
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("click.confirm", lambda *a, **kw: True)
+
+        seen: dict[str, Path] = {}
+        monkeypatch.setattr(
+            init_cmd,
+            "_seed_with_progress",
+            lambda p: seen.__setitem__("dir", p) or True,
+        )
+
+        assert init_cmd._maybe_seed_initial_index(memory_dir, {"provider": "none"}) is True
+        assert seen["dir"] == memory_dir
 
     def test_maybe_seed_non_tty_silent_skip(
         self,
@@ -3898,15 +3964,37 @@ class TestInitialSeedThreshold:
             lambda *a, **kw: confirm_fired.__setitem__("yes", True) or True,
         )
 
-        assert init_cmd._maybe_seed_initial_index(memory_dir) is False
+        assert init_cmd._maybe_seed_initial_index(memory_dir, {"provider": "none"}) is False
         assert confirm_fired["yes"] is False
+        assert capsys.readouterr().out == ""
+
+    def test_maybe_seed_large_non_tty_silent_skip(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Large dir + no TTY → silent skip too. Previously large case
+        emitted a cyan hint even without a TTY; now that large-case
+        prompts, consistent skip semantics apply — the Next-steps
+        ``mm index`` line already tells non-interactive users what to
+        run, no need to duplicate."""
+        from memtomem.cli import init_cmd
+
+        memory_dir = tmp_path / "memories"
+        memory_dir.mkdir()
+        for i in range(11):
+            self._write_md(memory_dir, f"m{i}.md", f"memo {i}")
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+        assert init_cmd._maybe_seed_initial_index(memory_dir, {"provider": "onnx"}) is False
         assert capsys.readouterr().out == ""
 
     def test_maybe_seed_prompt_decline(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Small + TTY + No → no seed call. Verifies the default-No
         path (Enter-is-Skip) doesn't accidentally seed — the wizard's
@@ -3924,11 +4012,11 @@ class TestInitialSeedThreshold:
         seed_called = {"yes": False}
         monkeypatch.setattr(
             init_cmd,
-            "_seed_initial_index",
+            "_seed_with_progress",
             lambda p: seed_called.__setitem__("yes", True) or True,
         )
 
-        assert init_cmd._maybe_seed_initial_index(memory_dir) is False
+        assert init_cmd._maybe_seed_initial_index(memory_dir, {"provider": "none"}) is False
         assert seed_called["yes"] is False
 
     def test_maybe_seed_prompt_accept_runs_seed(
@@ -3936,9 +4024,8 @@ class TestInitialSeedThreshold:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Small + TTY + Yes → _seed_initial_index invoked, return value
-        propagates. Seeder itself is stubbed — that path is exercised by
-        test_seed_initial_index_failure_graceful."""
+        """Small + TTY + Yes → _seed_with_progress invoked, return value
+        propagates."""
         from memtomem.cli import init_cmd
 
         memory_dir = tmp_path / "memories"
@@ -3954,26 +4041,26 @@ class TestInitialSeedThreshold:
             seen["dir"] = p
             return True
 
-        monkeypatch.setattr(init_cmd, "_seed_initial_index", _stub_seed)
+        monkeypatch.setattr(init_cmd, "_seed_with_progress", _stub_seed)
 
-        assert init_cmd._maybe_seed_initial_index(memory_dir) is True
+        assert init_cmd._maybe_seed_initial_index(memory_dir, {"provider": "none"}) is True
         assert seen["dir"] == memory_dir
 
-    def test_seed_initial_index_failure_is_graceful(
+    def test_seed_with_progress_failure_is_graceful(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """If cli_components / index_path raises, return False with a
-        yellow warning + manual-rerun hint. Wizard must not abort —
-        config.json is already written and the seed is best-effort."""
+        """If ``cli_components`` / ``index_path_stream`` raises, return
+        False with a yellow warning + manual-rerun hint. Wizard must not
+        abort — config.json is already written and the seed is
+        best-effort."""
         from memtomem.cli import init_cmd
 
         memory_dir = tmp_path / "memories"
         memory_dir.mkdir()
 
-        # Patch cli_components so the inner async body raises.
         from contextlib import asynccontextmanager
 
         @asynccontextmanager  # type: ignore[misc]
@@ -3983,8 +4070,95 @@ class TestInitialSeedThreshold:
 
         monkeypatch.setattr("memtomem.cli._bootstrap.cli_components", _broken_components)
 
-        assert init_cmd._seed_initial_index(memory_dir) is False
+        assert init_cmd._seed_with_progress(memory_dir) is False
         out = capsys.readouterr().out
         assert "Skipped initial seed" in out
         assert "embedder unavailable" in out
+        assert f"mm index {memory_dir}" in out
+
+    def test_seed_with_progress_zero_chunks_emits_warning(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Stream processes files but lands 0 chunks → yellow warning,
+        return False. Known trigger: provider=none (NoopEmbedder dim=0)
+        leaves ``chunks_vec`` vtable uncreated, ``upsert_chunks`` rolls
+        back every insert. Wizard previously printed green "Seeded N
+        file(s), 0 new chunk(s), 0 unchanged" — misleading success.
+        Regression guard: any future silent per-file failure that
+        aggregates to zero counters should surface as yellow, not green,
+        and skip the Next-steps step-1 annotation."""
+        from contextlib import asynccontextmanager
+
+        from memtomem.cli import init_cmd
+
+        memory_dir = tmp_path / "memories"
+        memory_dir.mkdir()
+
+        class _FakeEngine:
+            async def index_path_stream(self, path, recursive=True, force=False):
+                yield {
+                    "type": "progress",
+                    "file": str(memory_dir / "a.md"),
+                    "files_done": 1,
+                    "files_total": 1,
+                    "indexed": 0,
+                    "skipped": 0,
+                }
+                yield {
+                    "type": "complete",
+                    "total_files": 1,
+                    "total_chunks": 0,
+                    "indexed_chunks": 0,
+                    "skipped_chunks": 0,
+                    "deleted_chunks": 0,
+                    "duration_ms": 1.0,
+                }
+
+        class _FakeComp:
+            index_engine = _FakeEngine()
+
+        @asynccontextmanager  # type: ignore[misc]
+        async def _fake_components():
+            yield _FakeComp()
+
+        monkeypatch.setattr("memtomem.cli._bootstrap.cli_components", _fake_components)
+
+        assert init_cmd._seed_with_progress(memory_dir) is False
+        out = capsys.readouterr().out
+        assert "0 chunks were indexed" in out
+        assert "embedding-reset" in out
+        # Regression: must NOT print green "Seeded initial index" success line.
+        assert "Seeded initial index" not in out
+
+    def test_seed_with_progress_keyboard_interrupt_is_graceful(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Ctrl-C during the stream → yellow resume hint, not a traceback.
+        This is the primary mitigation for "seeding looks hung" UX —
+        users must have a visible escape hatch that lands them back in
+        their shell cleanly. ``mm index`` idempotency (content-hash
+        dedup) makes resuming safe."""
+        from memtomem.cli import init_cmd
+
+        memory_dir = tmp_path / "memories"
+        memory_dir.mkdir()
+
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager  # type: ignore[misc]
+        async def _ctrl_c_components() -> object:  # pragma: no cover - generator
+            raise KeyboardInterrupt
+            yield  # unreachable
+
+        monkeypatch.setattr("memtomem.cli._bootstrap.cli_components", _ctrl_c_components)
+
+        assert init_cmd._seed_with_progress(memory_dir) is False
+        out = capsys.readouterr().out
+        assert "Cancelled" in out
         assert f"mm index {memory_dir}" in out
