@@ -4834,3 +4834,64 @@ class TestNonInteractiveExtrasValidation:
         assert not memory_dir.exists(), (
             "memory_dir must not be created on refused -y runs (gate must precede mkdir)"
         )
+
+
+class TestYRefuseHintParity:
+    """#403 — wizard fallback paths must mention the ``-y`` refuse semantic.
+
+    #402 added a new axis: ``-y`` refuses non-zero while the interactive
+    wizard still warns-and-saves. A user who copies a wizard choice into a
+    scripted install gets an unexpected hard failure unless the wizard
+    warning surfaces the asymmetry. These tests pin:
+    (1) the helper's shape, and
+    (2) that each missing-extra fallback path actually calls it.
+    """
+
+    def test_y_refuse_hint_shape(self) -> None:
+        from memtomem.cli import init_cmd
+
+        hint = init_cmd._y_refuse_hint("--provider onnx", "onnx")
+        assert "mm init -y --provider onnx" in hint
+        assert "memtomem[onnx]" in hint
+        assert "refuses" in hint
+        assert "scripted" in hint
+
+    def test_wizard_fallback_paths_call_y_refuse_hint(self) -> None:
+        """Source-scan pin — each fallback branch must call ``_y_refuse_hint``.
+
+        Regex-based so a future reformatter splitting the call across
+        lines doesn't break the scan. The call pattern is specific
+        enough that false positives are unlikely.
+        """
+        import inspect
+        import re
+
+        from memtomem.cli import init_cmd
+
+        embedding_src = inspect.getsource(init_cmd._step_embedding)
+        language_src = inspect.getsource(init_cmd._step_language)
+
+        def _count_calls(src: str, flag: str, extra: str) -> int:
+            pattern = (
+                r"_y_refuse_hint\(\s*"
+                + re.escape(f'"{flag}"')
+                + r"\s*,\s*"
+                + re.escape(f'"{extra}"')
+                + r"\s*\)"
+            )
+            return len(re.findall(pattern, src))
+
+        assert _count_calls(embedding_src, "--provider onnx", "onnx") >= 1, (
+            "ONNX fallback must surface -y refuse hint (#403)"
+        )
+        # Ollama has two orthogonal preconditions (binary + Python client),
+        # so the wizard must hint in both branches — binary-missing and
+        # binary-present-but-module-missing — to cover what ``-y`` refuses
+        # (#405 follow-up to #403).
+        assert _count_calls(embedding_src, "--provider ollama", "ollama") >= 2, (
+            "Ollama fallback must surface -y refuse hint in both "
+            "binary-missing and module-missing branches (#405)"
+        )
+        assert _count_calls(language_src, "--tokenizer kiwipiepy", "korean") >= 1, (
+            "kiwipiepy fallback must surface -y refuse hint (#403)"
+        )

@@ -247,6 +247,20 @@ def _have_module(name: str) -> bool:
         return False
 
 
+def _y_refuse_hint(flag: str, extra: str) -> str:
+    """Wizard → ``-y`` discoverability bridge (#403).
+
+    Interactive wizard warns-and-saves when an extra is missing; ``mm init -y``
+    refuses with a non-zero exit (#396 / #402). A user who copies a wizard
+    choice into a scripted install gets an unexpected hard failure without
+    this hint. Surface the asymmetry at the wizard warning site.
+    """
+    return (
+        f"  Note: `mm init -y {flag}` refuses without `memtomem[{extra}]`; "
+        f"install first for scripted setups."
+    )
+
+
 # ── Step functions ────────────────────────────────────────────────────
 
 
@@ -284,6 +298,7 @@ def _step_embedding(state: dict) -> None:
             # as already surfaced so ``_collect_missing_extras`` skips it.
             click.echo(f"  Install with: {_extra_install_hint(['onnx'], state)}")
             click.echo("  Saving ONNX config now so you're ready after install.")
+            click.echo(_y_refuse_hint("--provider onnx", "onnx"))
             click.echo()
             state.setdefault("_extras_warned_inline", set()).add("onnx")
 
@@ -313,15 +328,37 @@ def _step_embedding(state: dict) -> None:
 
     elif choice == 3:
         provider = "ollama"
-        if not _ollama_available():
+        # Two orthogonal preconditions for Ollama: the runtime binary
+        # (``_ollama_available()`` = ``shutil.which("ollama")``) and the
+        # ``ollama`` Python client (``_have_module("ollama")``). The
+        # ``-y`` extras gate (#402) checks the Python client, not the
+        # binary — so the refuse-hint must fire whenever the Python
+        # client is missing, whether or not the binary is on PATH.
+        have_ollama_binary = _ollama_available()
+        have_ollama_module = _have_module("ollama")
+
+        if not have_ollama_binary:
             click.secho("  Ollama not found.", fg="yellow")
             click.echo("  Install from https://ollama.com, then run 'mm index' to embed.")
             click.echo("  Saving Ollama config now so you're ready after install.")
+            if not have_ollama_module:
+                click.echo(_y_refuse_hint("--provider ollama", "ollama"))
+                state.setdefault("_extras_warned_inline", set()).add("ollama")
             click.echo()
             # Record intent — config is written, embedding runs when Ollama is available.
             model = "nomic-embed-text"
             dimension = 768
         else:
+            if not have_ollama_module:
+                # Binary is on PATH but the ``-y`` gate additionally
+                # requires the ``ollama`` Python client. Surface the
+                # install hint + refuse note up front so scripted
+                # retries don't surprise the user.
+                click.secho("  ollama Python client not installed.", fg="yellow")
+                click.echo(f"  Install with: {_extra_install_hint(['ollama'], state)}")
+                click.echo(_y_refuse_hint("--provider ollama", "ollama"))
+                click.echo()
+                state.setdefault("_extras_warned_inline", set()).add("ollama")
             if not _ollama_running():
                 click.secho("  Ollama not running. Starting 'ollama serve'...", fg="yellow")
                 click.echo("  Run 'ollama serve' in another terminal if this fails.")
@@ -637,6 +674,7 @@ def _step_language(state: dict) -> None:
             click.secho("  kiwipiepy is installed.", fg="green")
         except ImportError:
             click.secho("  kiwipiepy not installed. Run: pip install kiwipiepy", fg="yellow")
+            click.echo(_y_refuse_hint("--tokenizer kiwipiepy", "korean"))
     state["tokenizer"] = tokenizer
     click.echo()
 
