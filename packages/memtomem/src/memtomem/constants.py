@@ -38,25 +38,32 @@ SHARED_NAMESPACE: Final[str] = "shared"
 def validate_agent_id(value: object) -> str:
     """Return *value* unchanged if it is a valid agent identifier.
 
-    Applied at the MCP + CLI session-start surfaces that build an
-    ``agent-runtime:<agent_id>`` namespace from caller input —
-    ``mem_session_start``, ``mm session start``, ``mm session wrap``.
+    Applied at every MCP + CLI surface that concatenates
+    ``AGENT_NAMESPACE_PREFIX`` with caller input. Session-start:
+    ``mem_session_start`` (MCP), ``mm session start`` /
+    ``mm session wrap`` (CLI). Multi-agent registration / search:
+    ``mem_agent_register`` / ``mem_agent_search`` (MCP), ``mm agent
+    register`` (CLI).
+
     Raises :class:`InvalidNameError` (a ``ValueError`` subclass,
     surfaced by ``tool_handler`` as ``"Error: ..."`` on the MCP path
     and as a ``ClickException`` on the CLI path) when the id contains
     ``:``, ``/``, ``..``, whitespace, control characters, or anything
     outside the canonical ``[A-Za-z0-9._-]`` charset documented above.
 
-    Not yet applied at:
+    The read/write contract is symmetric across the MCP + CLI surfaces
+    listed above: an id either works on every surface or fails on
+    every surface. Pre-#493 the multi-agent surfaces silently called
+    ``sanitize_namespace_segment`` instead, which let hostile shapes
+    round-trip into storage under a rewritten namespace while
+    ``mem_session_start`` rejected the same shape — see the
+    ``Changed (BREAKING)`` entry in ``CHANGELOG.md`` (Unreleased) and
+    issue #493 for the migration note.
 
-    * the LangGraph adapter
-      (``integrations.langgraph.MemtomemStore.start_agent_session`` and
-      ``MemtomemCheckpointer.namespace_for``), which currently trusts
-      in-process callers — see the issue tracker for the parity
-      follow-up;
-    * the ``mem_agent_register`` / ``mem_agent_search`` tools, which
-      still ``sanitize_namespace_segment`` rather than validate. Same
-      tracker.
+    Not yet applied at the LangGraph adapter
+    (``integrations.langgraph.MemtomemStore.start_agent_session`` and
+    the agent-runtime concat sites in ``MemtomemStore``), which still
+    trusts in-process callers — tracked as issue #492.
     """
 
     return validate_name(value, kind="agent-id")
