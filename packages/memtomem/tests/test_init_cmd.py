@@ -1325,12 +1325,17 @@ class TestRuntimeProfile:
     def test_project_install_profile_no_packages_dir(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """``pyproject.toml`` WITHOUT a ``packages/`` dir → project install,
-        not source. The ``packages/`` marker is what disambiguates the
-        memtomem monorepo from a user project that ``uv add memtomem``'d."""
+        """``pyproject.toml`` WITHOUT a ``packages/`` dir AND declaring
+        ``memtomem`` as a dep → project install, not source. The
+        ``packages/`` marker disambiguates the memtomem monorepo from a
+        user project that ``uv add memtomem``'d; the dep check filters
+        out foreign sibling repos that share neither marker."""
         from memtomem.cli import init_cmd
 
-        (tmp_path / "pyproject.toml").write_text("[project]\nname='userproj'\n", encoding="utf-8")
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\nname='userproj'\ndependencies = ['memtomem>=0.1']\n",
+            encoding="utf-8",
+        )
         # NOTE: no packages/ dir created
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(init_cmd.sys, "executable", "/usr/local/bin/python")
@@ -1342,6 +1347,180 @@ class TestRuntimeProfile:
         assert profile.workspace_venv_path is None  # no .venv/ created
         assert profile.runtime_matches_workspace is False
         assert profile.mm_binary_origin == "system"
+
+    def test_foreign_sibling_pyproject_classified_as_pypi(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Sibling project with its own ``pyproject.toml`` that does NOT
+        declare ``memtomem`` as a dependency → ``pypi``, not ``project``.
+
+        Regression for the case where running ``mm init`` from a sibling
+        repo (e.g. ``memtomem-stm``) misclassified as ``project``,
+        probing the foreign ``.venv`` for extras (always missing) and
+        printing a ``uv sync --extra all`` hint that fails because the
+        foreign ``pyproject.toml`` has no ``all`` extra."""
+        from memtomem.cli import init_cmd
+
+        # Mirrors memtomem-stm's own pyproject shape: real Python project,
+        # its own deps, no memtomem reference anywhere.
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\n"
+            "name='memtomem-stm'\n"
+            "dependencies = ['mcp>=1.26.0', 'pydantic>=2.10', 'httpx>=0.28']\n"
+            "\n"
+            "[project.optional-dependencies]\n"
+            "langfuse = ['langfuse>=4.0']\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(init_cmd.sys, "executable", "/usr/local/bin/python")
+        monkeypatch.setattr(init_cmd.sys, "prefix", "/usr/local")
+
+        profile = init_cmd._runtime_profile()
+        assert profile.cwd_install_type == "pypi"
+        assert profile.cwd_install_dir is None
+        assert profile.workspace_venv_path is None
+
+    def test_project_install_via_optional_dependencies(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """memtomem listed in ``[project.optional-dependencies]`` (e.g. a
+        ``dev`` extra in a downstream user project) is enough to classify
+        as a project install."""
+        from memtomem.cli import init_cmd
+
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\n"
+            "name='userproj'\n"
+            "dependencies = ['click>=8']\n"
+            "\n"
+            "[project.optional-dependencies]\n"
+            "dev = ['memtomem[all]>=0.1', 'pytest']\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(init_cmd.sys, "executable", "/usr/local/bin/python")
+        monkeypatch.setattr(init_cmd.sys, "prefix", "/usr/local")
+
+        profile = init_cmd._runtime_profile()
+        assert profile.cwd_install_type == "project"
+        assert profile.cwd_install_dir == tmp_path
+
+    def test_project_install_via_dependency_groups(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """memtomem listed in PEP 735 ``[dependency-groups]`` (used by
+        ``uv``-managed projects for dev-only deps) → project install."""
+        from memtomem.cli import init_cmd
+
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\n"
+            "name='userproj'\n"
+            "dependencies = ['click>=8']\n"
+            "\n"
+            "[dependency-groups]\n"
+            "dev = ['memtomem >= 0.1', 'ruff']\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(init_cmd.sys, "executable", "/usr/local/bin/python")
+        monkeypatch.setattr(init_cmd.sys, "prefix", "/usr/local")
+
+        profile = init_cmd._runtime_profile()
+        assert profile.cwd_install_type == "project"
+        assert profile.cwd_install_dir == tmp_path
+
+    def test_project_install_via_legacy_uv_dev_dependencies(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """memtomem listed in legacy ``[tool.uv] dev-dependencies`` (the
+        pre-PEP 735 location ``uv`` used for dev deps) → project install.
+        Older ``uv`` setups that haven't migrated to ``[dependency-groups]``
+        keep declaring memtomem here; the dep check has to recognize the
+        legacy location too or those users fall through to ``pypi`` and
+        get a ``uv tool install`` hint instead of the workspace
+        ``uv sync`` hint they actually need."""
+        from memtomem.cli import init_cmd
+
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\n"
+            "name='userproj'\n"
+            "dependencies = ['click>=8']\n"
+            "\n"
+            "[tool.uv]\n"
+            "dev-dependencies = ['memtomem>=0.1', 'pytest']\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(init_cmd.sys, "executable", "/usr/local/bin/python")
+        monkeypatch.setattr(init_cmd.sys, "prefix", "/usr/local")
+
+        profile = init_cmd._runtime_profile()
+        assert profile.cwd_install_type == "project"
+        assert profile.cwd_install_dir == tmp_path
+
+    def test_project_install_canonical_name_match(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Dependency name comparison normalizes per PEP 503 — ``Memtomem``,
+        ``mem-tomem``, ``mem_tomem`` all match ``memtomem``. Locks the
+        canonicalization seam against drift."""
+        from memtomem.cli import init_cmd
+
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\nname='x'\ndependencies = ['Memtomem']\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(init_cmd.sys, "executable", "/usr/local/bin/python")
+        monkeypatch.setattr(init_cmd.sys, "prefix", "/usr/local")
+
+        profile = init_cmd._runtime_profile()
+        assert profile.cwd_install_type == "project"
+
+    def test_project_install_walks_past_foreign_pyproject(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When a non-memtomem ``pyproject.toml`` sits between cwd and an
+        outer memtomem-using project, the walk continues upward instead
+        of returning the first hit. Ensures sub-package layouts inside
+        a memtomem-using monorepo still classify correctly."""
+        from memtomem.cli import init_cmd
+
+        outer = tmp_path / "outer"
+        inner = outer / "subpkg"
+        inner.mkdir(parents=True)
+        (outer / "pyproject.toml").write_text(
+            "[project]\nname='outer'\ndependencies = ['memtomem']\n",
+            encoding="utf-8",
+        )
+        (inner / "pyproject.toml").write_text(
+            "[project]\nname='subpkg'\ndependencies = ['click']\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(inner)
+        monkeypatch.setattr(init_cmd.sys, "executable", "/usr/local/bin/python")
+        monkeypatch.setattr(init_cmd.sys, "prefix", "/usr/local")
+
+        profile = init_cmd._runtime_profile()
+        assert profile.cwd_install_type == "project"
+        assert profile.cwd_install_dir == outer
+
+    def test_malformed_pyproject_falls_through_to_pypi(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Unreadable / malformed ``pyproject.toml`` → safe fallthrough to
+        ``pypi`` (the tool-install hint always works; a workspace
+        ``uv sync`` hint requires a parseable workspace)."""
+        from memtomem.cli import init_cmd
+
+        (tmp_path / "pyproject.toml").write_text("not = valid = toml\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(init_cmd.sys, "executable", "/usr/local/bin/python")
+        monkeypatch.setattr(init_cmd.sys, "prefix", "/usr/local")
+
+        profile = init_cmd._runtime_profile()
+        assert profile.cwd_install_type == "pypi"
 
     def test_pypi_install_profile_no_workspace_marker(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1363,6 +1542,40 @@ class TestRuntimeProfile:
         assert profile.cwd_install_dir is None
         assert profile.workspace_venv_path is None
         assert profile.runtime_matches_workspace is False
+
+    def test_source_install_takes_precedence_over_foreign_nested_pyproject(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Outer ancestor with the source workspace markers
+        (``pyproject.toml`` + ``packages/``) wins over a closer ancestor
+        carrying a foreign ``pyproject.toml``. Locks the source-first /
+        project-second invariant the dep-check fix relies on: a
+        sub-package layout inside the memtomem monorepo
+        (``packages/foo/pyproject.toml``) classifies as ``source``
+        regardless of what the nested pyproject declares as deps.
+        ``_detect_project_install`` itself returns ``None`` because its
+        walk skips ancestors with ``packages/`` and the nested pyproject
+        has no memtomem dep — making the source-takes-precedence
+        outcome a property of both the routing AND the underlying
+        function, not just one or the other."""
+        from memtomem.cli import init_cmd
+
+        outer = tmp_path / "monorepo"
+        nested = outer / "packages" / "foo"
+        nested.mkdir(parents=True)
+        (outer / "pyproject.toml").write_text("[project]\nname='monorepo'\n", encoding="utf-8")
+        (nested / "pyproject.toml").write_text(
+            "[project]\nname='foo'\ndependencies = ['click']\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(nested)
+        monkeypatch.setattr(init_cmd.sys, "executable", "/usr/local/bin/python")
+        monkeypatch.setattr(init_cmd.sys, "prefix", "/usr/local")
+
+        profile = init_cmd._runtime_profile()
+        assert profile.cwd_install_type == "source"
+        assert profile.cwd_install_dir == outer
+        assert init_cmd._detect_project_install() is None
 
 
 class TestMmBinaryOriginDetection:
