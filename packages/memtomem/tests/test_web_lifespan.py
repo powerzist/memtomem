@@ -17,7 +17,7 @@ came up clean (``embedding_broken is None``) so the recovery banner +
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -43,9 +43,15 @@ class _FakeIndexingCfg:
 
 
 @dataclass
+class _FakeSchedulerCfg:
+    enabled: bool = False
+
+
+@dataclass
 class _FakeConfig:
     embedding: _FakeEmbeddingCfg
     indexing: _FakeIndexingCfg
+    scheduler: _FakeSchedulerCfg = field(default_factory=_FakeSchedulerCfg)
 
 
 def _make_components(
@@ -55,6 +61,7 @@ def _make_components(
     cfg_provider: str = "onnx",
     cfg_model: str = "bge-m3",
     cfg_dim: int = 1024,
+    scheduler_enabled: bool = False,
 ) -> MagicMock:
     """Build a mock ``Components`` for ``_lifespan``.
 
@@ -70,6 +77,7 @@ def _make_components(
     comp.config = _FakeConfig(
         embedding=_FakeEmbeddingCfg(provider=cfg_provider, model=cfg_model, dimension=cfg_dim),
         indexing=_FakeIndexingCfg(),
+        scheduler=_FakeSchedulerCfg(enabled=scheduler_enabled),
     )
     comp.storage = storage
     comp.embedder = MagicMock()
@@ -160,3 +168,41 @@ async def test_auto_sync_noop_when_no_drift(stored_info):
 
     assert comp.config.embedding.provider == "onnx"
     comp.storage.clear_embedding_mismatch.assert_not_called()
+
+
+async def test_scheduler_enabled_warns_in_web_lifespan(caplog):
+    """``mm web`` does not run the schedule dispatcher (HealthWatchdog is
+    wired only in the MCP server lifespan). Mirror the loud warning emitted
+    by ``AppContext.ensure_initialized`` so users registering schedules
+    against a web-only entry get a startup signal instead of silent
+    null ``last_run_status``. Regression for issue #526."""
+    import logging
+
+    comp = _make_components(
+        embedding_broken=None,
+        stored_info=None,
+        scheduler_enabled=True,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="memtomem.web.app"):
+        await _run_lifespan(comp)
+
+    assert any(
+        "scheduler.enabled=True" in r.message and "mm web" in r.message for r in caplog.records
+    ), [r.message for r in caplog.records]
+
+
+async def test_scheduler_disabled_no_warning(caplog):
+    """No warning when scheduler is off — avoid noise on the default path."""
+    import logging
+
+    comp = _make_components(
+        embedding_broken=None,
+        stored_info=None,
+        scheduler_enabled=False,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="memtomem.web.app"):
+        await _run_lifespan(comp)
+
+    assert not any("scheduler.enabled" in r.message for r in caplog.records)
