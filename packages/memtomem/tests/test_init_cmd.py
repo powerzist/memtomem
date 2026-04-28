@@ -5818,3 +5818,39 @@ class TestPresetMcpFlagPreAnswer:
         out = capsys.readouterr().out
         # No header, no menu lines — the step is a no-op in this branch.
         assert out == ""
+
+
+class TestOllamaWindowsHangFix:
+    """Tests for the Windows pipe-inheritance hang fix.
+
+    On Windows, ``ollama list`` auto-spawns the Ollama server process, which
+    inherits the stdout/stderr pipe handles created by
+    ``subprocess.run(capture_output=True)``. After ``ollama list`` is killed
+    by the 5-second timeout, Python blocks forever trying to drain the pipes
+    (the server keeps them open). The fix uses DEVNULL on win32 so no pipes
+    are ever created.
+    """
+
+    def test_ollama_running_uses_devnull_on_win32(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """On win32, _ollama_running must pass DEVNULL for stdout/stderr and
+        must NOT use capture_output — otherwise the spawned Ollama server
+        inherits the pipe handles and blocks pipe-drain indefinitely."""
+        import subprocess as _sp
+
+        from memtomem.cli import init_cmd
+
+        captured: dict = {}
+
+        def _fake_run(cmd: list, **kw: object) -> _sp.CompletedProcess:
+            captured.update(kw)
+            return _sp.CompletedProcess(cmd, returncode=0)
+
+        monkeypatch.setattr("memtomem.cli.init_cmd.sys.platform", "win32")
+        monkeypatch.setattr(init_cmd.subprocess, "run", _fake_run)
+
+        result = init_cmd._ollama_running()
+
+        assert result is True
+        assert captured.get("stdout") is _sp.DEVNULL
+        assert captured.get("stderr") is _sp.DEVNULL
+        assert not captured.get("capture_output")

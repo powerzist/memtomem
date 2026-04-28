@@ -24,8 +24,12 @@ CwdInstallType = Literal["source", "project", "pypi"]
 MmBinaryOrigin = Literal["uv-tool", "uvx", "venv-relative", "system", "unknown"]
 
 
-def _run(cmd: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
+def _run(cmd: list[str], timeout: int = 30, output: bool = True) -> subprocess.CompletedProcess:
     """Run a command and return the result."""
+    if not output:
+        return subprocess.run(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout
+        )
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
 
@@ -48,7 +52,11 @@ def _ollama_available() -> bool:
 
 def _ollama_running() -> bool:
     try:
-        return _run(["ollama", "list"], timeout=5).returncode == 0
+        if sys.platform == "win32":
+            output = False
+        else:
+            output = True
+        return _run(["ollama", "list"], timeout=5, output=output).returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
 
