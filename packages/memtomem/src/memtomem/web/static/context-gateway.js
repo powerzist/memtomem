@@ -12,7 +12,9 @@ const _ctxStatusCls = {
   'in sync':           'ctx-runtime-badge--sync',
   'out of sync':       'ctx-runtime-badge--warn',
   'missing target':    'ctx-runtime-badge--missing',
-  'missing canonical': 'ctx-runtime-badge--error',
+  // Runtime-only items (canonical absent) are a normal pre-import state, not
+  // an error — the same red treatment as `parse error` over-signaled it.
+  'missing canonical': 'ctx-runtime-badge--pending',
   'parse error':       'ctx-runtime-badge--error',
 };
 const _ctxStatusLabel = {
@@ -22,10 +24,16 @@ const _ctxStatusLabel = {
   'missing canonical': 'settings.ctx.status_missing_canonical',
 };
 
+// Localized status text for a wire status value. Falls back to the raw
+// status string when no i18n key is mapped — keeps unknown/future statuses
+// visible instead of silently rendering an empty label.
+function _ctxStatusText(status) {
+  return t(_ctxStatusLabel[status] || '', status);
+}
+
 function _ctxBadge(status) {
   const cls = _ctxStatusCls[status] || 'ctx-runtime-badge--missing';
-  const label = t(_ctxStatusLabel[status] || '', status);
-  return `<span class="ctx-runtime-badge ${cls}">${escapeHtml(label)}</span>`;
+  return `<span class="ctx-runtime-badge ${cls}">${escapeHtml(_ctxStatusText(status))}</span>`;
 }
 
 function renderRuntimeBadges(runtimes) {
@@ -33,7 +41,7 @@ function renderRuntimeBadges(runtimes) {
   return '<div class="ctx-runtime-badges">' +
     runtimes.map(r => {
       const short = r.runtime.replace(/_skills|_commands|_agents/g, '');
-      return `<span class="ctx-runtime-badge ${_ctxStatusCls[r.status] || ''}" title="${escapeHtml(r.runtime)}">${escapeHtml(short)}: ${escapeHtml(r.status)}</span>`;
+      return `<span class="ctx-runtime-badge ${_ctxStatusCls[r.status] || ''}" title="${escapeHtml(r.runtime)}">${escapeHtml(short)}: ${escapeHtml(_ctxStatusText(r.status))}</span>`;
     }).join('') + '</div>';
 }
 
