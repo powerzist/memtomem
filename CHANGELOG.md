@@ -42,6 +42,33 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
   `empty output`, `llm error`) surface in the tool response. See
   [Session Summary](docs/guides/configuration.md#session-summary).
 
+### Changed
+
+- **Plugin `PostToolUse[Write]` hook now filters by extension and
+  path** — the inline `mm index` command in
+  `packages/memtomem-claude-plugin/hooks/hooks.json` was indexing every
+  `Write` regardless of file type or location, which fanned out to
+  `node_modules/`, `dist/`, `__pycache__/`, lock files, binaries, and
+  images in monorepo checkouts (embedding-cost amplifier + search
+  noise). The hook now allowlists canonical source extensions
+  (`md`, `py`, `ts`/`tsx`, `js`/`jsx`, `go`, `rs`, `rb`, `java`, `kt`,
+  `swift`, `c`/`cpp`/`h`/`hpp`, `sh`, `toml`, `yaml`/`yml`, `json`)
+  and blocklists build / cache / VCS paths (`node_modules`, `dist`,
+  `build`, `target`, `.next`, `.nuxt`, `__pycache__`, `.git`,
+  `.venv`/`venv`, `coverage`, `.cache`) inline — `case` statements,
+  no external script. Adjust the patterns in `hooks.json` for
+  project-specific needs. Other hooks (`UserPromptSubmit`,
+  `PostToolUse activity log`, `Stop`) are unchanged. Docs at
+  [`docs/guides/integrations/claude-code.md`](docs/guides/integrations/claude-code.md)
+  Hooks Automation section synced to match. A
+  ``test_plugin_hooks_command_matches_docs_snippet`` parity test
+  locks ``hooks.json`` and the docs snippet against silent drift on
+  future edits. Existing installs that copy-pasted the previous
+  snippet into ``~/.claude/settings.json`` continue with the old
+  unfiltered behavior until the user re-pulls the snippet. **Documented
+  gap**: rapid consecutive writes still re-index the same file; native
+  debounce support is tracked separately.
+
 ## [0.1.32] — 2026-04-26
 
 ### Changed (BREAKING)
