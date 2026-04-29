@@ -468,7 +468,14 @@ function showConfirm({
 // Tab navigation
 // ---------------------------------------------------------------------------
 
-function activateTab(tabName) {
+function activateTab(tabName, opts = {}) {
+  // ``fromKeyboard`` flips two behaviors that would otherwise fight the
+  // ARIA tabs arrow-nav contract:
+  //   * panel auto-focus is skipped so focus stays on the tab button (the
+  //     user keeps ArrowRight'ing through siblings)
+  //   * history mutation uses replaceState so cycling N tabs does not push
+  //     N entries the user has to press Back through to escape
+  const fromKeyboard = opts.fromKeyboard === true;
   // In prod mode, hide dev-only tabs by redirecting to the first visible
   // main tab instead of showing a dev panel the polished surface doesn't
   // expose.
@@ -477,7 +484,7 @@ function activateTab(tabName) {
     const visible = _visibleMainTabs();
     showToast(t('toast.dev_only_section'), 'info');
     if (visible.length && visible[0] !== tabName) {
-      activateTab(visible[0]);
+      activateTab(visible[0], opts);
     }
     return;
   }
@@ -508,14 +515,24 @@ function activateTab(tabName) {
   if (panel) {
     panel.hidden = false;
     panel.classList.add('active');
-    // Focus first focusable element in new panel
-    const focusable = panel.querySelector('input:not([hidden]):not([disabled]), button:not([hidden]):not([disabled]), [tabindex="0"]');
-    if (focusable) focusable.focus();
+    // Focus first focusable element in new panel — but only on click /
+    // direct activation. Arrow-nav must keep focus on the tab button so
+    // subsequent ArrowRight presses still cycle the tablist.
+    if (!fromKeyboard) {
+      const focusable = panel.querySelector('input:not([hidden]):not([disabled]), button:not([hidden]):not([disabled]), [tabindex="0"]');
+      if (focusable) focusable.focus();
+    }
   }
 
-  // History API — enable back button and deep linking
+  // History API — enable back button and deep linking. Arrow-nav uses
+  // replaceState so a cycle through siblings produces one history entry
+  // instead of N (otherwise Back becomes unusable).
   if (location.hash !== `#${tabName}`) {
-    history.pushState({ tab: tabName }, '', `#${tabName}`);
+    if (fromKeyboard) {
+      history.replaceState({ tab: tabName }, '', `#${tabName}`);
+    } else {
+      history.pushState({ tab: tabName }, '', `#${tabName}`);
+    }
   }
 
   // Tab-specific loads
@@ -663,6 +680,37 @@ applyNavCollapseState();
 // Main tab buttons
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+});
+
+// ── ARIA tabs keyboard navigation ──
+//
+// ArrowRight/Left cycle through the tablist, Home/End jump to either end.
+// "Auto-activation" model — focus and activate together — matches the click
+// behavior so a keyboard user toggles the panel just by walking the tab row,
+// without an extra Enter press. The currently focused element is the anchor;
+// when focus is outside the tablist the move starts at index 0.
+function _arrowNavIndex(length, currentIdx, key) {
+  if (!length) return -1;
+  if (key === 'ArrowRight') return (currentIdx + 1) % length;
+  if (key === 'ArrowLeft') return (currentIdx - 1 + length) % length;
+  if (key === 'Home') return 0;
+  if (key === 'End') return length - 1;
+  return -1;
+}
+
+document.querySelector('.tab-nav')?.addEventListener('keydown', (e) => {
+  if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return;
+  // Filter out dev-only buttons in prod mode so arrow nav matches what the
+  // user actually sees on screen — otherwise focus could land on a hidden tab.
+  const buttons = Array.from(document.querySelectorAll('.tab-nav .tab-btn'))
+    .filter(b => b.dataset.uiTier !== 'dev' || STATE.uiMode === 'dev');
+  const currentIdx = buttons.indexOf(document.activeElement);
+  const nextIdx = _arrowNavIndex(buttons.length, currentIdx === -1 ? 0 : currentIdx, e.key);
+  if (nextIdx < 0) return;
+  e.preventDefault();
+  const next = buttons[nextIdx];
+  next.focus();
+  if (next.dataset.tab) activateTab(next.dataset.tab, { fromKeyboard: true });
 });
 
 // ── E1: ARIA init ──
@@ -2040,16 +2088,20 @@ function setSourcesMode(mode) {
   if (mode === 'memory') {
     memBtn.classList.add('btn-active');
     memBtn.setAttribute('aria-selected', 'true');
+    memBtn.setAttribute('tabindex', '0');
     genBtn.classList.remove('btn-active');
     genBtn.setAttribute('aria-selected', 'false');
+    genBtn.setAttribute('tabindex', '-1');
     memView.hidden = false;
     genView.hidden = true;
     if (typeof renderMemoryDirsPanel === 'function') renderMemoryDirsPanel();
   } else {
     genBtn.classList.add('btn-active');
     genBtn.setAttribute('aria-selected', 'true');
+    genBtn.setAttribute('tabindex', '0');
     memBtn.classList.remove('btn-active');
     memBtn.setAttribute('aria-selected', 'false');
+    memBtn.setAttribute('tabindex', '-1');
     memView.hidden = true;
     genView.hidden = false;
     loadSources();
@@ -2058,6 +2110,19 @@ function setSourcesMode(mode) {
 
 qs('sources-mode-memory').addEventListener('click', () => setSourcesMode('memory'));
 qs('sources-mode-general').addEventListener('click', () => setSourcesMode('general'));
+
+// Mirror the main tablist's keyboard nav onto the Sources sub-toggle.
+document.querySelector('.sources-mode-toggle')?.addEventListener('keydown', (e) => {
+  if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return;
+  const buttons = Array.from(document.querySelectorAll('.sources-mode-toggle [role="tab"]'));
+  const currentIdx = buttons.indexOf(document.activeElement);
+  const nextIdx = _arrowNavIndex(buttons.length, currentIdx === -1 ? 0 : currentIdx, e.key);
+  if (nextIdx < 0) return;
+  e.preventDefault();
+  const next = buttons[nextIdx];
+  next.focus();
+  setSourcesMode(next.id === 'sources-mode-memory' ? 'memory' : 'general');
+});
 
 document.querySelectorAll('.sources-sort-btn').forEach(btn => {
   btn.addEventListener('click', () => {
