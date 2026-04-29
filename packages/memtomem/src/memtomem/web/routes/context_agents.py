@@ -23,8 +23,14 @@ from memtomem.context.agents import (
     list_canonical_agents,
     parse_canonical_agent,
 )
+from memtomem.context.detector import AGENT_DIRS
 from memtomem.web.deps import get_project_root
 from memtomem.web.routes._locks import _gateway_lock
+
+# Flat list of project-relative runtime scan paths reported on list / import
+# responses so the web UI's empty-state hint can name the exact directories
+# the detector inspects without hardcoding them client-side.
+_AGENT_SCAN_DIRS: list[str] = [d for paths in AGENT_DIRS.values() for d in paths]
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +100,11 @@ async def list_agents(
         if agent_name not in canonical_names:
             agents.append({"name": agent_name, "canonical_path": None, "runtimes": runtimes})
 
-    return {"agents": agents}
+    return {
+        "agents": agents,
+        "canonical_root": CANONICAL_AGENT_ROOT,
+        "scanned_dirs": _AGENT_SCAN_DIRS,
+    }
 
 
 # ── Read ─────────────────────────────────────────────────────────────────
@@ -365,7 +375,11 @@ async def sync_agents(
         "dropped": [
             {"runtime": rt, "name": name, "fields": fields} for rt, name, fields in result.dropped
         ],
-        "skipped": [{"runtime": rt, "reason": reason} for rt, reason in result.skipped],
+        "skipped": [
+            {"runtime": rt, "reason": reason, "reason_code": code}
+            for rt, reason, code in result.skipped
+        ],
+        "canonical_root": CANONICAL_AGENT_ROOT,
     }
 
 
@@ -393,5 +407,10 @@ async def import_agents(
             {"name": p.stem, "canonical_path": str(p.relative_to(project_root))}
             for p in result.imported
         ],
-        "skipped": [{"name": name, "reason": reason} for name, reason in result.skipped],
+        "skipped": [
+            {"name": name, "reason": reason, "reason_code": code}
+            for name, reason, code in result.skipped
+        ],
+        "project_root": str(project_root),
+        "scanned_dirs": _AGENT_SCAN_DIRS,
     }

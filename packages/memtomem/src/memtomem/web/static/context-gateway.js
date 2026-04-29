@@ -158,6 +158,14 @@ document.getElementById('ctx-detect-btn')?.addEventListener('click', async () =>
 
 let _ctxCurrentDetail = { type: null, name: null };
 
+// POSIX basename, JS-side. Used to keep absolute project_root paths out
+// of the toast copy — the wire still carries the absolute path so the
+// reverse-proxy / debug case stays self-describing.
+function _ctxBasename(p) {
+  if (!p) return '';
+  return String(p).replace(/\/$/, '').split('/').pop() || String(p);
+}
+
 async function loadCtxList(type) {
   const listEl = qs(`ctx-${type}-list`);
   const detailEl = qs(`ctx-${type}-detail`);
@@ -174,7 +182,22 @@ async function loadCtxList(type) {
     const items = data[type] || [];
 
     if (!items.length) {
-      listEl.innerHTML = emptyState('', t('settings.ctx.no_artifacts', 'No {type} found').replace('{type}', type), t('settings.ctx.no_artifacts_hint'));
+      // Wire-sourced canonical_root + scanned_dirs (added in this PR).
+      // Falls back to a derived value only if the response predates the
+      // contract — keeps the hint accurate without re-encoding the
+      // detector layout client-side.
+      const canonical = data.canonical_root || `.memtomem/${type}`;
+      const scanDirs = (data.scanned_dirs || []).join(', ');
+      const hint = t('settings.ctx.empty_hint',
+        'Place {type} under {canonical}/<name>/ then click Sync, or click Import to pull existing {type} from {scan_dirs} within this project.')
+        .replace(/\{type\}/g, type)
+        .replace('{canonical}', canonical)
+        .replace('{scan_dirs}', scanDirs);
+      listEl.innerHTML = emptyState(
+        '',
+        t('settings.ctx.no_artifacts', 'No {type} found').replace('{type}', type),
+        hint,
+      );
       return;
     }
 
@@ -417,9 +440,22 @@ document.querySelectorAll('.ctx-sync-btn').forEach(btn => {
         return;
       }
       const data = await r.json();
+      const generated = data.generated || [];
       const dropped = data.dropped || [];
-      if (dropped.length) {
-        showToast(t('settings.ctx.sync_dropped', '{count} field(s) dropped').replace('{count}', dropped.length), 'warning');
+      const skipped = data.skipped || [];
+      const emptyCanonical = generated.length === 0
+        && skipped.some(s => s && s.reason_code === 'no_canonical_root');
+      if (emptyCanonical) {
+        const msg = t('settings.ctx.sync_empty_canonical',
+          'No canonical {type} under {canonical}. Create one first.')
+          .replace('{type}', type)
+          .replace('{canonical}', data.canonical_root || `.memtomem/${type}`);
+        showToast(msg, 'info');
+      } else if (dropped.length) {
+        // commands/agents render dropped per-field omissions — keep the
+        // existing warning so the user can investigate field-level loss.
+        showToast(t('settings.ctx.sync_dropped', '{count} field(s) dropped')
+          .replace('{count}', dropped.length), 'warning');
       } else {
         showToast(t('settings.ctx.sync_success', 'Sync completed'));
       }
@@ -454,11 +490,25 @@ document.querySelectorAll('.ctx-import-btn').forEach(btn => {
       const data = await r.json();
       const statusEl = qs(`ctx-${type}-status`);
       if (statusEl) statusEl.innerHTML = renderImportResult(data);
-      const total = (data.imported?.length || 0) + (data.skipped?.length || 0);
-      if (total > 0) {
+      const importedCount = data.imported?.length || 0;
+      const skippedCount = data.skipped?.length || 0;
+      if (importedCount === 0 && skippedCount === 0) {
+        // Nothing in any scanned runtime dir — give the user the actual
+        // paths we looked in so they can drop a SKILL.md / *.md / etc.
+        // Render basename(project_root) so a long absolute path doesn't
+        // crowd the toast; scanned_dirs already gives full orientation.
+        const scanList = (data.scanned_dirs || []).join(', ') || '—';
+        const rootLabel = _ctxBasename(data.project_root) || '.';
+        const msg = t('settings.ctx.import_no_runtimes',
+          'No runtime {type} found in {root}. Scanned: {scan_dirs}.')
+          .replace('{type}', type)
+          .replace('{root}', rootLabel)
+          .replace('{scan_dirs}', scanList);
+        showToast(msg, 'info');
+      } else if (importedCount + skippedCount > 0) {
         showToast(t('settings.ctx.import_result', '{imported} imported, {skipped} skipped')
-          .replace('{imported}', data.imported?.length || 0)
-          .replace('{skipped}', data.skipped?.length || 0));
+          .replace('{imported}', importedCount)
+          .replace('{skipped}', skippedCount));
       } else {
         showToast(t('settings.ctx.import_success', 'Import completed'));
       }

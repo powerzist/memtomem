@@ -94,7 +94,15 @@ class TestListSkills:
     async def test_empty(self, client: AsyncClient):
         r = await client.get("/api/context/skills")
         assert r.status_code == 200
-        assert r.json()["skills"] == []
+        data = r.json()
+        assert data["skills"] == []
+        # GET also surfaces canonical_root + scanned_dirs so the empty-state
+        # hint can pull from the wire instead of hardcoding the detector
+        # layout client-side.
+        assert data["canonical_root"] == ".memtomem/skills"
+        assert ".claude/skills" in data["scanned_dirs"]
+        assert ".gemini/skills" in data["scanned_dirs"]
+        assert ".agents/skills" in data["scanned_dirs"]
 
     @pytest.mark.anyio
     async def test_with_items(self, client: AsyncClient, tmp_path: Path):
@@ -304,6 +312,9 @@ class TestSyncSkills:
         assert len(data["generated"]) >= 3  # claude + gemini + codex
         # Verify files created
         assert (tmp_path / ".claude" / "skills" / "fan-out" / SKILL_MANIFEST).is_file()
+        # PR1: response surfaces canonical_root so the empty-state UI can
+        # tell users where to put canonical skills.
+        assert data["canonical_root"] == ".memtomem/skills"
 
     @pytest.mark.anyio
     async def test_sync_empty(self, client: AsyncClient):
@@ -311,6 +322,11 @@ class TestSyncSkills:
         assert r.status_code == 200
         data = r.json()
         assert data["skipped"]
+        # PR1: empty-canonical case carries machine-readable reason_code so
+        # the UI doesn't string-match on the human reason. canonical_root is
+        # echoed so the UI can name the directory in the toast.
+        assert any(s["reason_code"] == "no_canonical_root" for s in data["skipped"])
+        assert data["canonical_root"] == ".memtomem/skills"
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +359,7 @@ class TestImportSkills:
         assert any(s["name"] == "already" for s in data["skipped"])
 
     @pytest.mark.anyio
-    async def test_import_empty(self, client: AsyncClient):
+    async def test_import_empty(self, client: AsyncClient, tmp_path: Path):
         r = await client.post(
             "/api/context/skills/import",
             json={},
@@ -351,6 +367,25 @@ class TestImportSkills:
         assert r.status_code == 200
         data = r.json()
         assert data["imported"] == []
+        # PR1: import response carries project_root + scanned_dirs so the UI
+        # can tell users which paths were inspected when nothing was found.
+        assert data["project_root"] == str(tmp_path)
+        assert ".claude/skills" in data["scanned_dirs"]
+        assert ".gemini/skills" in data["scanned_dirs"]
+        assert ".agents/skills" in data["scanned_dirs"]
+
+    @pytest.mark.anyio
+    async def test_import_skipped_carries_reason_code(self, client: AsyncClient, tmp_path: Path):
+        # Existing canonical + matching runtime → "canonical exists" skip.
+        _make_skill(tmp_path, "already")
+        _make_runtime_skill(tmp_path, ".claude/skills", "already", "# Different\n")
+        r = await client.post(
+            "/api/context/skills/import",
+            json={"overwrite": False},
+        )
+        data = r.json()
+        skipped_codes = {s["reason_code"] for s in data["skipped"]}
+        assert "canonical_exists" in skipped_codes
 
 
 # ---------------------------------------------------------------------------
@@ -412,9 +447,14 @@ class TestListCommands:
     async def test_empty(self, client: AsyncClient):
         r = await client.get("/api/context/commands")
         assert r.status_code == 200
+        data = r.json()
         # May include user-scope Codex prompts from ~/.codex/prompts/
-        canonicals = [c for c in r.json()["commands"] if c["canonical_path"] is not None]
+        canonicals = [c for c in data["commands"] if c["canonical_path"] is not None]
         assert canonicals == []
+        # GET surfaces canonical_root + scanned_dirs (PR1 review #1).
+        assert data["canonical_root"] == ".memtomem/commands"
+        assert ".claude/commands" in data["scanned_dirs"]
+        assert ".gemini/commands" in data["scanned_dirs"]
 
     @pytest.mark.anyio
     async def test_with_items(self, client: AsyncClient, tmp_path: Path):
@@ -495,6 +535,15 @@ class TestSyncCommands:
         assert data["generated"]
         # Some runtimes should have dropped fields (allowed-tools, model)
         assert data["dropped"]
+        # PR1: canonical_root surfaced for empty-state UI.
+        assert data["canonical_root"] == ".memtomem/commands"
+
+    @pytest.mark.anyio
+    async def test_sync_empty_carries_reason_code(self, client: AsyncClient):
+        r = await client.post("/api/context/commands/sync", json={})
+        assert r.status_code == 200
+        data = r.json()
+        assert any(s["reason_code"] == "no_canonical_root" for s in data["skipped"])
 
 
 class TestImportCommands:
@@ -505,6 +554,15 @@ class TestImportCommands:
         assert r.status_code == 200
         data = r.json()
         assert any(i["name"] == "from-claude" for i in data["imported"])
+
+    @pytest.mark.anyio
+    async def test_import_empty_carries_meta(self, client: AsyncClient, tmp_path: Path):
+        r = await client.post("/api/context/commands/import", json={})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["project_root"] == str(tmp_path)
+        assert ".claude/commands" in data["scanned_dirs"]
+        assert ".gemini/commands" in data["scanned_dirs"]
 
 
 # ===========================================================================
@@ -549,10 +607,16 @@ class TestListAgents:
     async def test_empty(self, client: AsyncClient):
         r = await client.get("/api/context/agents")
         assert r.status_code == 200
+        data = r.json()
         # Filter to canonical entries; runtime-only agents (e.g. orphan files
         # under .claude/agents) may still appear without a canonical_path.
-        canonicals = [a for a in r.json()["agents"] if a["canonical_path"] is not None]
+        canonicals = [a for a in data["agents"] if a["canonical_path"] is not None]
         assert canonicals == []
+        # GET surfaces canonical_root + scanned_dirs (PR1 review #1).
+        assert data["canonical_root"] == ".memtomem/agents"
+        assert ".claude/agents" in data["scanned_dirs"]
+        assert ".gemini/agents" in data["scanned_dirs"]
+        assert ".codex/agents" in data["scanned_dirs"]
 
     @pytest.mark.anyio
     async def test_with_items(self, client: AsyncClient, tmp_path: Path):
@@ -635,6 +699,15 @@ class TestSyncAgents:
         data = r.json()
         assert data["generated"]
         assert data["dropped"]  # Codex/Gemini should drop fields
+        # PR1: canonical_root surfaced.
+        assert data["canonical_root"] == ".memtomem/agents"
+
+    @pytest.mark.anyio
+    async def test_sync_empty_carries_reason_code(self, client: AsyncClient):
+        r = await client.post("/api/context/agents/sync", json={})
+        assert r.status_code == 200
+        data = r.json()
+        assert any(s["reason_code"] == "no_canonical_root" for s in data["skipped"])
 
 
 class TestImportAgents:
@@ -645,3 +718,13 @@ class TestImportAgents:
         assert r.status_code == 200
         data = r.json()
         assert any(i["name"] == "from-claude" for i in data["imported"])
+
+    @pytest.mark.anyio
+    async def test_import_empty_carries_meta(self, client: AsyncClient, tmp_path: Path):
+        r = await client.post("/api/context/agents/import", json={})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["project_root"] == str(tmp_path)
+        assert ".claude/agents" in data["scanned_dirs"]
+        assert ".gemini/agents" in data["scanned_dirs"]
+        assert ".codex/agents" in data["scanned_dirs"]
