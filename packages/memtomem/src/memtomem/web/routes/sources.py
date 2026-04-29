@@ -7,7 +7,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from memtomem.web.deps import get_storage, require_indexed_source
+from memtomem.config import MemoryDirKind, memory_dir_kind
+from memtomem.indexing.engine import norm_dir_prefix
+from memtomem.storage.sqlite_helpers import norm_path
+from memtomem.web.deps import get_config, get_storage, require_indexed_source
 from memtomem.web.schemas.core import DeleteResponse
 from memtomem.web.schemas.sources import ChunkSizeBucket, SourceOut, SourcesResponse
 
@@ -18,9 +21,37 @@ router = APIRouter(prefix="/sources", tags=["sources"])
 async def list_sources(
     limit: int = Query(100, ge=1, le=10000),
     offset: int = Query(0, ge=0),
+    kind: MemoryDirKind | None = Query(
+        None,
+        description=(
+            "Filter to one bucket of the Sources page sub-toggle. "
+            "``memory`` keeps only sources under a configured memory_dir "
+            "whose kind is ``memory``; ``general`` keeps the rest, "
+            "including orphan sources whose owning dir is no longer "
+            "registered (so they don't disappear from the UI)."
+        ),
+    ),
     storage=Depends(get_storage),
+    config=Depends(get_config),
 ) -> SourcesResponse:
     rows = await storage.get_source_files_with_counts()
+
+    # Pre-compute (prefix, dir_path, kind) once per request so the
+    # per-source classification stays O(D × startswith) instead of
+    # O(D × Path.resolve()). For ~30 dirs × ~300 sources that drops
+    # ~9000 syscalls / NFC normalisations off the hot path of
+    # ``GET /api/sources``. Sorted by prefix length descending so the
+    # first match in the inner loop is the longest-prefix-wins one —
+    # matches :func:`resolve_owning_memory_dir`'s tie-break rule for
+    # nested configured dirs without repeating the comparison logic.
+    indexed_dirs: list[tuple[str, Path, MemoryDirKind]] = sorted(
+        (
+            (norm_dir_prefix(d), Path(d).expanduser(), memory_dir_kind(d))
+            for d in config.indexing.memory_dirs
+        ),
+        key=lambda t: -len(t[0]),
+    )
+
     all_sources: list[SourceOut] = []
     for p, cnt, last_indexed_iso, ns_csv, avg_tok, min_tok, max_tok in sorted(rows):
         last_indexed_at: datetime | None = None
@@ -40,6 +71,40 @@ async def list_sources(
 
         namespaces = ns_csv.split(",") if ns_csv else ["default"]
 
+        target = norm_path(p)
+        match = next(
+            (
+                (dir_path, dir_kind)
+                for prefix, dir_path, dir_kind in indexed_dirs
+                if target.startswith(prefix)
+            ),
+            None,
+        )
+        source_kind: MemoryDirKind | None
+        memory_dir_str: str | None
+        if match is None:
+            # Orphan: indexed source whose configured dir was removed
+            # after indexing. Show in General view rather than hiding so
+            # users can still find and prune the chunks; ``kind=None``
+            # signals that the categorisation is unknowable, not that
+            # the source is "general" by intent.
+            source_kind = None
+            memory_dir_str = None
+        else:
+            owning_dir, source_kind = match
+            memory_dir_str = str(owning_dir)
+
+        if kind is not None:
+            # Orphans (kind=None) ride along with ``general`` so they
+            # remain reachable from the Sources page; filtering to
+            # ``memory`` excludes them. This is the only place orphans
+            # need special handling — every other call site can treat
+            # ``kind`` as the authoritative bucket.
+            if kind == "memory" and source_kind != "memory":
+                continue
+            if kind == "general" and source_kind == "memory":
+                continue
+
         all_sources.append(
             SourceOut(
                 path=str(p),
@@ -50,6 +115,8 @@ async def list_sources(
                 avg_tokens=avg_tok,
                 min_tokens=min_tok,
                 max_tokens=max_tok,
+                memory_dir=memory_dir_str,
+                kind=source_kind,
             )
         )
     total = len(all_sources)
