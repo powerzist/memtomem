@@ -112,6 +112,26 @@ async function loadCtxOverview() {
     html += '</div>';
     el.innerHTML = html;
 
+    // Gate the Sync All button: when every artifact type's items are
+    // entirely runtime-only (no canonicals to fan out), Sync All resolves
+    // to a series of `no_canonical_root` skips. Surface that pre-click via
+    // a data attribute so CSS can dim the button and the click handler can
+    // short-circuit with a guidance toast.
+    const syncAllBtn = document.getElementById('ctx-sync-all-btn');
+    if (syncAllBtn) {
+      const totals = ['skills', 'commands', 'agents'].reduce((acc, k) => {
+        const d = data[k] || {};
+        acc.total += d.total || 0;
+        acc.runtimeOnly += d.missing_canonical || 0;
+        return acc;
+      }, { total: 0, runtimeOnly: 0 });
+      if (totals.total > 0 && totals.runtimeOnly === totals.total) {
+        syncAllBtn.dataset.runtimeOnly = 'true';
+      } else {
+        delete syncAllBtn.dataset.runtimeOnly;
+      }
+    }
+
     // Click to navigate
     el.querySelectorAll('.ctx-overview-stat').forEach(card => {
       card.addEventListener('click', () => switchSettingsSection(card.dataset.section));
@@ -124,6 +144,12 @@ async function loadCtxOverview() {
 // Sync All button
 document.getElementById('ctx-sync-all-btn')?.addEventListener('click', async () => {
   const btn = document.getElementById('ctx-sync-all-btn');
+  if (btn.dataset.runtimeOnly === 'true') {
+    showToast(t('settings.ctx.sync_all_disabled_tooltip',
+      'No canonical artifacts to fan out yet. Click Import in each section first.'),
+      'info');
+    return;
+  }
   const ok = await showConfirm({
     title: t('settings.ctx.sync_all', 'Sync All'),
     message: t('settings.ctx.confirm_sync', 'Fan out all artifacts to runtimes?').replace('{type}', 'all'),
@@ -242,6 +268,12 @@ async function _loadScopeGroupItems(type, scope, container) {
     });
 
     if (_ctxScopeIsServerCwd(scope)) {
+      // Only the cwd is mutable, so its canonical/runtime split drives the
+      // section-level Sync vs Import affordance gating. Expose the count via
+      // a data attribute so CSS can flip primary/disabled states without a
+      // classList toggle that risks drift across re-renders.
+      _ctxRefreshSectionState(type, items, data.scanned_dirs || []);
+
       const listEl = qs(`ctx-${type}-list`);
       container.querySelectorAll('.ctx-card').forEach(card => {
         card.addEventListener('click', () => {
@@ -256,6 +288,33 @@ async function _loadScopeGroupItems(type, scope, container) {
   }
 }
 
+// Reflect the cwd canonical/runtime split onto the section so CSS can gate
+// the primary action. Also (re)renders the runtime-only banner above the
+// scope groups when items exist but none are canonical — the user landing
+// on a fresh project shouldn't have to infer that Import is the next step.
+function _ctxRefreshSectionState(type, cwdItems, scannedDirs) {
+  const canonicalCount = cwdItems.filter(i => i.canonical_path).length;
+  const sectionEl = document.getElementById(`settings-ctx-${type}`);
+  if (sectionEl) sectionEl.dataset.canonicalCount = String(canonicalCount);
+
+  const listEl = qs(`ctx-${type}-list`);
+  if (!listEl) return;
+  const existing = listEl.querySelector('.ctx-runtime-only-banner');
+  if (existing) existing.remove();
+  if (canonicalCount === 0 && cwdItems.length > 0) {
+    const scanList = (scannedDirs || []).join(', ') || `.${type}/`;
+    const msg = t('settings.ctx.runtime_only_banner',
+      '{count} {type} found in {scan_dirs}; none imported yet. Click Import to canonicalize.')
+      .replace('{count}', cwdItems.length)
+      .replace(/\{type\}/g, type)
+      .replace('{scan_dirs}', scanList);
+    const banner = document.createElement('div');
+    banner.className = 'ctx-runtime-only-banner';
+    banner.textContent = msg;
+    listEl.insertBefore(banner, listEl.firstChild);
+  }
+}
+
 async function loadCtxList(type) {
   const listEl = qs(`ctx-${type}-list`);
   const detailEl = qs(`ctx-${type}-detail`);
@@ -264,6 +323,11 @@ async function loadCtxList(type) {
   if (statusEl) statusEl.innerHTML = '';
   panelLoading(listEl);
   _ctxCurrentDetail = { type: null, name: null };
+  // Clear stale gating attribute so a failed reload doesn't keep the buttons
+  // pinned to a previous canonical-count state. _ctxRefreshSectionState resets
+  // it when the cwd group resolves successfully.
+  const sectionEl = document.getElementById(`settings-ctx-${type}`);
+  if (sectionEl) delete sectionEl.dataset.canonicalCount;
 
   try {
     const res = await fetch('/api/context/projects');
@@ -547,6 +611,17 @@ async function _ctxLoadDiff(type, name, detailEl) {
 document.querySelectorAll('.ctx-sync-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const type = btn.dataset.type;
+    // Guard against pressing Sync when the cwd has no canonical artifacts —
+    // the request would resolve to a `no_canonical_root` skip with an info
+    // toast, but that arrives after a confirm dialog, which is the wrong
+    // shape of feedback for "this button does nothing right now."
+    const section = btn.closest('.settings-section');
+    if (section?.dataset.canonicalCount === '0') {
+      showToast(t('settings.ctx.sync_disabled_tooltip',
+        'No canonical {type} to fan out yet. Click Import first.').replace('{type}', type),
+        'info');
+      return;
+    }
     const ok = await showConfirm({
       title: t('settings.ctx.sync', 'Sync'),
       message: t('settings.ctx.confirm_sync', 'Fan out {type} to all runtimes?').replace('{type}', type),
