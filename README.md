@@ -34,6 +34,7 @@ flowchart LR
 | Keyword search misses related content | Hybrid search: exact keywords + meaning-based similarity |
 | Notes scattered across tools | One searchable index for markdown, JSON, YAML, Python, JS/TS |
 | Vendor lock-in | Your `.md` files are the source of truth. The DB is a rebuildable cache |
+| Hook-based capture chains can recurse | Captures fire only on explicit MCP tool calls — no auto-fire on every prompt or session-end |
 
 ---
 
@@ -127,6 +128,7 @@ See [MCP Client Setup](docs/guides/mcp-clients.md) for Cursor / Windsurf / Claud
 - **Maintenance** — near-duplicate detection, time-based decay, TTL expiration, auto-tagging
 - **Web UI** — visual dashboard for search, sources, tags, timeline, dedup, and more (`mm web --dev` for the full maintainer surface)
 - **MCP tools** — `mem_do` meta-tool routes all non-core actions in `core` mode for minimal context usage
+- **Predictable surface** — memory operations fire only on explicit MCP tool calls (`mem_add`, `mem_index`, etc.), not from background hooks attached to every prompt or session-end. Less magic, fewer surprises.
 - **Scheduled jobs** — `mm schedule add/list/run-now/delete` (or `mem_do(action="schedule_*")`) for cron-driven compaction, importance decay, dead-link cleanup, and dedup scans
 
 ---
