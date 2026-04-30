@@ -791,6 +791,31 @@ async def get_stats(storage=Depends(get_storage)) -> StatsResponse:
     )
 
 
+@router.get("/indexing/active", dependencies=[Depends(require_configured)])
+async def indexing_active(index_engine=Depends(get_index_engine)) -> JSONResponse:
+    """Report whether any indexing run is in flight server-side.
+
+    Drives cross-tab / post-reload survival of the header indicator
+    introduced in #602 (umbrella #582 item 4.11). Covers ``index_path``,
+    ``index_file``, and ``index_path_stream`` uniformly — the SSE stream
+    path is not lock-protected, so we cannot rely on
+    ``_index_lock.locked()``.
+
+    Response shape is intentionally minimal (``{"active": bool}``) to
+    match the client's single-boolean ``STATE.indexing`` model. Adding
+    ``started_at`` / ``path`` / progress fields later is purely additive.
+
+    ``Cache-Control: no-store`` mirrors ``/index/stream``: this endpoint
+    is polled every few seconds while a run is in flight, and a cached
+    ``{"active": false}`` from an intermediary would mask the
+    false→true transition the client is waiting for.
+    """
+    return JSONResponse(
+        {"active": index_engine.is_active},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @router.get("/index/stream", dependencies=[Depends(require_configured)])
 async def index_stream(
     path: str = ".",
