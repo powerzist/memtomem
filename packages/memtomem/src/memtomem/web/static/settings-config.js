@@ -121,6 +121,20 @@ function _updateContextWindowLabel() {
   }
 }
 
+// JS-owned (no data-i18n-placeholder) so the lang toggle can't write the
+// raw `{date}` token back into the input — i18n.js applyDOM would otherwise
+// reset it on every switch.
+function _refreshAddFilePlaceholder() {
+  const el = qs('add-file');
+  if (!el) return;
+  const today = new Date().toISOString().slice(0, 10);
+  el.placeholder = t('index.add_file_placeholder_prefix') + today + t('index.add_file_placeholder_suffix');
+}
+window.addEventListener('langchange', () => {
+  _refreshAddFilePlaceholder();
+  _syncHeaderConfig();
+});
+
 // ── B1-B3: Index tab hints ──
 function _syncIndexHints() {
   // Sync namespace placeholder from config
@@ -132,6 +146,7 @@ function _syncIndexHints() {
     const addNs = qs('add-namespace');
     if (addNs) addNs.placeholder = nsPlaceholder;
   }
+  _refreshAddFilePlaceholder();
 
   if (!STATE.serverConfig?.indexing) return;
   const idx = STATE.serverConfig.indexing;
@@ -272,10 +287,13 @@ function _syncHeaderConfig() {
     const tip = [];
     if (emb) tip.push(`Embedding: ${emb.provider}/${emb.model} (${emb.dimension || '?'}d)`);
     if (stor?.backend) tip.push(`Storage: ${stor.backend}`);
+    tip.push(t('header.sys_info_jump_title'));
     el.title = tip.join('\n');
+    el.setAttribute('aria-label', t('header.sys_info_jump_title'));
     if (sep) { sep.textContent = '|'; show(sep); }
   } else {
     el.textContent = '';
+    el.removeAttribute('aria-label');
     if (sep) hide(sep);
   }
 }

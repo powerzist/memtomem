@@ -176,6 +176,15 @@ function setMsg(el, text, isErr) {
 }
 function truncate(str, n) { return str.length > n ? str.slice(0, n) + '…' : str; }
 function basename(path) { return path.split('/').pop() || path; }
+// Server returns absolute paths under $HOME/.memtomem/...; the browser doesn't
+// know $HOME, so collapse the host-specific prefix to ~ for display by the
+// well-known `.memtomem/` segment that backend code (system.py) anchors on.
+function tildifyPath(p) {
+  if (!p) return p;
+  const idx = p.indexOf('/.memtomem/');
+  if (idx > 0) return '~/.memtomem/' + p.slice(idx + '/.memtomem/'.length);
+  return p;
+}
 function shortDir(dir) {
   const parts = dir.split('/').filter(Boolean);
   return parts.length > 2 ? '…/' + parts.slice(-2).join('/') : dir;
@@ -2997,6 +3006,38 @@ document.querySelector('.index-mode-toggle')?.addEventListener('keydown', (e) =>
 
 setIndexMode(_readIndexMode());
 
+// Header sys-info chip ("provider/model · backend") jumps to Settings → Config
+// so users can act on a slow-search / wrong-storage hunch in one click.
+(function wireHeaderSysInfoJump() {
+  const el = qs('header-sys-info');
+  if (!el) return;
+  const open = () => {
+    document.querySelector('.tab-btn[data-tab="settings"]')?.click();
+    setTimeout(() => {
+      document.querySelector('.settings-nav-btn[data-section="config"]')?.click();
+    }, 50);
+  };
+  el.addEventListener('click', open);
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+  });
+})();
+
+// Folder mode is one-shot — surface the persistent alternative inline
+// (link inside the panel + "Register as Source" action on the success toast).
+function goToSourcesAddPath() {
+  document.querySelector('.tab-btn[data-tab="sources"]')?.click();
+  setTimeout(() => {
+    const btn = qs('memory-add-path-btn');
+    btn?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    btn?.focus({ preventScroll: true });
+  }, 50);
+}
+qs('folder-hint-sources-link')?.addEventListener('click', e => {
+  e.preventDefault();
+  goToSourcesAddPath();
+});
+
 // ---------------------------------------------------------------------------
 // Index
 // ---------------------------------------------------------------------------
@@ -3031,7 +3072,12 @@ qs('index-btn').addEventListener('click', async () => {
         'error',
       );
     } else {
-      showToast(t('toast.indexed_count', { count: data.indexed_chunks }), 'success');
+      showToast(t('toast.indexed_count', { count: data.indexed_chunks }), 'success', {
+        action: {
+          label: t('toast.action.register_persistent'),
+          onClick: goToSourcesAddPath,
+        },
+      });
     }
     qs('r-files').textContent    = data.total_files;
     qs('r-chunks').textContent   = data.total_chunks;
@@ -3087,7 +3133,7 @@ qs('add-btn').addEventListener('click', async () => {
   try {
     const data = await api('POST', '/api/add', { content, title, tags, file, namespace });
     const n = data.indexed_chunks;
-    showToast(t('toast.saved_n_indexed', { count: n }), 'success');
+    showToast(t('toast.saved_to_file', { path: tildifyPath(data.file), count: n }), 'success');
     qs('add-content').value = '';
     _markDataStale();
     loadStats();
@@ -3190,7 +3236,11 @@ qs('add-btn').addEventListener('click', async () => {
         }
         result.appendChild(row);
       });
-      showToast(t('toast.upload_complete', { count: data.total_indexed }), 'success');
+      const firstPath = data.files.find(r => !r.error && r.path)?.path;
+      const msg = firstPath
+        ? t('toast.upload_complete_with_path', { count: data.total_indexed, path: tildifyPath(firstPath) })
+        : t('toast.upload_complete', { count: data.total_indexed });
+      showToast(msg, 'success');
       selectedFiles = [];
       renderFileList();
       _markDataStale();
