@@ -905,16 +905,13 @@ async function checkEmbeddingMismatch() {
 
 async function loadDashboard() {
   try {
-    // /api/namespaces is dev-only; prod returns 404. Gate the fetch and
-    // let the namespace card render 0 rather than fire a guaranteed miss.
-    const devMode = STATE.uiMode === 'dev';
-    const nsPromise = devMode
-      ? api('GET', '/api/namespaces').catch(() => ({ namespaces: [] }))
-      : Promise.resolve({ namespaces: [] });
+    // /api/sessions and /api/scratch are dev-only — gated below. The
+    // namespaces list endpoint is prod-mounted via namespaces_read so
+    // the donut + count card render real values in both tiers.
     const [stats, sourcesData, nsData, configData, embStatus, timelineData] = await Promise.all([
       api('GET', '/api/stats'),
       api('GET', '/api/sources'),
-      nsPromise,
+      api('GET', '/api/namespaces').catch(() => ({ namespaces: [] })),
       api('GET', '/api/config'),
       api('GET', '/api/embedding-status').catch(() => null),
       api('GET', '/api/timeline?days=365&limit=1000').catch(() => ({ chunks: [] })),
@@ -935,7 +932,7 @@ async function loadDashboard() {
     try {
       let sessData = { total: 0 };
       let scratchData = { total: 0 };
-      if (devMode) {
+      if (STATE.uiMode === 'dev') {
         [sessData, scratchData] = await Promise.all([
           api('GET', '/api/sessions?limit=1').catch(() => ({ total: 0 })),
           api('GET', '/api/scratch').catch(() => ({ total: 0 })),
