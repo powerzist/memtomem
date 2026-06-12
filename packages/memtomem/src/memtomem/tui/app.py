@@ -10,16 +10,17 @@ from typing import Any
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, ListItem, ListView, Static
 
 from memtomem.tui.catalog import COMMAND_CATALOG
 from memtomem.tui.runtime import Readiness, ReadinessState, config_exists, inspect_readiness
+from memtomem.tui.shared import COMMON_PANEL_CSS, BorderStyleMixin, PanelScroll
 from memtomem.tui.terminal import BorderStyle
 
 
-class KeybindingsScreen(ModalScreen[None]):
+class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
     """Modal help screen for keyboard shortcuts."""
 
     CSS = """
@@ -55,12 +56,14 @@ class KeybindingsScreen(ModalScreen[None]):
     #keybindings-dialog.ascii-border {
         border: ascii #45e0ff;
     }
-    """
+    """ + COMMON_PANEL_CSS
 
     BINDINGS = [
         Binding("escape", "close", "Close"),
         Binding("q", "close", "Close", show=False),
         Binding("enter", "close", "Close", show=False),
+        Binding("up,j", "item_previous", "Previous item", show=False),
+        Binding("down,k", "item_next", "Next item", show=False),
         Binding("page_up", "page_up", "Page up", show=False),
         Binding("page_down", "page_down", "Page down", show=False),
     ]
@@ -91,9 +94,9 @@ class KeybindingsScreen(ModalScreen[None]):
         dialog_classes = "ascii-border" if self.border_style == "ascii" else ""
         with Vertical(id="keybindings-dialog", classes=dialog_classes):
             yield Static("Keyboard shortcuts", id="keybindings-title")
-            with VerticalScroll(id="keybindings-body-scroll"):
+            with PanelScroll(id="keybindings-body-scroll"):
                 yield Static(body, id="keybindings-body")
-            yield Button("Close", id="close-keybindings", variant="primary")
+            yield Button("Close", id="close-keybindings", classes="tui-secondary")
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-keybindings":
@@ -103,34 +106,19 @@ class KeybindingsScreen(ModalScreen[None]):
         self.dismiss(None)
 
     def action_page_up(self) -> None:
-        self.query_one("#keybindings-body-scroll", VerticalScroll).scroll_page_up(animate=False)
+        self.query_one("#keybindings-body-scroll", PanelScroll).scroll_page_up(animate=False)
 
     def action_page_down(self) -> None:
-        self.query_one("#keybindings-body-scroll", VerticalScroll).scroll_page_down(animate=False)
+        self.query_one("#keybindings-body-scroll", PanelScroll).scroll_page_down(animate=False)
+
+    def action_item_previous(self) -> None:
+        self.query_one("#close-keybindings", Button).focus()
+
+    def action_item_next(self) -> None:
+        self.query_one("#close-keybindings", Button).focus()
 
 
-class PanelScroll(VerticalScroll):
-    """Scrollable panel body that leaves arrow-key navigation to the app."""
-
-    BINDINGS = [
-        Binding("pageup", "page_up", "Page up", show=False),
-        Binding("pagedown", "page_down", "Page down", show=False),
-    ]
-
-    def action_scroll_up(self) -> None:
-        self.app.action_item_previous()
-
-    def action_scroll_down(self) -> None:
-        self.app.action_item_next()
-
-    def action_scroll_left(self) -> None:
-        self.app.action_panel_previous()
-
-    def action_scroll_right(self) -> None:
-        self.app.action_panel_next()
-
-
-class MemtomemTuiApp(App[None]):
+class MemtomemTuiApp(BorderStyleMixin, App[None]):
     """Initial Textual shell for memtomem.
 
     The app starts with readiness routing:
@@ -237,17 +225,6 @@ class MemtomemTuiApp(App[None]):
         text-style: bold;
     }
 
-    Button {
-        margin-top: 1;
-        margin-right: 1;
-    }
-
-    Button.active-nav {
-        background: #123447;
-        color: #ffffff;
-        text-style: bold;
-    }
-
     #nav.active-panel,
     #main.active-panel,
     #detail.active-panel {
@@ -272,7 +249,7 @@ class MemtomemTuiApp(App[None]):
         border: solid #1d2a37;
         padding: 1;
     }
-    """
+    """ + COMMON_PANEL_CSS
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
@@ -327,10 +304,6 @@ class MemtomemTuiApp(App[None]):
                             id="detail-text",
                         )
         yield Footer()
-
-    @property
-    def border_class(self) -> str:
-        return "ascii-border" if self.border_style == "ascii" else ""
 
     async def on_mount(self) -> None:
         self.update_clock()
