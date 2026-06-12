@@ -47,6 +47,12 @@ def detect_terminal_profile(
     return "unix-terminal"
 
 
+def has_ime_limitations(profile: str) -> bool:
+    """Return True when the terminal profile has known IME input limitations."""
+
+    return profile == "windows-conhost"
+
+
 def choose_border_style(
     requested: BorderMode = "auto",
     env: Mapping[str, str] | None = None,

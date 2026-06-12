@@ -8,16 +8,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from textual import events
+from textual.actions import SkipAction
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Input, ListItem, ListView, Static
 
 from memtomem.tui.catalog import COMMAND_CATALOG
+from memtomem.tui.clipboard import read_os_clipboard, write_os_clipboard
 from memtomem.tui.runtime import Readiness, ReadinessState, config_exists, inspect_readiness
 from memtomem.tui.shared import COMMON_PANEL_CSS, BorderStyleMixin, PanelScroll
-from memtomem.tui.terminal import BorderStyle
+from memtomem.tui.terminal import BorderStyle, detect_terminal_profile, has_ime_limitations
 
 if TYPE_CHECKING:
     from memtomem.models import SearchResult
@@ -92,6 +95,13 @@ class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
                 "  r               Refresh",
                 "  ?               Show this keymap",
                 "  q               Quit",
+                "",
+                "Clipboard",
+                "  Ctrl+C          Copy",
+                "  Ctrl+X          Cut",
+                "  Ctrl+V          Paste",
+                "  Ctrl+Shift+V    Paste",
+                "  Shift+Insert    Paste",
             ]
         )
         dialog_classes = "ascii-border" if self.border_style == "ascii" else ""
@@ -121,7 +131,99 @@ class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
         self.query_one("#close-keybindings", Button).focus()
 
 
-class DiagnosticInput(Input):
+class ConhostWarningScreen(BorderStyleMixin, ModalScreen[None]):
+    """Startup warning for legacy Windows console hosts."""
+
+    CSS = """
+    ConhostWarningScreen {
+        align: center middle;
+    }
+
+    #conhost-warning-dialog {
+        width: 76;
+        max-width: 90%;
+        max-height: 90%;
+        border: solid #f2c94c;
+        background: #0d141c;
+        padding: 1 2;
+    }
+
+    #conhost-warning-title {
+        color: #f2c94c;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+
+    #conhost-warning-body {
+        margin-bottom: 1;
+    }
+
+    #conhost-warning-dialog.ascii-border {
+        border: ascii #f2c94c;
+    }
+    """ + COMMON_PANEL_CSS
+
+    BINDINGS = [
+        Binding("escape", "close", "Close"),
+        Binding("enter", "close", "Close", show=False),
+    ]
+
+    def __init__(self, *, border_style: BorderStyle = "solid") -> None:
+        super().__init__()
+        self.border_style = border_style
+
+    def compose(self) -> ComposeResult:
+        dialog_classes = "ascii-border" if self.border_style == "ascii" else ""
+        body = (
+            "Legacy Windows console hosts are not fully supported by the TUI.\n\n"
+            "Known limitations include Korean IME input, mouse text selection, and "
+            "some clipboard behavior. Windows Terminal is strongly recommended."
+        )
+        with Vertical(id="conhost-warning-dialog", classes=dialog_classes):
+            yield Static("Windows Terminal strongly recommended", id="conhost-warning-title")
+            yield Static(body, id="conhost-warning-body")
+            yield Button("Continue", id="close-conhost-warning", classes="tui-secondary")
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "close-conhost-warning":
+            self.dismiss(None)
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+
+class TuiInput(Input):
+    """Input widget that uses the OS clipboard when possible."""
+
+    BINDINGS = [
+        *Input.BINDINGS,
+        Binding("ctrl+shift+v,shift+insert", "paste", "Paste text", show=False),
+    ]
+
+    def action_copy(self) -> None:
+        selected_text = self.selected_text
+        if not selected_text:
+            raise SkipAction()
+        self.app.copy_to_clipboard(selected_text)
+        write_os_clipboard(selected_text)
+
+    def action_cut(self) -> None:
+        selected_text = self.selected_text
+        if not selected_text:
+            raise SkipAction()
+        self.app.copy_to_clipboard(selected_text)
+        write_os_clipboard(selected_text)
+        self.delete_selection()
+
+    def action_paste(self) -> None:
+        clipboard = read_os_clipboard()
+        if clipboard is None:
+            clipboard = self.app.clipboard
+        start, end = self.selection
+        self.replace(clipboard.splitlines()[0] if clipboard else "", start, end)
+
+
+class DiagnosticInput(TuiInput):
     """Input widget that records the raw key events it receives."""
 
     async def _on_key(self, event: events.Key) -> None:
@@ -176,15 +278,27 @@ class InputDiagnosticsApp(BorderStyleMixin, App[None]):
         Binding("escape,ctrl+q", "quit", "Quit"),
     ]
 
-    def __init__(self, *, border_style: BorderStyle = "solid") -> None:
+    def __init__(
+        self,
+        *,
+        border_style: BorderStyle = "solid",
+        terminal_profile: str | None = None,
+    ) -> None:
         super().__init__()
         self.border_style = border_style
+        self.terminal_profile = terminal_profile or detect_terminal_profile()
         self.input_events: list[str] = []
 
     def compose(self) -> ComposeResult:
         log_classes = "ascii-border" if self.border_style == "ascii" else ""
         with Vertical(id="diagnostics"):
             yield Static("memtomem TUI Input Diagnostics", id="diagnostics-title")
+            if has_ime_limitations(self.terminal_profile):
+                yield Static(
+                    "Korean IME input is limited in legacy Windows consoles. "
+                    "Use Windows Terminal for Korean text input.",
+                    classes="warning",
+                )
             yield Static(
                 "Type Korean text in the field below. Press Escape or Ctrl+Q to quit.",
                 classes="muted",
@@ -387,7 +501,13 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     NAV_BUTTON_IDS = ("nav-dashboard", "nav-search", "nav-commands", "nav-refresh", "nav-help")
     PANEL_IDS = ("nav", "main", "detail")
 
-    def __init__(self, *, border_style: BorderStyle = "solid", startup_refresh: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        border_style: BorderStyle = "solid",
+        startup_refresh: bool = True,
+        terminal_profile: str | None = None,
+    ) -> None:
         super().__init__()
         self._components_cm: AbstractAsyncContextManager[Any] | None = None
         self.comp: Any | None = None
@@ -397,6 +517,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.nav_index = 0
         self.panel_index = 0
         self.border_style = border_style
+        self.terminal_profile = terminal_profile or detect_terminal_profile()
         self.search_results: list[SearchResult] = []
         self.last_search_query = ""
 
@@ -432,6 +553,8 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if self.startup_refresh:
             await self.refresh_readiness()
         self.focus_panel(0)
+        if has_ime_limitations(self.terminal_profile):
+            self.push_screen(ConhostWarningScreen(border_style=self.border_style))
 
     async def on_unmount(self) -> None:
         if self._components_cm is not None:
@@ -636,7 +759,10 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             widget.set_class(candidate == panel_id, "active-panel")
 
     def update_clock(self) -> None:
-        self.query_one("#top-clock", Static).update(datetime.now().strftime("%H:%M:%S"))
+        try:
+            self.query_one("#top-clock", Static).update(datetime.now().strftime("%H:%M:%S"))
+        except NoMatches:
+            return
 
     async def refresh_readiness(self) -> None:
         if not config_exists():
@@ -786,17 +912,30 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.run_worker(self._render_search(), exclusive=True, group="render")
 
     async def _render_search(self) -> None:
-        query_input = Input(
+        query_input = TuiInput(
             value=self.last_search_query,
             placeholder="Search memories...",
             id="search-query",
         )
+        widgets: list[Static | Button | Input | ListView] = [Static("Search", classes="title")]
+        if has_ime_limitations(self.terminal_profile):
+            widgets.append(
+                Static(
+                    "Korean IME input is limited in legacy Windows consoles. "
+                    "Use Windows Terminal for Korean text input.",
+                    classes="warning",
+                )
+            )
+        widgets.extend(
+            [
+                query_input,
+                Button("Search", id="run-search", classes="tui-secondary"),
+                Static("Enter a query, then press Enter or the Search button.", classes="muted"),
+                ListView(id="search-results"),
+            ]
+        )
         await self._replace_main(
-            Static("Search", classes="title"),
-            query_input,
-            Button("Search", id="run-search", classes="tui-secondary"),
-            Static("Enter a query, then press Enter or the Search button.", classes="muted"),
-            ListView(id="search-results"),
+            *widgets,
         )
         self.search_results = []
         self._detail_text().update(
@@ -953,13 +1092,23 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         await self.refresh_readiness()
 
 
-def run(*, border_style: BorderStyle = "solid", mouse: bool = True) -> None:
+def run(
+    *,
+    border_style: BorderStyle = "solid",
+    mouse: bool = True,
+    terminal_profile: str | None = None,
+) -> None:
     """Run the Textual app."""
 
-    MemtomemTuiApp(border_style=border_style).run(mouse=mouse)
+    MemtomemTuiApp(border_style=border_style, terminal_profile=terminal_profile).run(mouse=mouse)
 
 
-def run_input_diagnostics(*, border_style: BorderStyle = "solid", mouse: bool = True) -> None:
+def run_input_diagnostics(
+    *,
+    border_style: BorderStyle = "solid",
+    mouse: bool = True,
+    terminal_profile: str | None = None,
+) -> None:
     """Run the Textual input diagnostics app."""
 
-    InputDiagnosticsApp(border_style=border_style).run(mouse=mouse)
+    InputDiagnosticsApp(border_style=border_style, terminal_profile=terminal_profile).run(mouse=mouse)

@@ -7,10 +7,17 @@ from uuid import uuid4
 
 from click.testing import CliRunner
 from textual.widgets import Button, ListItem, ListView, Static
+from textual.widgets._input import Selection
 
 from memtomem.cli import cli
 from memtomem.models import Chunk, ChunkMetadata, SearchResult
-from memtomem.tui.app import KeybindingsScreen, MemtomemTuiApp
+from memtomem.tui import clipboard as tui_clipboard
+from memtomem.tui.app import (
+    ConhostWarningScreen,
+    InputDiagnosticsApp,
+    KeybindingsScreen,
+    MemtomemTuiApp,
+)
 from memtomem.tui import runtime
 from memtomem.tui.catalog import COMMAND_CATALOG
 from memtomem.tui.runtime import ReadinessState
@@ -18,7 +25,11 @@ from memtomem.tui.terminal import choose_border_style, detect_terminal_profile
 
 
 def make_tui_app(*, border_style: str = "solid") -> MemtomemTuiApp:
-    return MemtomemTuiApp(border_style=border_style, startup_refresh=False)
+    return MemtomemTuiApp(
+        border_style=border_style,
+        startup_refresh=False,
+        terminal_profile="windows-terminal",
+    )
 
 
 def test_tui_in_top_level_help() -> None:
@@ -68,18 +79,25 @@ def test_tui_launch_passes_mouse_option(monkeypatch) -> None:
     calls = []
 
     monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
+    monkeypatch.setattr("memtomem.tui.terminal.detect_terminal_profile", lambda: "windows-terminal")
     monkeypatch.setattr("memtomem.tui.app.run", lambda **kwargs: calls.append(("run", kwargs)))
 
     result = CliRunner().invoke(cli, ["tui", "--border", "ascii", "--no-mouse"])
 
     assert result.exit_code == 0
-    assert calls == [("run", {"border_style": "ascii", "mouse": False})]
+    assert calls == [
+        (
+            "run",
+            {"border_style": "ascii", "mouse": False, "terminal_profile": "windows-terminal"},
+        )
+    ]
 
 
 def test_tui_input_diagnostics_uses_textual_app(monkeypatch) -> None:
     calls = []
 
     monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
+    monkeypatch.setattr("memtomem.tui.terminal.detect_terminal_profile", lambda: "windows-terminal")
     monkeypatch.setattr(
         "memtomem.tui.app.run_input_diagnostics",
         lambda **kwargs: calls.append(("diagnose", kwargs)),
@@ -88,7 +106,12 @@ def test_tui_input_diagnostics_uses_textual_app(monkeypatch) -> None:
     result = CliRunner().invoke(cli, ["tui", "--diagnose-input", "--border", "solid", "--no-mouse"])
 
     assert result.exit_code == 0
-    assert calls == [("diagnose", {"border_style": "solid", "mouse": False})]
+    assert calls == [
+        (
+            "diagnose",
+            {"border_style": "solid", "mouse": False, "terminal_profile": "windows-terminal"},
+        )
+    ]
 
 
 def test_terminal_border_auto_detection() -> None:
@@ -98,6 +121,80 @@ def test_terminal_border_auto_detection() -> None:
     assert choose_border_style("auto", {"TERM_PROGRAM": "vscode"}, os_name="nt") == "solid"
     assert choose_border_style("auto", {"MEMTOMEM_TUI_BORDER": "ascii"}, os_name="posix") == "ascii"
     assert choose_border_style("solid", {"MEMTOMEM_TUI_BORDER": "ascii"}, os_name="nt") == "solid"
+
+
+def test_windows_clipboard_write_reads_stdin_explicitly(monkeypatch) -> None:
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(tui_clipboard.os, "name", "nt")
+    monkeypatch.setattr(tui_clipboard.shutil, "which", lambda command: f"C:/{command}")
+    monkeypatch.setattr(tui_clipboard.subprocess, "run", fake_run)
+
+    assert tui_clipboard.write_os_clipboard("copied text")
+
+    assert calls == [
+        (
+            [
+                "C:/powershell.exe",
+                "-NoProfile",
+                "-Command",
+                "Set-Clipboard -Value ([Console]::In.ReadToEnd())",
+            ],
+            {
+                "capture_output": True,
+                "check": False,
+                "input": "copied text",
+                "text": True,
+                "timeout": 2,
+            },
+        )
+    ]
+
+
+async def test_tui_search_warns_about_conhost_ime_limitations() -> None:
+    app = MemtomemTuiApp(startup_refresh=False, terminal_profile="windows-conhost")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.render_search()
+        await pilot.pause()
+
+        warnings = [widget.content for widget in app.query("#main-body .warning").results(Static)]
+        assert any("Korean IME input is limited" in warning for warning in warnings)
+
+
+async def test_tui_shows_conhost_startup_warning() -> None:
+    app = MemtomemTuiApp(startup_refresh=False, terminal_profile="windows-conhost")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert isinstance(app.screen, ConhostWarningScreen)
+        body = app.screen.query_one("#conhost-warning-body", Static).content
+        assert "Windows Terminal is strongly recommended" in body
+
+
+async def test_tui_does_not_show_conhost_warning_in_windows_terminal() -> None:
+    app = MemtomemTuiApp(startup_refresh=False, terminal_profile="windows-terminal")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert not isinstance(app.screen, ConhostWarningScreen)
+
+
+async def test_tui_input_diagnostics_warns_about_conhost_ime_limitations() -> None:
+    app = InputDiagnosticsApp(terminal_profile="windows-conhost")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        warnings = [widget.content for widget in app.query("#diagnostics .warning").results(Static)]
+        assert any("Korean IME input is limited" in warning for warning in warnings)
 
 
 def test_tui_catalog_covers_top_level_commands() -> None:
@@ -380,3 +477,79 @@ async def test_tui_search_screen_runs_pipeline() -> None:
         assert pipeline.query == "terminal ui"
         assert len(app.search_results) == 1
         assert "notes/search.md" in app.query_one("#detail-text", Static).content
+
+
+async def test_tui_input_pastes_from_os_clipboard(monkeypatch) -> None:
+    monkeypatch.setattr("memtomem.tui.app.read_os_clipboard", lambda: "한글 검색\nignored")
+
+    app = make_tui_app()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.render_search()
+        await pilot.pause()
+        query = app.query_one("#search-query")
+        query.focus()
+
+        await pilot.press("ctrl+v")
+
+        assert query.value == "한글 검색"
+
+
+async def test_tui_input_copies_and_cuts_to_os_clipboard(monkeypatch) -> None:
+    copied = []
+    monkeypatch.setattr("memtomem.tui.app.write_os_clipboard", lambda text: copied.append(text) or True)
+
+    app = make_tui_app()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.render_search()
+        await pilot.pause()
+        query = app.query_one("#search-query")
+        query.value = "abcdef"
+        query.selection = Selection(1, 4)
+        query.focus()
+
+        await pilot.press("ctrl+c")
+        await pilot.press("ctrl+x")
+
+        assert copied == ["bcd", "bcd"]
+        assert query.value == "aef"
+
+
+async def test_tui_clipboard_keys_do_nothing_without_input_focus(monkeypatch) -> None:
+    reads = []
+    writes = []
+    monkeypatch.setattr("memtomem.tui.app.read_os_clipboard", lambda: reads.append(True) or "ignored")
+    monkeypatch.setattr("memtomem.tui.app.write_os_clipboard", lambda text: writes.append(text) or True)
+
+    app = make_tui_app()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.render_search()
+        await pilot.pause()
+        query = app.query_one("#search-query")
+        query.value = "unchanged"
+        app.query_one("#run-search", Button).focus()
+
+        await pilot.press("ctrl+v")
+        await pilot.press("ctrl+c")
+        await pilot.press("ctrl+x")
+
+        assert query.value == "unchanged"
+        assert reads == []
+        assert writes == []
+
+
+async def test_tui_help_lists_clipboard_keys() -> None:
+    app = make_tui_app()
+
+    async with app.run_test(size=(80, 20)) as pilot:
+        await pilot.pause()
+        await pilot.press("?")
+        await pilot.pause()
+
+        body = app.screen.query_one("#keybindings-body", Static).content
+        assert "Clipboard" in body
+        assert "Ctrl+C" in body
+        assert "Ctrl+V" in body
+        assert "Shift+Insert" in body

@@ -51,7 +51,12 @@ def _check_tui_deps() -> None:
 )
 def tui(border_mode: str, diagnose_terminal: bool, diagnose_input: bool, mouse: bool) -> None:
     """Launch the memtomem terminal UI."""
-    from memtomem.tui.terminal import BorderMode, choose_border_style, terminal_diagnostics
+    from memtomem.tui.terminal import (
+        BorderMode,
+        choose_border_style,
+        detect_terminal_profile,
+        terminal_diagnostics,
+    )
 
     normalized_border_mode = cast(BorderMode, border_mode.lower())
 
@@ -63,8 +68,13 @@ def tui(border_mode: str, diagnose_terminal: bool, diagnose_input: bool, mouse: 
     from memtomem.tui.app import run, run_input_diagnostics
 
     border_style = choose_border_style(normalized_border_mode)
+    terminal_profile = detect_terminal_profile()
     if diagnose_input:
-        run_input_diagnostics(border_style=border_style, mouse=mouse)
+        run_input_diagnostics(
+            border_style=border_style,
+            mouse=mouse,
+            terminal_profile=terminal_profile,
+        )
         return
 
-    run(border_style=border_style, mouse=mouse)
+    run(border_style=border_style, mouse=mouse, terminal_profile=terminal_profile)
