@@ -39,6 +39,71 @@ InstallType = Literal["source", "project", "tool", "uvx"]
 CwdInstallType = Literal["source", "project", "pypi"]
 MmBinaryOrigin = Literal["uv-tool", "uvx", "venv-relative", "system", "unknown"]
 
+_PRESET_PICKER_ORDER: tuple[str, ...] = ("minimal", "english", "korean")
+_INTERACTIVE_PRESET_DEFAULT = "english"
+_NON_INTERACTIVE_DEFAULT_PRESET = "minimal"
+_ADVANCED_STEP_TITLES: tuple[str, ...] = (
+    "Embedding Provider",
+    "Reranker (optional)",
+    "Memory Directory",
+    "Provider Memory Folders",
+    "Storage",
+    "Namespace",
+    "Search",
+    "Language",
+    "Claude Code Hooks",
+    "Connect to AI Editor",
+)
+
+
+@dataclass(frozen=True)
+class InitPresetInfo:
+    """Read-only preset metadata for UI adapters."""
+
+    name: str
+    label: str
+    description: str
+    default_interactive: bool = False
+    default_non_interactive: bool = False
+
+
+@dataclass(frozen=True)
+class InitFlowDefinition:
+    """Read-only description of the canonical ``mm init`` flow."""
+
+    presets: tuple[InitPresetInfo, ...]
+    advanced_step_titles: tuple[str, ...]
+    interactive_default_preset: str
+    non_interactive_default_preset: str
+    supports_advanced: bool = True
+    supports_fresh: bool = True
+
+
+def get_init_flow_definition() -> InitFlowDefinition:
+    """Return read-only metadata for rendering the canonical init flow.
+
+    TUI and future UI adapters should consume this instead of duplicating
+    preset names, labels, descriptions, or step titles. The existing Click
+    command remains the owner of execution behavior.
+    """
+
+    presets = tuple(
+        InitPresetInfo(
+            name=name,
+            label=PRESETS[name].label,  # type: ignore[index]
+            description=PRESETS[name].description,  # type: ignore[index]
+            default_interactive=name == _INTERACTIVE_PRESET_DEFAULT,
+            default_non_interactive=name == _NON_INTERACTIVE_DEFAULT_PRESET,
+        )
+        for name in _PRESET_PICKER_ORDER
+    )
+    return InitFlowDefinition(
+        presets=presets,
+        advanced_step_titles=_ADVANCED_STEP_TITLES,
+        interactive_default_preset=_INTERACTIVE_PRESET_DEFAULT,
+        non_interactive_default_preset=_NON_INTERACTIVE_DEFAULT_PRESET,
+    )
+
 
 def _run(cmd: list[str], timeout: int = 30, output: bool = True) -> subprocess.CompletedProcess:
     """Run a command and return the result."""
@@ -2625,7 +2690,7 @@ def _step_preset_picker(state: dict) -> None:
     click.echo(click.style("  (q: quit)", dim=True))
     click.echo()
 
-    ordered: list[str] = ["minimal", "english", "korean"]
+    ordered = list(_PRESET_PICKER_ORDER)
     for i, name in enumerate(ordered, start=1):
         spec = PRESETS[name]  # type: ignore[index]
         click.echo(f"    [{i}] {spec.label}")
@@ -2634,7 +2699,8 @@ def _step_preset_picker(state: dict) -> None:
     click.echo(f"    [{advanced_idx}] Advanced — full 10-step wizard (all options)")
     click.echo()
 
-    choice = nav_prompt("  Select", type=click.IntRange(1, advanced_idx), default=2)
+    default_idx = ordered.index(_INTERACTIVE_PRESET_DEFAULT) + 1
+    choice = nav_prompt("  Select", type=click.IntRange(1, advanced_idx), default=default_idx)
     click.echo()
 
     if choice == advanced_idx:
@@ -2995,7 +3061,7 @@ def init(
         # unicode61, auto_ns=False, top_k=10). Explicit flags then override the
         # preset baseline, preserving the prior `-y --provider onnx --model X`
         # contract.
-        effective_preset = preset or "minimal"
+        effective_preset = preset or _NON_INTERACTIVE_DEFAULT_PRESET
         _apply_preset(state, effective_preset)
         _override_from_flags(
             state,

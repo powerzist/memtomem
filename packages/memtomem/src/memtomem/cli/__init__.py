@@ -61,6 +61,7 @@ def _register() -> None:
     from memtomem.cli.status_cmd import status
     from memtomem.cli.sync_doctor_cmd import sync_doctor
     from memtomem.cli.tags_cmd import tags
+    from memtomem.cli.tui_cmd import tui
     from memtomem.cli.uninstall_cmd import uninstall
     from memtomem.cli.upgrade_cmd import upgrade
     from memtomem.cli.watchdog_cmd import watchdog
@@ -89,6 +90,7 @@ def _register() -> None:
     cli.add_command(watchdog)
     cli.add_command(schedule)
     cli.add_command(web)
+    cli.add_command(tui)
     cli.add_command(shell)
     cli.add_command(agent)
     cli.add_command(uninstall)
