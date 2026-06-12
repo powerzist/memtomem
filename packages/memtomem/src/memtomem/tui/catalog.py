@@ -26,7 +26,7 @@ COMMAND_CATALOG: tuple[CommandEntry, ...] = (
     CommandEntry("mm index", "Index files", TuiSupport.NATIVE, "Startup offers this when needed."),
     CommandEntry("mm mem", "Memory audit", TuiSupport.PLANNED, "Native audit views."),
     CommandEntry("mm status", "Status", TuiSupport.NATIVE, "Dashboard summary."),
-    CommandEntry("mm search", "Search", TuiSupport.PLANNED, "Native search screen next."),
+    CommandEntry("mm search", "Search", TuiSupport.NATIVE, "Native search screen."),
     CommandEntry("mm add", "Add memory", TuiSupport.PLANNED, "Needs shared add action."),
     CommandEntry("mm recall", "Recall", TuiSupport.PLANNED, "Timeline/recent memory screen."),
     CommandEntry("mm tags", "Tags", TuiSupport.PLANNED, "Native tag management."),

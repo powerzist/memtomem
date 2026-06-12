@@ -38,7 +38,18 @@ def _check_tui_deps() -> None:
     is_flag=True,
     help="Print terminal detection details and border samples, then exit.",
 )
-def tui(border_mode: str, diagnose_terminal: bool) -> None:
+@click.option(
+    "--diagnose-input",
+    is_flag=True,
+    help="Open a Textual input diagnostics screen for IME and paste troubleshooting.",
+)
+@click.option(
+    "--mouse/--no-mouse",
+    default=True,
+    show_default=True,
+    help="Enable or disable terminal mouse tracking.",
+)
+def tui(border_mode: str, diagnose_terminal: bool, diagnose_input: bool, mouse: bool) -> None:
     """Launch the memtomem terminal UI."""
     from memtomem.tui.terminal import BorderMode, choose_border_style, terminal_diagnostics
 
@@ -49,6 +60,11 @@ def tui(border_mode: str, diagnose_terminal: bool) -> None:
         return
 
     _check_tui_deps()
-    from memtomem.tui.app import run
+    from memtomem.tui.app import run, run_input_diagnostics
 
-    run(border_style=choose_border_style(normalized_border_mode))
+    border_style = choose_border_style(normalized_border_mode)
+    if diagnose_input:
+        run_input_diagnostics(border_style=border_style, mouse=mouse)
+        return
+
+    run(border_style=border_style, mouse=mouse)

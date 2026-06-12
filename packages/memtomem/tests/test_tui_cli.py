@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from uuid import uuid4
+
 from click.testing import CliRunner
 from textual.widgets import Button, ListItem, ListView, Static
 
 from memtomem.cli import cli
+from memtomem.models import Chunk, ChunkMetadata, SearchResult
 from memtomem.tui.app import KeybindingsScreen, MemtomemTuiApp
 from memtomem.tui import runtime
 from memtomem.tui.catalog import COMMAND_CATALOG
 from memtomem.tui.runtime import ReadinessState
 from memtomem.tui.terminal import choose_border_style, detect_terminal_profile
+
+
+def make_tui_app(*, border_style: str = "solid") -> MemtomemTuiApp:
+    return MemtomemTuiApp(border_style=border_style, startup_refresh=False)
 
 
 def test_tui_in_top_level_help() -> None:
@@ -27,6 +35,8 @@ def test_tui_help_does_not_require_textual() -> None:
     assert "terminal UI" in result.output
     assert "--border" in result.output
     assert "--diagnose-terminal" in result.output
+    assert "--diagnose-input" in result.output
+    assert "--mouse / --no-mouse" in result.output
 
 
 def test_tui_missing_textual_has_install_hint(monkeypatch) -> None:
@@ -52,6 +62,33 @@ def test_tui_diagnose_terminal_does_not_require_textual(monkeypatch) -> None:
     assert "Adjacent colored panels" in result.output
     assert "ASCII fallback" in result.output
     assert "Interpretation" in result.output
+
+
+def test_tui_launch_passes_mouse_option(monkeypatch) -> None:
+    calls = []
+
+    monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
+    monkeypatch.setattr("memtomem.tui.app.run", lambda **kwargs: calls.append(("run", kwargs)))
+
+    result = CliRunner().invoke(cli, ["tui", "--border", "ascii", "--no-mouse"])
+
+    assert result.exit_code == 0
+    assert calls == [("run", {"border_style": "ascii", "mouse": False})]
+
+
+def test_tui_input_diagnostics_uses_textual_app(monkeypatch) -> None:
+    calls = []
+
+    monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
+    monkeypatch.setattr(
+        "memtomem.tui.app.run_input_diagnostics",
+        lambda **kwargs: calls.append(("diagnose", kwargs)),
+    )
+
+    result = CliRunner().invoke(cli, ["tui", "--diagnose-input", "--border", "solid", "--no-mouse"])
+
+    assert result.exit_code == 0
+    assert calls == [("diagnose", {"border_style": "solid", "mouse": False})]
 
 
 def test_terminal_border_auto_detection() -> None:
@@ -163,7 +200,7 @@ async def test_inspect_readiness_flags_index_required(tmp_path) -> None:
 
 
 async def test_tui_vertical_navigation_moves_within_active_panel() -> None:
-    app = MemtomemTuiApp()
+    app = make_tui_app()
 
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -194,7 +231,7 @@ async def test_tui_vertical_navigation_moves_within_active_panel() -> None:
 
 
 async def test_tui_ascii_border_class_is_applied() -> None:
-    app = MemtomemTuiApp(border_style="ascii")
+    app = make_tui_app(border_style="ascii")
 
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -205,7 +242,7 @@ async def test_tui_ascii_border_class_is_applied() -> None:
 
 
 async def test_tui_help_uses_selected_border_style() -> None:
-    app = MemtomemTuiApp(border_style="ascii")
+    app = make_tui_app(border_style="ascii")
 
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -216,7 +253,7 @@ async def test_tui_help_uses_selected_border_style() -> None:
 
 
 async def test_tui_page_keys_scroll_main_body() -> None:
-    app = MemtomemTuiApp()
+    app = make_tui_app()
 
     async with app.run_test(size=(100, 16)) as pilot:
         await pilot.pause()
@@ -235,7 +272,7 @@ async def test_tui_page_keys_scroll_main_body() -> None:
 
 
 async def test_tui_arrow_keys_do_not_scroll_panel_body() -> None:
-    app = MemtomemTuiApp()
+    app = make_tui_app()
 
     async with app.run_test(size=(100, 16)) as pilot:
         await pilot.pause()
@@ -256,7 +293,7 @@ async def test_tui_arrow_keys_do_not_scroll_panel_body() -> None:
 
 
 async def test_tui_page_keys_move_list_view_by_page() -> None:
-    app = MemtomemTuiApp()
+    app = make_tui_app()
 
     async with app.run_test(size=(100, 16)) as pilot:
         await pilot.pause()
@@ -275,7 +312,7 @@ async def test_tui_page_keys_move_list_view_by_page() -> None:
 
 
 async def test_tui_page_keys_scroll_detail_panel() -> None:
-    app = MemtomemTuiApp()
+    app = make_tui_app()
 
     async with app.run_test(size=(100, 16)) as pilot:
         await pilot.pause()
@@ -291,7 +328,7 @@ async def test_tui_page_keys_scroll_detail_panel() -> None:
 
 
 async def test_tui_page_keys_scroll_help_modal() -> None:
-    app = MemtomemTuiApp()
+    app = make_tui_app()
 
     async with app.run_test(size=(80, 10)) as pilot:
         await pilot.pause()
@@ -303,3 +340,43 @@ async def test_tui_page_keys_scroll_help_modal() -> None:
         assert help_body.scroll_y == 0
         await pilot.press("page_down")
         assert help_body.scroll_y > 0
+
+
+async def test_tui_search_screen_runs_pipeline() -> None:
+    class SearchPipeline:
+        def __init__(self) -> None:
+            self.query = None
+
+        async def search(self, query, **kwargs):
+            self.query = query
+            chunk = Chunk(
+                id=uuid4(),
+                content="Searchable content for the terminal UI.",
+                metadata=ChunkMetadata(
+                    source_file="notes/search.md",
+                    heading_hierarchy=("Search", "TUI"),
+                    tags=("tui",),
+                    namespace="user",
+                ),
+            )
+            result = SearchResult(chunk=chunk, score=0.75, rank=1, source="bm25")
+            stats = SimpleNamespace(bm25_candidates=1, dense_candidates=0, final_total=1)
+            return [result], stats
+
+    pipeline = SearchPipeline()
+    config = SimpleNamespace(indexing=SimpleNamespace(project_memory_dirs=[]))
+    app = make_tui_app()
+    app.comp = SimpleNamespace(search_pipeline=pipeline, config=config)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.render_search()
+        await pilot.pause()
+        query = app.query_one("#search-query")
+        query.value = "terminal ui"
+        await app.run_search_from_input()
+        await pilot.pause()
+
+        assert pipeline.query == "terminal ui"
+        assert len(app.search_results) == 1
+        assert "notes/search.md" in app.query_one("#detail-text", Static).content

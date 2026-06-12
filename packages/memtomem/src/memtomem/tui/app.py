@@ -5,19 +5,22 @@ from __future__ import annotations
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Footer, ListItem, ListView, Static
+from textual.widgets import Button, Footer, Input, ListItem, ListView, Static
 
 from memtomem.tui.catalog import COMMAND_CATALOG
 from memtomem.tui.runtime import Readiness, ReadinessState, config_exists, inspect_readiness
 from memtomem.tui.shared import COMMON_PANEL_CSS, BorderStyleMixin, PanelScroll
 from memtomem.tui.terminal import BorderStyle
+
+if TYPE_CHECKING:
+    from memtomem.models import SearchResult
 
 
 class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
@@ -116,6 +119,111 @@ class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
 
     def action_item_next(self) -> None:
         self.query_one("#close-keybindings", Button).focus()
+
+
+class DiagnosticInput(Input):
+    """Input widget that records the raw key events it receives."""
+
+    async def _on_key(self, event: events.Key) -> None:
+        recorder = getattr(self.app, "record_key_event", None)
+        if recorder is not None:
+            recorder(event, self.value)
+        await super()._on_key(event)
+
+    def _on_paste(self, event: events.Paste) -> None:
+        recorder = getattr(self.app, "record_paste_event", None)
+        if recorder is not None:
+            recorder(event, self.value)
+        super()._on_paste(event)
+
+
+class InputDiagnosticsApp(BorderStyleMixin, App[None]):
+    """Small Textual app for inspecting terminal input events."""
+
+    CSS = """
+    Screen {
+        background: #0d141c;
+        color: #d8dee9;
+    }
+
+    #diagnostics {
+        height: 1fr;
+        padding: 1;
+    }
+
+    #diagnostics-title {
+        color: #45e0ff;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+
+    #diagnostics-input {
+        margin: 1 0;
+    }
+
+    #diagnostics-log {
+        height: 1fr;
+        border: solid #1d2a37;
+        padding: 1;
+    }
+
+    #diagnostics-log.ascii-border {
+        border: ascii #1d2a37;
+    }
+    """ + COMMON_PANEL_CSS
+
+    BINDINGS = [
+        Binding("escape,ctrl+q", "quit", "Quit"),
+    ]
+
+    def __init__(self, *, border_style: BorderStyle = "solid") -> None:
+        super().__init__()
+        self.border_style = border_style
+        self.input_events: list[str] = []
+
+    def compose(self) -> ComposeResult:
+        log_classes = "ascii-border" if self.border_style == "ascii" else ""
+        with Vertical(id="diagnostics"):
+            yield Static("memtomem TUI Input Diagnostics", id="diagnostics-title")
+            yield Static(
+                "Type Korean text in the field below. Press Escape or Ctrl+Q to quit.",
+                classes="muted",
+            )
+            yield DiagnosticInput(placeholder="Type here...", id="diagnostics-input")
+            yield Static("", id="diagnostics-value")
+            with PanelScroll(id="diagnostics-log", classes=log_classes):
+                yield Static("Waiting for key events...", id="diagnostics-log-text")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#diagnostics-input", DiagnosticInput).focus()
+
+    def record_key_event(self, event: events.Key, value_before: str) -> None:
+        self._append_input_event(
+            "key",
+            [
+                f"key={event.key!r}",
+                f"character={event.character!r}",
+                f"printable={event.is_printable}",
+                f"value_before={value_before!r}",
+            ],
+        )
+
+    def record_paste_event(self, event: events.Paste, value_before: str) -> None:
+        self._append_input_event(
+            "paste",
+            [
+                f"text={event.text!r}",
+                f"value_before={value_before!r}",
+            ],
+        )
+
+    def _append_input_event(self, event_type: str, fields: list[str]) -> None:
+        self.input_events.append(f"{len(self.input_events) + 1:03d} {event_type}: " + "  ".join(fields))
+        del self.input_events[:-40]
+        self.query_one("#diagnostics-log-text", Static).update("\n".join(self.input_events))
+        value = self.query_one("#diagnostics-input", DiagnosticInput).value
+        self.query_one("#diagnostics-value", Static).update(f"Current value: {value!r}")
 
 
 class MemtomemTuiApp(BorderStyleMixin, App[None]):
@@ -249,6 +357,15 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         border: solid #1d2a37;
         padding: 1;
     }
+
+    #search-query {
+        margin-bottom: 1;
+    }
+
+    #search-results {
+        height: 1fr;
+        margin-top: 1;
+    }
     """ + COMMON_PANEL_CSS
 
     BINDINGS = [
@@ -267,18 +384,21 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         Binding("enter", "nav_activate", "Open menu", show=False),
     ]
 
-    NAV_BUTTON_IDS = ("nav-dashboard", "nav-commands", "nav-refresh", "nav-help")
+    NAV_BUTTON_IDS = ("nav-dashboard", "nav-search", "nav-commands", "nav-refresh", "nav-help")
     PANEL_IDS = ("nav", "main", "detail")
 
-    def __init__(self, *, border_style: BorderStyle = "solid") -> None:
+    def __init__(self, *, border_style: BorderStyle = "solid", startup_refresh: bool = True) -> None:
         super().__init__()
         self._components_cm: AbstractAsyncContextManager[Any] | None = None
         self.comp: Any | None = None
         self.readiness: Readiness | None = None
         self.compact = False
+        self.startup_refresh = startup_refresh
         self.nav_index = 0
         self.panel_index = 0
         self.border_style = border_style
+        self.search_results: list[SearchResult] = []
+        self.last_search_query = ""
 
     def compose(self) -> ComposeResult:
         with Container(id="root"):
@@ -290,6 +410,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                     with PanelScroll(id="nav-body"):
                         yield Static("Navigation", classes="title")
                         yield Button("Dashboard", id="nav-dashboard")
+                        yield Button("Search", id="nav-search")
                         yield Button("Commands", id="nav-commands")
                         yield Button("Refresh", id="nav-refresh")
                         yield Button("Help", id="nav-help")
@@ -308,7 +429,8 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     async def on_mount(self) -> None:
         self.update_clock()
         self.set_interval(1, self.update_clock)
-        await self.refresh_readiness()
+        if self.startup_refresh:
+            await self.refresh_readiness()
         self.focus_panel(0)
 
     async def on_unmount(self) -> None:
@@ -335,13 +457,25 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self.sync_panel_from_widget(event.button)
         await self.handle_button(button_id)
 
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "search-query":
+            await self.run_search_from_input()
+
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        if event.list_view.id == "search-results":
+            self.update_search_detail(event.list_view.index)
+
     async def handle_button(self, button_id: str) -> None:
         if button_id == "nav-refresh":
             await self.refresh_readiness()
         elif button_id == "nav-dashboard":
             self.render_dashboard()
+        elif button_id == "nav-search":
+            self.render_search()
         elif button_id in {"nav-commands", "open-commands"}:
             self.render_catalog()
+        elif button_id == "run-search":
+            await self.run_search_from_input()
         elif button_id == "run-index":
             self.run_worker(self.index_all_memory_dirs(), exclusive=True, group="index")
         elif button_id == "refresh-after-index":
@@ -383,6 +517,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
 
     async def action_nav_activate(self) -> None:
         focused = getattr(self, "focused", None)
+        if isinstance(focused, Input) and focused.id == "search-query":
+            await self.run_search_from_input()
+            return
         if isinstance(focused, Button) and focused.id:
             await self.handle_button(focused.id)
             return
@@ -471,7 +608,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         list_view.scroll_to_widget(list_view.children[next_index], animate=False)
 
     def panel_focusables(self, panel_id: str) -> list[Any]:
-        return list(self.query(f"#{panel_id} Button, #{panel_id} ListView"))
+        return list(self.query(f"#{panel_id} Input, #{panel_id} Button, #{panel_id} ListView"))
 
     def panel_scroll_target(self, panel_id: str) -> PanelScroll:
         body_id = {
@@ -534,7 +671,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     def _detail_text(self) -> Static:
         return self.query_one("#detail-text", Static)
 
-    async def _replace_main(self, *widgets: Static | Button | ListView) -> None:
+    async def _replace_main(self, *widgets: Static | Button | Input | ListView) -> None:
         main = self._main_body()
         main.scroll_home(animate=False)
         await main.remove_children()
@@ -645,6 +782,112 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             "- Config\n"
         )
 
+    def render_search(self) -> None:
+        self.run_worker(self._render_search(), exclusive=True, group="render")
+
+    async def _render_search(self) -> None:
+        query_input = Input(
+            value=self.last_search_query,
+            placeholder="Search memories...",
+            id="search-query",
+        )
+        await self._replace_main(
+            Static("Search", classes="title"),
+            query_input,
+            Button("Search", id="run-search", classes="tui-secondary"),
+            Static("Enter a query, then press Enter or the Search button.", classes="muted"),
+            ListView(id="search-results"),
+        )
+        self.search_results = []
+        self._detail_text().update(
+            "Search\n"
+            "- Enter: run search from the query field\n"
+            "- Up/Down: move through results\n"
+            "- PgUp/PgDn: scroll results"
+        )
+        query_input.focus()
+
+    async def run_search_from_input(self) -> None:
+        query = self.query_one("#search-query", Input).value.strip()
+        self.last_search_query = query
+        if not query:
+            self._detail_text().update("Search query cannot be empty.")
+            return
+        self.run_worker(self._run_search(query), exclusive=True, group="search")
+
+    async def _run_search(self, query: str) -> None:
+        results_view = self.query_one("#search-results", ListView)
+        await results_view.clear()
+        await results_view.append(ListItem(Static("Searching...")))
+        self._detail_text().update(f"Searching for: {query}")
+
+        if self.comp is None:
+            await self.refresh_readiness()
+        if self.comp is None:
+            self._detail_text().update("Search unavailable: memtomem runtime is not initialized.")
+            return
+
+        from memtomem.server.tools.search import (
+            _resolve_project_context_root as _resolve_project_context_root_from_cwd,
+        )
+
+        project_context_root = _resolve_project_context_root_from_cwd(self.comp)
+        results, stats = await self.comp.search_pipeline.search(
+            query,
+            top_k=10,
+            source_filter=None,
+            tag_filter=None,
+            namespace=None,
+            scope=None,
+            project_context_root=project_context_root,
+        )
+        self.search_results = list(results)
+        await results_view.clear()
+        if not self.search_results:
+            await results_view.append(ListItem(Static("No results.")))
+            self._detail_text().update(
+                f"No results for: {query}\n"
+                f"BM25: {stats.bm25_candidates}  Dense: {stats.dense_candidates}"
+            )
+            return
+
+        for result in self.search_results:
+            await results_view.append(ListItem(Static(self.search_result_label(result))))
+        results_view.index = 0
+        results_view.focus()
+        self.update_search_detail(0, stats)
+
+    def search_result_label(self, result: SearchResult) -> str:
+        metadata = result.chunk.metadata
+        source = str(metadata.source_file)
+        label = " > ".join(metadata.heading_hierarchy) if metadata.heading_hierarchy else source
+        snippet = " ".join(result.chunk.content.strip().split())[:64]
+        return f"{result.rank:>2}. {result.score:.3f}  {label}  {snippet}"
+
+    def update_search_detail(self, index: int | None, stats: Any | None = None) -> None:
+        if index is None or index < 0 or index >= len(self.search_results):
+            return
+        result = self.search_results[index]
+        metadata = result.chunk.metadata
+        heading = " > ".join(metadata.heading_hierarchy) if metadata.heading_hierarchy else "(none)"
+        tags = ", ".join(metadata.tags) if metadata.tags else "(none)"
+        stats_line = ""
+        if stats is not None:
+            stats_line = (
+                f"\n\nPipeline: {stats.bm25_candidates} BM25 + "
+                f"{stats.dense_candidates} dense -> {stats.final_total} final"
+            )
+        self._detail_text().update(
+            f"Rank: {result.rank}\n"
+            f"Score: {result.score:.4f}\n"
+            f"Source: {metadata.source_file}\n"
+            f"Namespace: {metadata.namespace or '(default)'}\n"
+            f"Heading: {heading}\n"
+            f"Tags: {tags}\n\n"
+            f"{result.chunk.content.strip()[:1600]}"
+            f"{stats_line}"
+        )
+
     def render_catalog(self) -> None:
         items = []
         for entry in COMMAND_CATALOG:
@@ -710,7 +953,13 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         await self.refresh_readiness()
 
 
-def run(*, border_style: BorderStyle = "solid") -> None:
+def run(*, border_style: BorderStyle = "solid", mouse: bool = True) -> None:
     """Run the Textual app."""
 
-    MemtomemTuiApp(border_style=border_style).run()
+    MemtomemTuiApp(border_style=border_style).run(mouse=mouse)
+
+
+def run_input_diagnostics(*, border_style: BorderStyle = "solid", mouse: bool = True) -> None:
+    """Run the Textual input diagnostics app."""
+
+    InputDiagnosticsApp(border_style=border_style).run(mouse=mouse)
