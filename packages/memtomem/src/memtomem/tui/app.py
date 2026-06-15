@@ -92,6 +92,7 @@ class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
                 "",
                 "Global",
                 "  Ctrl+K          Open command catalog",
+                "  Alt+M           Toggle mouse mode",
                 "  r               Refresh",
                 "  ?               Show this keymap",
                 "  q               Quit",
@@ -480,6 +481,13 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         height: 1fr;
         margin-top: 1;
     }
+
+    #mouse-status {
+        width: 12;
+        content-align: right middle;
+        color: #8b9aad;
+        margin-right: 1;
+    }
     """ + COMMON_PANEL_CSS
 
     BINDINGS = [
@@ -495,6 +503,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         Binding("pagedown", "page_down", "Page down", show=False),
         Binding("left,h", "panel_previous", "Previous panel", show=False),
         Binding("right,l", "panel_next", "Next panel", show=False),
+        Binding("alt+m", "toggle_mouse_mode", "Mouse mode", show=False),
         Binding("enter", "nav_activate", "Open menu", show=False),
     ]
 
@@ -507,6 +516,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         border_style: BorderStyle = "solid",
         startup_refresh: bool = True,
         terminal_profile: str | None = None,
+        mouse_enabled: bool = True,
     ) -> None:
         super().__init__()
         self._components_cm: AbstractAsyncContextManager[Any] | None = None
@@ -518,6 +528,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.panel_index = 0
         self.border_style = border_style
         self.terminal_profile = terminal_profile or detect_terminal_profile()
+        self.mouse_enabled = mouse_enabled
         self.search_results: list[SearchResult] = []
         self.last_search_query = ""
 
@@ -525,6 +536,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         with Container(id="root"):
             with Horizontal(id="topbar"):
                 yield Static("memtomem", id="top-title")
+                yield Static("", id="mouse-status")
                 yield Static("", id="top-clock")
             with Horizontal(id="layout"):
                 with Vertical(id="nav", classes=self.border_class):
@@ -549,6 +561,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
 
     async def on_mount(self) -> None:
         self.update_clock()
+        self.update_mouse_status()
         self.set_interval(1, self.update_clock)
         if self.startup_refresh:
             await self.refresh_readiness()
@@ -637,6 +650,11 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
 
     def action_page_down(self) -> None:
         self.scroll_active_panel_page(1)
+
+    def action_toggle_mouse_mode(self) -> None:
+        self.set_mouse_enabled(not self.mouse_enabled)
+        mode = "TUI Mouse" if self.mouse_enabled else "OS Mouse"
+        self.notify(f"Mouse mode: {mode}")
 
     async def action_nav_activate(self) -> None:
         focused = getattr(self, "focused", None)
@@ -741,6 +759,27 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         }[panel_id]
         return self.query_one(f"#{body_id}", PanelScroll)
 
+    def set_mouse_enabled(self, enabled: bool) -> None:
+        if enabled == self.mouse_enabled:
+            return
+        driver = getattr(self, "_driver", None)
+        if driver is not None:
+            if enabled:
+                self._write_mouse_sequence(True)
+            else:
+                self._write_mouse_sequence(False)
+        self.mouse_enabled = enabled
+        self.update_mouse_status()
+
+    def _write_mouse_sequence(self, enabled: bool) -> None:
+        driver = getattr(self, "_driver", None)
+        if driver is None:
+            return
+        suffix = "h" if enabled else "l"
+        for mode in ("1000", "1003", "1015", "1006"):
+            driver.write(f"\x1b[?{mode}{suffix}")
+        driver.flush()
+
     def sync_panel_from_widget(self, widget: Any | None) -> None:
         if widget is None:
             return
@@ -761,6 +800,13 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     def update_clock(self) -> None:
         try:
             self.query_one("#top-clock", Static).update(datetime.now().strftime("%H:%M:%S"))
+        except NoMatches:
+            return
+
+    def update_mouse_status(self) -> None:
+        try:
+            status = "Mouse:TUI" if self.mouse_enabled else "Mouse:OS"
+            self.query_one("#mouse-status", Static).update(status)
         except NoMatches:
             return
 
@@ -1100,7 +1146,11 @@ def run(
 ) -> None:
     """Run the Textual app."""
 
-    MemtomemTuiApp(border_style=border_style, terminal_profile=terminal_profile).run(mouse=mouse)
+    MemtomemTuiApp(
+        border_style=border_style,
+        terminal_profile=terminal_profile,
+        mouse_enabled=mouse,
+    ).run(mouse=mouse)
 
 
 def run_input_diagnostics(

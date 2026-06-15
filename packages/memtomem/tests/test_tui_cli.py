@@ -29,6 +29,7 @@ def make_tui_app(*, border_style: str = "solid") -> MemtomemTuiApp:
         border_style=border_style,
         startup_refresh=False,
         terminal_profile="windows-terminal",
+        mouse_enabled=True,
     )
 
 
@@ -185,6 +186,23 @@ async def test_tui_does_not_show_conhost_warning_in_windows_terminal() -> None:
         await pilot.pause()
 
         assert not isinstance(app.screen, ConhostWarningScreen)
+
+
+async def test_tui_mouse_mode_toggle_updates_status(monkeypatch) -> None:
+    calls = []
+    app = make_tui_app()
+    monkeypatch.setattr(app, "_write_mouse_sequence", lambda enabled: calls.append(enabled))
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.query_one("#mouse-status", Static).content == "Mouse:TUI"
+        await pilot.press("alt+m")
+        assert app.query_one("#mouse-status", Static).content == "Mouse:OS"
+        await pilot.press("alt+m")
+        assert app.query_one("#mouse-status", Static).content == "Mouse:TUI"
+
+    assert calls == [False, True]
 
 
 async def test_tui_input_diagnostics_warns_about_conhost_ime_limitations() -> None:
