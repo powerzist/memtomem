@@ -205,6 +205,26 @@ async def test_tui_mouse_mode_toggle_updates_status(monkeypatch) -> None:
     assert calls == [False, True]
 
 
+async def test_tui_mouse_mode_toggle_works_from_input_focus(monkeypatch) -> None:
+    calls = []
+    app = make_tui_app()
+    monkeypatch.setattr(app, "_write_mouse_sequence", lambda enabled: calls.append(enabled))
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.render_search()
+        await pilot.pause()
+        query = app.query_one("#search-query")
+        query.focus()
+
+        await pilot.press("alt+m")
+
+        assert query.value == ""
+        assert app.query_one("#mouse-status", Static).content == "Mouse:OS"
+
+    assert calls == [False]
+
+
 async def test_tui_input_diagnostics_warns_about_conhost_ime_limitations() -> None:
     app = InputDiagnosticsApp(terminal_profile="windows-conhost")
 

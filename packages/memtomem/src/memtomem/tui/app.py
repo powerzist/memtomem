@@ -201,6 +201,16 @@ class TuiInput(Input):
         Binding("ctrl+shift+v,shift+insert", "paste", "Paste text", show=False),
     ]
 
+    async def _on_key(self, event: events.Key) -> None:
+        if event.key == "alt+m":
+            event.stop()
+            event.prevent_default()
+            toggle = getattr(self.app, "action_toggle_mouse_mode", None)
+            if toggle is not None:
+                toggle()
+            return
+        await super()._on_key(event)
+
     def action_copy(self) -> None:
         selected_text = self.selected_text
         if not selected_text:
