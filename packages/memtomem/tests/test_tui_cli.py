@@ -197,9 +197,9 @@ async def test_tui_mouse_mode_toggle_updates_status(monkeypatch) -> None:
         await pilot.pause()
 
         assert app.query_one("#mouse-status", Static).content == "Mouse:TUI"
-        await pilot.press("alt+m")
+        await pilot.press("f6")
         assert app.query_one("#mouse-status", Static).content == "Mouse:OS"
-        await pilot.press("alt+m")
+        await pilot.press("f6")
         assert app.query_one("#mouse-status", Static).content == "Mouse:TUI"
 
     assert calls == [False, True]
@@ -217,9 +217,23 @@ async def test_tui_mouse_mode_toggle_works_from_input_focus(monkeypatch) -> None
         query = app.query_one("#search-query")
         query.focus()
 
-        await pilot.press("alt+m")
+        await pilot.press("f6")
 
         assert query.value == ""
+        assert app.query_one("#mouse-status", Static).content == "Mouse:OS"
+
+    assert calls == [False]
+
+
+async def test_tui_alt_m_mouse_mode_toggle_still_works(monkeypatch) -> None:
+    calls = []
+    app = make_tui_app()
+    monkeypatch.setattr(app, "_write_mouse_sequence", lambda enabled: calls.append(enabled))
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("alt+m")
+
         assert app.query_one("#mouse-status", Static).content == "Mouse:OS"
 
     assert calls == [False]
@@ -591,3 +605,4 @@ async def test_tui_help_lists_clipboard_keys() -> None:
         assert "Ctrl+C" in body
         assert "Ctrl+V" in body
         assert "Shift+Insert" in body
+        assert body.index("F6") < body.index("Alt+M")

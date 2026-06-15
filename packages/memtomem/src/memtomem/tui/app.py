@@ -92,6 +92,7 @@ class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
                 "",
                 "Global",
                 "  Ctrl+K          Open command catalog",
+                "  F6              Toggle mouse mode",
                 "  Alt+M           Toggle mouse mode",
                 "  r               Refresh",
                 "  ?               Show this keymap",
@@ -202,7 +203,7 @@ class TuiInput(Input):
     ]
 
     async def _on_key(self, event: events.Key) -> None:
-        if event.key == "alt+m":
+        if event.key in {"f6", "alt+m"}:
             event.stop()
             event.prevent_default()
             toggle = getattr(self.app, "action_toggle_mouse_mode", None)
@@ -513,7 +514,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         Binding("pagedown", "page_down", "Page down", show=False),
         Binding("left,h", "panel_previous", "Previous panel", show=False),
         Binding("right,l", "panel_next", "Next panel", show=False),
-        Binding("alt+m", "toggle_mouse_mode", "Mouse mode", show=False),
+        Binding("f6,alt+m", "toggle_mouse_mode", "Mouse mode", show=False),
         Binding("enter", "nav_activate", "Open menu", show=False),
     ]
 
