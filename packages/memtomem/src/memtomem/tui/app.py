@@ -63,6 +63,31 @@ class SettingStep(Static, can_focus=True):
     """Small one-cell clickable settings control."""
 
 
+class RootSelectionAction(Static, can_focus=True):
+    """Compact action token for managed-root selection operations."""
+
+    BINDINGS = [
+        Binding("left,h", "previous", "Previous selection action", show=False),
+        Binding("right,l", "next", "Next selection action", show=False),
+        Binding("enter", "activate", "Activate selection action", show=False),
+    ]
+
+    def action_previous(self) -> None:
+        move = getattr(self.app, "focus_panel_item_horizontal", None)
+        if move is not None:
+            move(-1)
+
+    def action_next(self) -> None:
+        move = getattr(self.app, "focus_panel_item_horizontal", None)
+        if move is not None:
+            move(1)
+
+    async def action_activate(self) -> None:
+        handle = getattr(self.app, "handle_button", None)
+        if handle is not None and self.id is not None:
+            await handle(self.id)
+
+
 class PanelButton(Button):
     """Button used inside the main nav/main/detail panel system."""
 
@@ -160,8 +185,8 @@ class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
     BINDINGS = [
         Binding("escape", "close", "Close"),
         Binding("enter", "close", "Close", show=False),
-        Binding("up,j", "item_previous", "Previous item", show=False),
-        Binding("down,k", "item_next", "Next item", show=False),
+        Binding("up,j", "item_previous", "Previous item", show=False, priority=True),
+        Binding("down,k", "item_next", "Next item", show=False, priority=True),
         Binding("page_up", "page_up", "Page up", show=False),
         Binding("page_down", "page_down", "Page down", show=False),
     ]
@@ -710,6 +735,28 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         margin-bottom: 1;
     }
 
+    #root-selection-toolbar {
+        height: 1;
+        margin-top: 0;
+        margin-bottom: 1;
+    }
+
+    RootSelectionAction {
+        width: 3;
+        height: 1;
+        padding: 0;
+        margin-right: 1;
+        content-align: center middle;
+        color: #ffffff;
+        background: #123447;
+        text-style: bold;
+    }
+
+    RootSelectionAction:focus {
+        background: #45e0ff;
+        color: #0d141c;
+    }
+
     #footer-spacer {
         height: 0;
         display: none;
@@ -931,6 +978,13 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if widget_id == "footer-height-setting":
             self.update_settings_row_state()
             return
+        if widget_id in {"select-all-roots", "deselect-all-roots", "toggle-all-roots"}:
+            event.stop()
+            action = self.query_one(f"#{widget_id}", RootSelectionAction)
+            self.sync_panel_from_widget(action)
+            action.focus()
+            await self.handle_button(widget_id)
+            return
         if widget_id in {"footer-height-decrease", "footer-height-increase"}:
             event.stop()
             await self.handle_button(widget_id)
@@ -1035,6 +1089,12 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             await self.remove_selected_root(delete_chunks=False)
         elif button_id == "remove-selected-root-delete-chunks":
             await self.remove_selected_root(delete_chunks=True)
+        elif button_id == "select-all-roots":
+            self.apply_root_selection("all")
+        elif button_id == "deselect-all-roots":
+            self.apply_root_selection("none")
+        elif button_id == "toggle-all-roots":
+            self.apply_root_selection("invert")
         elif button_id == "run-one-time-index":
             self.run_worker(self.index_one_time_path(), exclusive=True, group="index")
         elif button_id == "load-sources":
@@ -1067,14 +1127,23 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self.action_request_quit()
             return
 
-        panel_body = self.panel_scroll_target(panel_id)
+        if isinstance(focused, Input):
+            self.panel_index = self.PANEL_IDS.index(panel_id)
+            self.set_active_panel(panel_id)
+            self.focus_parent_or_panel(focused, panel_id)
+            return
+
+        active_panel_id = self.PANEL_IDS[self.panel_index]
+        if active_panel_id == "nav":
+            self.action_request_quit()
+            return
+
+        panel_body = self.panel_scroll_target(active_panel_id)
         if focused is panel_body:
             self.action_request_quit()
             return
 
-        self.set_focus(panel_body)
-        self.panel_index = self.PANEL_IDS.index(panel_id)
-        self.set_active_panel(panel_id)
+        self.focus_parent_or_panel(focused, active_panel_id)
 
     def action_request_quit(self) -> None:
         self.run_worker(self.confirm_quit(), exclusive=True, group="quit")
@@ -1142,6 +1211,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if self.current_page_id == "settings" and isinstance(focused, SettingStep) and focused.id:
             await self.handle_button(focused.id)
             return
+        if isinstance(focused, RootSelectionAction) and focused.id:
+            await self.handle_button(focused.id)
+            return
         if isinstance(focused, Input) and focused.id == "search-query":
             await self.run_search_from_input()
             return
@@ -1175,6 +1247,13 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
 
         if panel_id == "nav":
             self.focus_nav_button(self.nav_index)
+            return
+
+        focusables = self.panel_focusables(panel_id)
+        if focusables:
+            focusables[0].focus()
+            return
+        self.set_focus(self.panel_scroll_target(panel_id))
 
     def focus_panel_item(self, direction: int) -> None:
         focused = getattr(self, "focused", None)
@@ -1202,8 +1281,65 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             focused_index = focusables.index(focused)
         except ValueError:
             focused_index = -1 if direction > 0 else 0
+
+        if direction < 0 and focused_index <= 0:
+            self.focus_panel(0)
+            return
+
+        if isinstance(focused, RootSelectionAction):
+            group_indices = [
+                index
+                for index, widget in enumerate(focusables)
+                if isinstance(widget, RootSelectionAction)
+            ]
+            if group_indices:
+                if direction > 0:
+                    next_index = min(group_indices[-1] + 1, len(focusables) - 1)
+                else:
+                    next_index = max(group_indices[0] - 1, 0)
+                focusables[next_index].focus()
+                return
+
         next_index = (focused_index + direction) % len(focusables)
+        if isinstance(focusables[next_index], RootSelectionAction):
+            group_indices = [
+                index
+                for index, widget in enumerate(focusables)
+                if isinstance(widget, RootSelectionAction)
+            ]
+            if group_indices:
+                next_index = group_indices[0]
         focusables[next_index].focus()
+
+    def focus_panel_item_horizontal(self, direction: int) -> None:
+        focused = getattr(self, "focused", None)
+        panel_id = self.PANEL_IDS[self.panel_index]
+
+        if panel_id == "nav":
+            self.focus_nav_button(self.nav_index + direction)
+            return
+
+        if (
+            isinstance(focused, RootSelectionAction)
+            and self.panel_id_for_widget(focused) == panel_id
+        ):
+            actions = list(
+                self.query(f"#{panel_id} RootSelectionAction").results(RootSelectionAction)
+            )
+            if not actions:
+                return
+            try:
+                focused_index = actions.index(focused)
+            except ValueError:
+                focused_index = -1 if direction > 0 else 0
+            actions[(focused_index + direction) % len(actions)].focus()
+            return
+
+        if panel_id == "main" and direction > 0 and not self.compact:
+            self.focus_panel(2)
+            return
+        if panel_id == "detail" and direction < 0:
+            self.focus_panel(1)
 
     def scroll_active_panel_page(self, direction: int) -> None:
         focused = getattr(self, "focused", None)
@@ -1267,7 +1403,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         return list(
             self.query(
                 f"#{panel_id} Input, #{panel_id} Button, "
-                f"#{panel_id} ListView, #{panel_id} SelectionList, #{panel_id} SettingStep"
+                f"#{panel_id} ListView, #{panel_id} SelectionList, "
+                f"#{panel_id} SettingRow, #{panel_id} SettingStep, "
+                f"#{panel_id} RootSelectionAction"
             )
         )
 
@@ -1278,6 +1416,15 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             "detail": "detail-body",
         }[panel_id]
         return self.query_one(f"#{body_id}", PanelScroll)
+
+    def focus_parent_or_panel(self, widget: Any | None, panel_id: str) -> None:
+        parent = getattr(widget, "parent", None)
+        panel_body = self.panel_scroll_target(panel_id)
+        if parent is not None and parent is not self.screen:
+            self.set_focus(parent)
+            if getattr(self, "focused", None) is parent:
+                return
+        self.set_focus(panel_body)
 
     def set_mouse_enabled(self, enabled: bool) -> None:
         if enabled == self.mouse_enabled:
@@ -2024,6 +2171,12 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                 classes="muted",
             ),
             list_view,
+            Horizontal(
+                RootSelectionAction("*", id="select-all-roots"),
+                RootSelectionAction("-", id="deselect-all-roots"),
+                RootSelectionAction("~", id="toggle-all-roots"),
+                id="root-selection-toolbar",
+            ),
             add_input,
             PanelButton("Add root", id="add-root", classes="tui-secondary"),
             PanelButton("Reindex selected", id="reindex-selected-root", classes="tui-secondary"),
@@ -2043,7 +2196,8 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         )
         self._detail_text().update(
             "Managed roots are stored in indexing.memory_dirs/project_memory_dirs and are watched "
-            "by the background file watcher when the server or web app is running."
+            "by the background file watcher when the server or web app is running.\n\n"
+            "Selection controls: * selects all roots, - clears the selection, ~ inverts it."
         )
         if items:
             list_view.highlighted = 0
@@ -2146,6 +2300,19 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         except NoMatches:
             return []
         return [Path(path).expanduser().resolve() for path in selection_list.selected]
+
+    def apply_root_selection(self, mode: str) -> None:
+        try:
+            selection_list = self.query_one("#root-list", SelectionList)
+        except NoMatches:
+            return
+        if mode == "all":
+            selection_list.select_all()
+        elif mode == "none":
+            selection_list.deselect_all()
+        elif mode == "invert":
+            selection_list.toggle_all()
+        self.update_root_detail(selection_list.highlighted or 0)
 
     async def reindex_selected_root(self, *, force: bool) -> None:
         if self.comp is None:

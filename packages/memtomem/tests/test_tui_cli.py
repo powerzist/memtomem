@@ -21,6 +21,7 @@ from memtomem.tui.app import (
     ModalButton,
     PanelButton,
     QuitConfirmScreen,
+    RootSelectionAction,
     SettingRow,
     SettingStep,
 )
@@ -374,6 +375,12 @@ async def test_tui_vertical_navigation_moves_within_active_panel() -> None:
 
         await pilot.press("right")
         assert app.PANEL_IDS[app.panel_index] == "main"
+        assert getattr(app.focused, "id", None) == "main-one"
+        await pilot.press("left")
+        assert app.PANEL_IDS[app.panel_index] == "nav"
+        await pilot.press("right")
+        assert app.PANEL_IDS[app.panel_index] == "main"
+        assert getattr(app.focused, "id", None) == "main-one"
 
         app.query_one("#main-one", Button).focus()
         await pilot.press("down")
@@ -962,13 +969,109 @@ async def test_tui_managed_roots_uses_selection_list(tmp_path) -> None:
         assert root_list.highlighted == 0
         assert root_list.render_line(0).text.startswith("[ ]")
 
+        app.focus_panel(1)
         root_list.focus()
         await pilot.press("space")
+        assert root_list.render_line(0).text.startswith("[*]")
+        await pilot.press("enter")
+        assert root_list.render_line(0).text.startswith("[ ]")
+        await pilot.press("enter")
         assert root_list.render_line(0).text.startswith("[*]")
         await pilot.press("down")
         await pilot.press("space")
 
         assert root_list.selected == [str(root_a.resolve()), str(root_b.resolve())]
+
+
+async def test_tui_managed_roots_selection_toolbar(tmp_path) -> None:
+    class Storage:
+        async def get_source_files_with_counts(self):
+            return []
+
+    root_a = tmp_path / "a"
+    root_b = tmp_path / "b"
+    root_a.mkdir()
+    root_b.mkdir()
+
+    class Indexing:
+        memory_dirs = [root_a, root_b]
+        supported_extensions = frozenset({".md"})
+
+        def all_index_roots(self):
+            return self.memory_dirs
+
+    app = make_tui_app()
+    app.comp = SimpleNamespace(storage=Storage(), config=SimpleNamespace(indexing=Indexing()))
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.render_index("roots")
+        await pilot.pause()
+
+        root_list = app.query_one("#root-list", ManagedRootsSelectionList)
+        assert app.query_one("#select-all-roots", RootSelectionAction).content == "*"
+        assert app.query_one("#deselect-all-roots", RootSelectionAction).content == "-"
+        assert app.query_one("#toggle-all-roots", RootSelectionAction).content == "~"
+        assert "root-selection-label" not in {widget.id for widget in app.query("*")}
+        assert "* selects all roots" in app.query_one("#detail-text", Static).content
+
+        await app.handle_button("select-all-roots")
+        assert root_list.selected == [str(root_a.resolve()), str(root_b.resolve())]
+
+        await app.handle_button("deselect-all-roots")
+        assert root_list.selected == []
+
+        root_list.select(str(root_a.resolve()))
+        await app.handle_button("toggle-all-roots")
+        assert root_list.selected == [str(root_b.resolve())]
+
+
+async def test_tui_managed_roots_selection_tokens_are_interactive(tmp_path) -> None:
+    class Storage:
+        async def get_source_files_with_counts(self):
+            return []
+
+    root_a = tmp_path / "a"
+    root_b = tmp_path / "b"
+    root_a.mkdir()
+    root_b.mkdir()
+
+    class Indexing:
+        memory_dirs = [root_a, root_b]
+        supported_extensions = frozenset({".md"})
+
+        def all_index_roots(self):
+            return self.memory_dirs
+
+    app = make_tui_app()
+    app.comp = SimpleNamespace(storage=Storage(), config=SimpleNamespace(indexing=Indexing()))
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.render_index("roots")
+        await pilot.pause()
+
+        root_list = app.query_one("#root-list", ManagedRootsSelectionList)
+
+        await pilot.click("#select-all-roots")
+        await pilot.pause()
+        assert root_list.selected == [str(root_a.resolve()), str(root_b.resolve())]
+        assert getattr(app.focused, "id", None) == "select-all-roots"
+
+        await pilot.press("right")
+        assert getattr(app.focused, "id", None) == "deselect-all-roots"
+        await pilot.press("right")
+        assert getattr(app.focused, "id", None) == "toggle-all-roots"
+        await pilot.press("left")
+        assert getattr(app.focused, "id", None) == "deselect-all-roots"
+        await pilot.press("down")
+        assert getattr(app.focused, "id", None) == "add-root-path"
+        await pilot.press("up")
+        assert getattr(app.focused, "id", None) == "select-all-roots"
+
+        app.query_one("#deselect-all-roots", RootSelectionAction).focus()
+        await pilot.press("enter")
+        assert root_list.selected == []
 
 
 async def test_tui_reindex_runs_for_selected_roots(tmp_path) -> None:
