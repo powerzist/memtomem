@@ -1,0 +1,409 @@
+KeybindingsScreen {
+    align: center middle;
+}
+
+#keybindings-dialog {
+    width: 74;
+    max-width: 90%;
+    max-height: 90%;
+    border: solid #45e0ff;
+    background: #0d141c;
+    padding: 1 2;
+}
+
+#keybindings-title {
+    color: #45e0ff;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#keybindings-body {
+    margin-bottom: 1;
+}
+
+#keybindings-body-scroll {
+    height: 1fr;
+    overflow-y: auto;
+    margin-bottom: 1;
+}
+
+#keybindings-dialog.ascii-border {
+    border: ascii #45e0ff;
+}
+
+ConhostWarningScreen {
+    align: center middle;
+}
+
+#conhost-warning-dialog {
+    width: 76;
+    max-width: 90%;
+    max-height: 90%;
+    border: solid #f2c94c;
+    background: #0d141c;
+    padding: 1 2;
+}
+
+#conhost-warning-title {
+    color: #f2c94c;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#conhost-warning-body {
+    margin-bottom: 1;
+}
+
+#conhost-warning-dialog.ascii-border {
+    border: ascii #f2c94c;
+}
+
+QuitConfirmScreen {
+    align: center middle;
+}
+
+#quit-confirm-dialog {
+    width: 50;
+    max-width: 90%;
+    border: solid #f2c94c;
+    background: #0d141c;
+    padding: 1 2;
+}
+
+#quit-confirm-title {
+    color: #f2c94c;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#quit-confirm-body {
+    margin-bottom: 1;
+}
+
+#quit-confirm-dialog.ascii-border {
+    border: ascii #f2c94c;
+}
+
+Screen {
+    background: #0d141c;
+    color: #d8dee9;
+}
+
+#diagnostics {
+    height: 1fr;
+    padding: 1;
+}
+
+#diagnostics-title {
+    color: #45e0ff;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#diagnostics-input {
+    margin: 1 0;
+}
+
+#diagnostics-log {
+    height: 1fr;
+    border: solid #1d2a37;
+    padding: 1;
+}
+
+#diagnostics-log.ascii-border {
+    border: ascii #1d2a37;
+}
+
+#root {
+    height: 100%;
+    padding: 1 2;
+}
+
+#topbar {
+    height: 1;
+    layout: horizontal;
+    margin: 0 1 1 1;
+}
+
+#top-title {
+    width: 1fr;
+    color: #45e0ff;
+    text-style: bold;
+}
+
+#top-clock {
+    width: 10;
+    content-align: right middle;
+    color: #8b9aad;
+    margin-right: 1;
+}
+
+#menu-bar {
+    height: 1;
+    layout: horizontal;
+    margin: 0 1 1 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+MenuItem {
+    width: auto;
+    height: 1;
+    padding: 0 1;
+    margin-right: 1;
+    content-align: center middle;
+    color: #d8dee9;
+}
+
+MenuItem.inactive-panel-focus {
+    background: #123447;
+    color: #d8dee9;
+    outline: none;
+}
+
+MenuItem.active-panel-focus {
+    background: #45e0ff;
+    color: #0d141c;
+    text-style: bold;
+    outline: none;
+}
+
+#layout {
+    height: 1fr;
+}
+
+#main {
+    width: 1fr;
+    border: solid #233242;
+    margin-right: 1;
+    padding: 1 2;
+}
+
+#main-body {
+    height: 1fr;
+    overflow-y: auto;
+    padding-right: 1;
+}
+
+#detail {
+    width: 34;
+    border: solid #233242;
+    padding: 1;
+}
+
+#detail-body {
+    height: 1fr;
+    overflow-y: auto;
+    padding-right: 1;
+}
+
+.title {
+    color: #45e0ff;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+.muted {
+    color: #8b9aad;
+}
+
+.warning {
+    color: #ffd166;
+    text-style: bold;
+}
+
+.ok {
+    color: #4ade80;
+    text-style: bold;
+}
+
+.error {
+    color: #ff6b6b;
+    text-style: bold;
+}
+
+.inactive-panel-focus {
+    outline: tall #2f5f75;
+}
+
+.active-panel-focus {
+    outline: tall #45e0ff;
+}
+
+#main.active-panel,
+#detail.active-panel {
+    border: solid #45e0ff;
+}
+
+#main.ascii-border,
+#detail.ascii-border {
+    border: ascii #233242;
+}
+
+#main.ascii-border.active-panel,
+#detail.ascii-border.active-panel {
+    border: ascii #45e0ff;
+}
+
+#menu-bar.active-panel {
+    background: #101d28;
+}
+
+#index-log {
+    height: 1fr;
+    margin-top: 1;
+    border: solid #1d2a37;
+    padding: 1;
+}
+
+#search-query {
+    margin-bottom: 1;
+}
+
+#search-results {
+    height: 1fr;
+    margin-top: 1;
+}
+
+#index-tabs {
+    margin-bottom: 1;
+}
+
+#root-selection-toolbar {
+    height: 1;
+    margin-top: 0;
+    margin-bottom: 1;
+}
+
+RootSelectionAction {
+    width: 3;
+    height: 1;
+    padding: 0;
+    margin-right: 1;
+    content-align: center middle;
+    color: #ffffff;
+    background: #123447;
+    text-style: bold;
+}
+
+RootSelectionAction:focus {
+    background: #45e0ff;
+    color: #0d141c;
+}
+
+RootSelectionAction.active-panel-focus,
+RootSelectionAction.inactive-panel-focus {
+    outline: none;
+}
+
+#footer-spacer {
+    height: 0;
+    display: none;
+}
+
+#settings-list {
+    margin-top: 1;
+}
+
+#footer-height-row {
+    height: 1;
+    layout: horizontal;
+}
+
+SettingRow {
+    width: 1fr;
+    height: 1;
+    padding: 0 1;
+}
+
+SettingRow.active-nav {
+    background: #123447;
+    color: #ffffff;
+    text-style: bold;
+}
+
+SettingRow.editing-setting {
+    background: #1d4d35;
+    color: #ffffff;
+    text-style: bold;
+}
+
+SettingRow.active-panel-focus,
+SettingRow.inactive-panel-focus {
+    outline: none;
+}
+
+SettingStep {
+    width: 3;
+    height: 1;
+    padding: 0;
+    content-align: center middle;
+    color: #ffffff;
+    background: #123447;
+    text-style: bold;
+}
+
+SettingStep:focus {
+    background: #45e0ff;
+    color: #0d141c;
+}
+
+SettingStep.active-panel-focus,
+SettingStep.inactive-panel-focus {
+    outline: none;
+}
+
+#footer-height-value {
+    width: 3;
+    height: 1;
+    content-align: center middle;
+}
+
+#footer-height-value.editing-setting {
+    background: #45e0ff;
+    color: #0d141c;
+    text-style: bold;
+}
+
+#mouse-status {
+    width: 12;
+    content-align: right middle;
+    color: #8b9aad;
+    margin-right: 1;
+}
+
+Button {
+    margin-top: 1;
+    margin-right: 1;
+    color: #ffffff;
+    text-style: none;
+    border: tall #0d141c;
+}
+
+Button:hover {
+    border: tall #69737b;
+}
+
+Button.cyan {
+    background: #005f5f;
+}
+
+Button.blue {
+    background: #3b78ff;
+}
+
+Button.green {
+    background: #13a10e;
+}
+
+Button.red {
+    background: #e74856;
+}
+
+Button.yellow {
+    background: #c19c00;
+}
+
+ModalButton:focus {
+    outline: tall #45e0ff;
+}

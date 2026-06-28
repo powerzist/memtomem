@@ -35,7 +35,7 @@ from textual.widgets import (
 from memtomem.tui.catalog import COMMAND_CATALOG
 from memtomem.tui.clipboard import read_os_clipboard, write_os_clipboard
 from memtomem.tui.runtime import Readiness, ReadinessState, config_exists, inspect_readiness
-from memtomem.tui.shared import COMMON_PANEL_CSS, BorderStyleMixin, PanelScroll
+from memtomem.tui.shared import TUI_CSS, BorderStyleMixin, PanelScroll
 from memtomem.tui.terminal import BorderStyle, detect_terminal_profile, has_ime_limitations
 
 if TYPE_CHECKING:
@@ -88,8 +88,22 @@ class RootSelectionAction(Static, can_focus=True):
             await handle(self.id)
 
 
+class MenuItem(Static, can_focus=True):
+    """One item in the top menu bar."""
+
+    async def _on_click(self, event: events.Click) -> None:
+        prepare = getattr(self.app, "prepare_menu_item_click", None)
+        if prepare is not None and not prepare(self):
+            event.stop()
+            return
+        event.stop()
+        handle = getattr(self.app, "handle_button", None)
+        if handle is not None and self.id is not None:
+            await handle(self.id)
+
+
 class PanelButton(Button):
-    """Button used inside the main nav/main/detail panel system."""
+    """Button used inside the main/detail panel system."""
 
     async def _on_click(self, event: events.Click) -> None:
         prepare = getattr(self.app, "prepare_panel_button_click", None)
@@ -147,46 +161,13 @@ class ManagedRootsSelectionList(SelectionList[str]):
 class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
     """Modal help screen for keyboard shortcuts."""
 
-    CSS = """
-    KeybindingsScreen {
-        align: center middle;
-    }
-
-    #keybindings-dialog {
-        width: 74;
-        max-width: 90%;
-        max-height: 90%;
-        border: solid #45e0ff;
-        background: #0d141c;
-        padding: 1 2;
-    }
-
-    #keybindings-title {
-        color: #45e0ff;
-        text-style: bold;
-        margin-bottom: 1;
-    }
-
-    #keybindings-body {
-        margin-bottom: 1;
-    }
-
-    #keybindings-body-scroll {
-        height: 1fr;
-        overflow-y: auto;
-        margin-bottom: 1;
-    }
-
-    #keybindings-dialog.ascii-border {
-        border: ascii #45e0ff;
-    }
-    """ + COMMON_PANEL_CSS
+    CSS = TUI_CSS
 
     BINDINGS = [
         Binding("escape", "close", "Close"),
         Binding("enter", "close", "Close", show=False),
-        Binding("up,j", "item_previous", "Previous item", show=False, priority=True),
-        Binding("down,k", "item_next", "Next item", show=False, priority=True),
+        Binding("up,k", "item_previous", "Previous item", show=False, priority=True),
+        Binding("down,j", "item_next", "Next item", show=False, priority=True),
         Binding("page_up", "page_up", "Page up", show=False),
         Binding("page_down", "page_down", "Page down", show=False),
     ]
@@ -199,10 +180,11 @@ class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
         body = "\n".join(
             [
                 "Navigation",
-                "  Up/j            Move up within the current panel",
-                "  Down/k          Move down within the current panel",
+                "  Up/k            Move up within the current panel",
+                "  Down/j          Move down within the current panel",
                 "  PgUp/PgDn       Scroll the current panel by one page",
-                "  Left/Right, h/l Move focus between panels",
+                "  Left/Right, h/l Move within the current section",
+                "  F2/F3/F4        Focus menu/main/details",
                 "  Tab/Shift+Tab   Move focus between controls",
                 "  Enter           Activate the focused control",
                 "  Esc             Close modal / cancel current overlay",
@@ -230,7 +212,11 @@ class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
             yield Static("Keyboard shortcuts", id="keybindings-title")
             with PanelScroll(id="keybindings-body-scroll"):
                 yield Static(body, id="keybindings-body")
-            yield ModalButton("Close", id="close-keybindings", classes="tui-secondary")
+            yield ModalButton(
+                "Close",
+                id="close-keybindings",
+                classes="cyan",
+            )
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-keybindings":
@@ -255,34 +241,7 @@ class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
 class ConhostWarningScreen(BorderStyleMixin, ModalScreen[None]):
     """Startup warning for legacy Windows console hosts."""
 
-    CSS = """
-    ConhostWarningScreen {
-        align: center middle;
-    }
-
-    #conhost-warning-dialog {
-        width: 76;
-        max-width: 90%;
-        max-height: 90%;
-        border: solid #f2c94c;
-        background: #0d141c;
-        padding: 1 2;
-    }
-
-    #conhost-warning-title {
-        color: #f2c94c;
-        text-style: bold;
-        margin-bottom: 1;
-    }
-
-    #conhost-warning-body {
-        margin-bottom: 1;
-    }
-
-    #conhost-warning-dialog.ascii-border {
-        border: ascii #f2c94c;
-    }
-    """ + COMMON_PANEL_CSS
+    CSS = TUI_CSS
 
     BINDINGS = [
         Binding("escape", "close", "Close"),
@@ -303,7 +262,7 @@ class ConhostWarningScreen(BorderStyleMixin, ModalScreen[None]):
         with Vertical(id="conhost-warning-dialog", classes=dialog_classes):
             yield Static("Windows Terminal strongly recommended", id="conhost-warning-title")
             yield Static(body, id="conhost-warning-body")
-            yield ModalButton("Continue", id="close-conhost-warning", classes="tui-secondary")
+            yield ModalButton("Continue", id="close-conhost-warning", classes="cyan")
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-conhost-warning":
@@ -318,38 +277,12 @@ class QuitConfirmScreen(BorderStyleMixin, ModalScreen[bool]):
 
     BUTTON_IDS = ("confirm-quit", "cancel-quit")
 
-    CSS = """
-    QuitConfirmScreen {
-        align: center middle;
-    }
-
-    #quit-confirm-dialog {
-        width: 50;
-        max-width: 90%;
-        border: solid #f2c94c;
-        background: #0d141c;
-        padding: 1 2;
-    }
-
-    #quit-confirm-title {
-        color: #f2c94c;
-        text-style: bold;
-        margin-bottom: 1;
-    }
-
-    #quit-confirm-body {
-        margin-bottom: 1;
-    }
-
-    #quit-confirm-dialog.ascii-border {
-        border: ascii #f2c94c;
-    }
-    """ + COMMON_PANEL_CSS
+    CSS = TUI_CSS
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel", show=False),
-        Binding("left,h,up,j", "focus_yes", "Yes", show=False),
-        Binding("right,l,down,k", "focus_no", "No", show=False),
+        Binding("left,h,up,k", "focus_yes", "Yes", show=False),
+        Binding("right,l,down,j", "focus_no", "No", show=False),
     ]
 
     def __init__(self, *, border_style: BorderStyle = "solid") -> None:
@@ -395,7 +328,7 @@ class QuitConfirmScreen(BorderStyleMixin, ModalScreen[bool]):
     def set_quit_button_styles(self, active_button_id: str) -> None:
         for button_id in self.BUTTON_IDS:
             button = self.query_one(f"#{button_id}", Button)
-            button.set_class(button_id == active_button_id, "active-nav")
+            button.set_class(button_id == active_button_id, "cyan")
 
 
 class TuiInput(Input):
@@ -427,6 +360,18 @@ class TuiInput(Input):
             toggle = getattr(self.app, "action_toggle_mouse_mode", None)
             if toggle is not None:
                 toggle()
+            return
+        if event.key in {"f2", "f3", "f4"}:
+            event.stop()
+            event.prevent_default()
+            action_name = {
+                "f2": "action_focus_menu",
+                "f3": "action_focus_main",
+                "f4": "action_focus_detail",
+            }[event.key]
+            action = getattr(self.app, action_name, None)
+            if action is not None:
+                action()
             return
         if event.key == "f7":
             event.stop()
@@ -492,37 +437,7 @@ class DiagnosticInput(TuiInput):
 class InputDiagnosticsApp(BorderStyleMixin, App[None]):
     """Small Textual app for inspecting terminal input events."""
 
-    CSS = """
-    Screen {
-        background: #0d141c;
-        color: #d8dee9;
-    }
-
-    #diagnostics {
-        height: 1fr;
-        padding: 1;
-    }
-
-    #diagnostics-title {
-        color: #45e0ff;
-        text-style: bold;
-        margin-bottom: 1;
-    }
-
-    #diagnostics-input {
-        margin: 1 0;
-    }
-
-    #diagnostics-log {
-        height: 1fr;
-        border: solid #1d2a37;
-        padding: 1;
-    }
-
-    #diagnostics-log.ascii-border {
-        border: ascii #1d2a37;
-    }
-    """ + COMMON_PANEL_CSS
+    CSS = TUI_CSS
 
     BINDINGS = [
         Binding("escape,ctrl+q", "quit", "Quit"),
@@ -583,7 +498,9 @@ class InputDiagnosticsApp(BorderStyleMixin, App[None]):
         )
 
     def _append_input_event(self, event_type: str, fields: list[str]) -> None:
-        self.input_events.append(f"{len(self.input_events) + 1:03d} {event_type}: " + "  ".join(fields))
+        self.input_events.append(
+            f"{len(self.input_events) + 1:03d} {event_type}: " + "  ".join(fields)
+        )
         del self.input_events[:-40]
         self.query_one("#diagnostics-log-text", Static).update("\n".join(self.input_events))
         value = self.query_one("#diagnostics-input", DiagnosticInput).value
@@ -600,229 +517,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     * ready -> dashboard
     """
 
-    CSS = """
-    Screen {
-        background: #0d141c;
-        color: #d8dee9;
-    }
-
-    #root {
-        height: 100%;
-        padding: 1 2;
-    }
-
-    #topbar {
-        height: 1;
-        layout: horizontal;
-        margin: 0 1 1 1;
-    }
-
-    #top-title {
-        width: 1fr;
-        color: #45e0ff;
-        text-style: bold;
-    }
-
-    #top-clock {
-        width: 10;
-        content-align: right middle;
-        color: #8b9aad;
-        margin-right: 1;
-    }
-
-    #layout {
-        height: 1fr;
-    }
-
-    #nav {
-        width: 24;
-        min-width: 18;
-        border: solid #233242;
-        margin-right: 1;
-        padding: 1;
-    }
-
-    #nav-body {
-        height: 1fr;
-        overflow-y: auto;
-    }
-
-    #main {
-        width: 1fr;
-        border: solid #233242;
-        margin-right: 1;
-        padding: 1 2;
-    }
-
-    #main-body {
-        height: 1fr;
-        overflow-y: auto;
-        padding-right: 1;
-    }
-
-    #detail {
-        width: 34;
-        border: solid #233242;
-        padding: 1;
-    }
-
-    #detail-body {
-        height: 1fr;
-        overflow-y: auto;
-        padding-right: 1;
-    }
-
-    .title {
-        color: #45e0ff;
-        text-style: bold;
-        margin-bottom: 1;
-    }
-
-    .muted {
-        color: #8b9aad;
-    }
-
-    .warning {
-        color: #ffd166;
-        text-style: bold;
-    }
-
-    .ok {
-        color: #4ade80;
-        text-style: bold;
-    }
-
-    .error {
-        color: #ff6b6b;
-        text-style: bold;
-    }
-
-    #nav.active-panel,
-    #main.active-panel,
-    #detail.active-panel {
-        border: solid #45e0ff;
-    }
-
-    #nav.ascii-border,
-    #main.ascii-border,
-    #detail.ascii-border {
-        border: ascii #233242;
-    }
-
-    #nav.ascii-border.active-panel,
-    #main.ascii-border.active-panel,
-    #detail.ascii-border.active-panel {
-        border: ascii #45e0ff;
-    }
-
-    #index-log {
-        height: 1fr;
-        margin-top: 1;
-        border: solid #1d2a37;
-        padding: 1;
-    }
-
-    #search-query {
-        margin-bottom: 1;
-    }
-
-    #search-results {
-        height: 1fr;
-        margin-top: 1;
-    }
-
-    #index-tabs {
-        margin-bottom: 1;
-    }
-
-    #root-selection-toolbar {
-        height: 1;
-        margin-top: 0;
-        margin-bottom: 1;
-    }
-
-    RootSelectionAction {
-        width: 3;
-        height: 1;
-        padding: 0;
-        margin-right: 1;
-        content-align: center middle;
-        color: #ffffff;
-        background: #123447;
-        text-style: bold;
-    }
-
-    RootSelectionAction:focus {
-        background: #45e0ff;
-        color: #0d141c;
-    }
-
-    #footer-spacer {
-        height: 0;
-        display: none;
-    }
-
-    #settings-list {
-        margin-top: 1;
-    }
-
-    #footer-height-row {
-        height: 1;
-        layout: horizontal;
-    }
-
-    SettingRow {
-        width: 1fr;
-        height: 1;
-        padding: 0 1;
-    }
-
-    SettingRow.active-nav {
-        background: #123447;
-        color: #ffffff;
-        text-style: bold;
-    }
-
-    SettingRow.editing-setting {
-        background: #1d4d35;
-        color: #ffffff;
-        text-style: bold;
-    }
-
-    SettingStep {
-        width: 3;
-        height: 1;
-        padding: 0;
-        content-align: center middle;
-        color: #ffffff;
-        background: #123447;
-        text-style: bold;
-    }
-
-    SettingStep:focus {
-        background: #45e0ff;
-        color: #0d141c;
-    }
-
-    #footer-height-value {
-        width: 3;
-        height: 1;
-        content-align: center middle;
-    }
-
-    #footer-height-value.editing-setting {
-        background: #45e0ff;
-        color: #0d141c;
-        text-style: bold;
-    }
-
-    #mouse-status {
-        width: 12;
-        content-align: right middle;
-        color: #8b9aad;
-        margin-right: 1;
-    }
-    """ + COMMON_PANEL_CSS
+    CSS = TUI_CSS
 
     BINDINGS = [
         Binding("escape", "escape", "Escape", show=False),
@@ -830,14 +525,17 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         Binding("ctrl+r", "refresh", "Refresh"),
         Binding("ctrl+k", "show_catalog", "Commands"),
         Binding("?", "show_keybindings", "Help"),
-        Binding("up,j", "item_previous", "Previous item", show=False),
-        Binding("down,k", "item_next", "Next item", show=False),
+        Binding("up,k", "item_previous", "Previous item", show=False),
+        Binding("down,j", "item_next", "Next item", show=False),
         Binding("page_up", "page_up", "Page up", show=False),
         Binding("pageup", "page_up", "Page up", show=False),
         Binding("page_down", "page_down", "Page down", show=False),
         Binding("pagedown", "page_down", "Page down", show=False),
-        Binding("left,h", "panel_previous", "Previous panel", show=False),
-        Binding("right,l", "panel_next", "Next panel", show=False),
+        Binding("left,h", "item_left", "Previous item", show=False),
+        Binding("right,l", "item_right", "Next item", show=False),
+        Binding("f2", "focus_menu", "Menu", show=False),
+        Binding("f3", "focus_main", "Main", show=False),
+        Binding("f4", "focus_detail", "Details", show=False),
         Binding("f6,alt+m", "toggle_mouse_mode", "Mouse mode", show=False),
         Binding("f7", "tab_previous", "Previous tab", show=False),
         Binding("f8", "tab_next", "Next tab", show=False),
@@ -854,7 +552,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         "nav-refresh",
         "nav-help",
     )
-    PANEL_IDS = ("nav", "main", "detail")
+    PANEL_IDS = ("menu", "main", "detail")
 
     def __init__(
         self,
@@ -869,6 +567,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.comp: Any | None = None
         self.readiness: Readiness | None = None
         self.compact = False
+        self.menu_compact = False
         self.startup_refresh = startup_refresh
         self.nav_index = 0
         self.panel_index = 0
@@ -885,6 +584,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.test_detail_section = "alpha"
         self.current_page_id = "dashboard"
         self.ui_state: dict[tuple[str, str, str | None, str], UiWidgetState] = {}
+        self.panel_focus_ids: dict[str, str | None] = {
+            panel_id: None for panel_id in self.PANEL_IDS
+        }
         self.skip_next_main_state_save = False
         self.skip_next_detail_state_save = False
         self.focus_next_main_tabs = False
@@ -900,18 +602,16 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                 yield Static("memtomem", id="top-title")
                 yield Static("", id="mouse-status")
                 yield Static("", id="top-clock")
+            with Horizontal(id="menu-bar"):
+                yield MenuItem("Dashboard", id="nav-dashboard")
+                yield MenuItem("Search", id="nav-search")
+                yield MenuItem("Index", id="nav-index")
+                yield MenuItem("Test", id="nav-test")
+                yield MenuItem("Commands", id="nav-commands")
+                yield MenuItem("Settings", id="nav-settings")
+                yield MenuItem("Refresh", id="nav-refresh")
+                yield MenuItem("Help", id="nav-help")
             with Horizontal(id="layout"):
-                with Vertical(id="nav", classes=self.border_class):
-                    with PanelScroll(id="nav-body"):
-                        yield Static("Navigation", classes="title")
-                        yield PanelButton("Dashboard", id="nav-dashboard")
-                        yield PanelButton("Search", id="nav-search")
-                        yield PanelButton("Index", id="nav-index")
-                        yield PanelButton("Test", id="nav-test")
-                        yield PanelButton("Commands", id="nav-commands")
-                        yield PanelButton("Settings", id="nav-settings")
-                        yield PanelButton("Refresh", id="nav-refresh")
-                        yield PanelButton("Help", id="nav-help")
                 with Vertical(id="main", classes=self.border_class):
                     with PanelScroll(id="main-body"):
                         yield Static("Loading memtomem state...", id="main-content")
@@ -944,13 +644,12 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
 
     async def on_resize(self, event: events.Resize) -> None:
         compact = event.size.width < 100
-        if compact == self.compact:
+        menu_compact = event.size.height < 12
+        if compact == self.compact and menu_compact == self.menu_compact:
             return
         self.compact = compact
-        detail = self.query_one("#detail")
-        detail.display = not compact
-        if compact and self.panel_index == 2:
-            self.focus_panel(1)
+        self.menu_compact = menu_compact
+        self.update_compact_visibility()
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id or ""
@@ -1010,6 +709,12 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self.update_root_detail(event.selection_index)
 
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        panel_id = self.panel_id_for_widget(event.widget)
+        if panel_id is not None and getattr(event.widget, "id", None):
+            self.panel_focus_ids[panel_id] = event.widget.id
+            if panel_id == "menu" and event.widget.id in self.NAV_BUTTON_IDS:
+                self.nav_index = self.NAV_BUTTON_IDS.index(event.widget.id)
+            self.update_panel_focus_styles()
         if self.current_page_id == "settings":
             self.update_settings_row_state()
 
@@ -1103,7 +808,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self.adjust_footer_height_from_mouse(-1)
         elif button_id == "footer-height-increase":
             self.adjust_footer_height_from_mouse(1)
-        elif button_id == "refresh-after-index":
+        elif button_id == "refresh-after-index" or button_id.startswith(
+            "dashboard-refresh-preview-"
+        ):
             await self.refresh_readiness()
         elif button_id == "nav-help":
             self.action_show_keybindings()
@@ -1123,7 +830,11 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
 
         focused = getattr(self, "focused", None)
         panel_id = self.panel_id_for_widget(focused)
+        active_panel_id = self.PANEL_IDS[self.panel_index]
         if panel_id is None:
+            if active_panel_id in {"main", "detail"}:
+                self.focus_panel_by_id("menu")
+                return
             self.action_request_quit()
             return
 
@@ -1133,14 +844,13 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self.focus_parent_or_panel(focused, panel_id)
             return
 
-        active_panel_id = self.PANEL_IDS[self.panel_index]
-        if active_panel_id == "nav":
+        if active_panel_id == "menu":
             self.action_request_quit()
             return
 
         panel_body = self.panel_scroll_target(active_panel_id)
         if focused is panel_body:
-            self.action_request_quit()
+            self.focus_panel_by_id("menu")
             return
 
         self.focus_parent_or_panel(focused, active_panel_id)
@@ -1149,9 +859,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.run_worker(self.confirm_quit(), exclusive=True, group="quit")
 
     async def confirm_quit(self) -> None:
-        should_quit = await self.push_screen_wait(
-            QuitConfirmScreen(border_style=self.border_style)
-        )
+        should_quit = await self.push_screen_wait(QuitConfirmScreen(border_style=self.border_style))
         if should_quit:
             self.exit()
 
@@ -1162,14 +870,29 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.push_screen(KeybindingsScreen(border_style=self.border_style))
 
     def action_panel_previous(self) -> None:
-        if self.current_page_id == "settings" and self.settings_editing:
-            return
-        self.focus_panel(self.panel_index - 1)
+        self.action_item_left()
 
     def action_panel_next(self) -> None:
+        self.action_item_right()
+
+    def action_focus_menu(self) -> None:
+        self.focus_panel_by_id("menu")
+
+    def action_focus_main(self) -> None:
+        self.focus_panel_by_id("main")
+
+    def action_focus_detail(self) -> None:
+        self.focus_panel_by_id("detail")
+
+    def action_item_left(self) -> None:
         if self.current_page_id == "settings" and self.settings_editing:
             return
-        self.focus_panel(self.panel_index + 1)
+        self.focus_panel_item_horizontal(-1)
+
+    def action_item_right(self) -> None:
+        if self.current_page_id == "settings" and self.settings_editing:
+            return
+        self.focus_panel_item_horizontal(1)
 
     def action_item_previous(self) -> None:
         if self.current_page_id == "settings" and self.panel_index == 1:
@@ -1226,120 +949,117 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if isinstance(focused, Button) and focused.id:
             await self.handle_button(focused.id)
             return
+        if isinstance(focused, MenuItem) and focused.id:
+            await self.handle_button(focused.id)
+            return
 
     def set_nav_selection(self, index: int) -> None:
         self.nav_index = index % len(self.NAV_BUTTON_IDS)
-        for idx, button_id in enumerate(self.NAV_BUTTON_IDS):
-            button = self.query_one(f"#{button_id}", Button)
-            button.set_class(idx == self.nav_index, "active-nav")
 
     def focus_nav_button(self, index: int) -> None:
-        self.set_nav_selection(index)
-        self.panel_index = 0
-        self.query_one(f"#{self.NAV_BUTTON_IDS[self.nav_index]}", Button).focus()
-        self.set_active_panel("nav")
+        bounded_index = max(0, min(len(self.NAV_BUTTON_IDS) - 1, index))
+        self.set_nav_selection(bounded_index)
+        self.focus_panel_by_id("menu", target_id=self.NAV_BUTTON_IDS[self.nav_index])
 
     def focus_panel(self, index: int) -> None:
-        max_index = 1 if self.compact else len(self.PANEL_IDS) - 1
-        self.panel_index = index % (max_index + 1)
-        panel_id = self.PANEL_IDS[self.panel_index]
+        bounded_index = max(0, min(len(self.PANEL_IDS) - 1, index))
+        self.focus_panel_by_id(self.PANEL_IDS[bounded_index])
+
+    def focus_panel_by_id(self, panel_id: str, *, target_id: str | None = None) -> None:
+        if panel_id not in self.PANEL_IDS:
+            return
+        self.panel_index = self.PANEL_IDS.index(panel_id)
         self.set_active_panel(panel_id)
+        self.update_compact_visibility()
 
-        if panel_id == "nav":
-            self.focus_nav_button(self.nav_index)
-            return
-
-        focusables = self.panel_focusables(panel_id)
-        if focusables:
-            focusables[0].focus()
-            return
-        self.set_focus(self.panel_scroll_target(panel_id))
+        if target_id is None:
+            target_id = self.panel_focus_ids.get(panel_id)
+        target = self.focusable_by_id(panel_id, target_id)
+        if target is None:
+            focusables = self.panel_focusables(panel_id)
+            target = focusables[0] if focusables else self.panel_scroll_target(panel_id)
+        if getattr(target, "id", None):
+            self.panel_focus_ids[panel_id] = target.id
+            if panel_id == "menu" and target.id in self.NAV_BUTTON_IDS:
+                self.set_nav_selection(self.NAV_BUTTON_IDS.index(target.id))
+        target.focus()
+        self.update_panel_focus_styles()
 
     def focus_panel_item(self, direction: int) -> None:
         focused = getattr(self, "focused", None)
 
         panel_id = self.PANEL_IDS[self.panel_index]
-        if panel_id == "nav":
-            self.focus_nav_button(self.nav_index + direction)
+        if panel_id == "menu":
+            if direction > 0:
+                self.focus_panel_by_id("main")
             return
 
         if (
             isinstance(focused, (ListView, SelectionList))
             and self.panel_id_for_widget(focused) == panel_id
         ):
+            current_index = getattr(focused, "index", None)
+            if isinstance(focused, SelectionList):
+                current_index = getattr(focused, "highlighted", None)
+            if direction < 0 and (current_index is None or current_index <= 0):
+                self.focus_panel_by_id("menu")
+                return
             if direction < 0:
                 focused.action_cursor_up()
-            else:
+            elif current_index is None or current_index < len(focused.children) - 1:
                 focused.action_cursor_down()
-            return
-
-        focusables = self.panel_focusables(panel_id)
-        if not focusables:
-            return
-
-        try:
-            focused_index = focusables.index(focused)
-        except ValueError:
-            focused_index = -1 if direction > 0 else 0
-
-        if direction < 0 and focused_index <= 0:
-            self.focus_panel(0)
-            return
-
-        if isinstance(focused, RootSelectionAction):
-            group_indices = [
-                index
-                for index, widget in enumerate(focusables)
-                if isinstance(widget, RootSelectionAction)
-            ]
-            if group_indices:
-                if direction > 0:
-                    next_index = min(group_indices[-1] + 1, len(focusables) - 1)
-                else:
-                    next_index = max(group_indices[0] - 1, 0)
-                focusables[next_index].focus()
-                return
-
-        next_index = (focused_index + direction) % len(focusables)
-        if isinstance(focusables[next_index], RootSelectionAction):
-            group_indices = [
-                index
-                for index, widget in enumerate(focusables)
-                if isinstance(widget, RootSelectionAction)
-            ]
-            if group_indices:
-                next_index = group_indices[0]
-        focusables[next_index].focus()
-
-    def focus_panel_item_horizontal(self, direction: int) -> None:
-        focused = getattr(self, "focused", None)
-        panel_id = self.PANEL_IDS[self.panel_index]
-
-        if panel_id == "nav":
-            self.focus_nav_button(self.nav_index + direction)
             return
 
         if (
             isinstance(focused, RootSelectionAction)
             and self.panel_id_for_widget(focused) == panel_id
         ):
+            focusables = self.panel_focusables(panel_id)
+            action_indices = [
+                index
+                for index, widget in enumerate(focusables)
+                if isinstance(widget, RootSelectionAction)
+            ]
+            if action_indices and direction > 0:
+                next_index = min(action_indices[-1] + 1, len(focusables) - 1)
+                focusables[next_index].focus()
+                return
+            if action_indices and direction < 0:
+                previous_index = max(action_indices[0] - 1, 0)
+                focusables[previous_index].focus()
+                return
+
+        if getattr(focused, "id", None) == "add-root-path" and direction < 0:
             actions = list(
                 self.query(f"#{panel_id} RootSelectionAction").results(RootSelectionAction)
             )
-            if not actions:
+            if actions:
+                actions[0].focus()
                 return
-            try:
-                focused_index = actions.index(focused)
-            except ValueError:
-                focused_index = -1 if direction > 0 else 0
-            actions[(focused_index + direction) % len(actions)].focus()
+
+        if self.focus_directional_item(panel_id, dx=0, dy=direction):
             return
 
-        if panel_id == "main" and direction > 0 and not self.compact:
-            self.focus_panel(2)
+        if direction < 0:
+            self.focus_panel_by_id("menu")
+
+    def focus_panel_item_horizontal(self, direction: int) -> None:
+        panel_id = self.PANEL_IDS[self.panel_index]
+
+        if panel_id == "menu":
+            next_index = self.nav_index + direction
+            if 0 <= next_index < len(self.NAV_BUTTON_IDS):
+                self.focus_nav_button(next_index)
+            return
+
+        if self.focus_directional_item(panel_id, dx=direction, dy=0):
+            return
+
+        if panel_id == "main" and direction > 0:
+            self.focus_panel_by_id("detail")
             return
         if panel_id == "detail" and direction < 0:
-            self.focus_panel(1)
+            self.focus_panel_by_id("main")
 
     def scroll_active_panel_page(self, direction: int) -> None:
         focused = getattr(self, "focused", None)
@@ -1378,7 +1098,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
 
     def active_tabs(self) -> Tabs | None:
         panel_id = self.PANEL_IDS[self.panel_index]
-        panel = self.query_one(f"#{panel_id}")
+        panel = self.query_one(f"#{self.panel_container_id(panel_id)}")
         try:
             return panel.query(Tabs).first()
         except NoMatches:
@@ -1402,20 +1122,140 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     def panel_focusables(self, panel_id: str) -> list[Any]:
         return list(
             self.query(
-                f"#{panel_id} Input, #{panel_id} Button, "
-                f"#{panel_id} ListView, #{panel_id} SelectionList, "
-                f"#{panel_id} SettingRow, #{panel_id} SettingStep, "
-                f"#{panel_id} RootSelectionAction"
+                f"#{self.panel_container_id(panel_id)} Input, "
+                f"#{self.panel_container_id(panel_id)} Button, "
+                f"#{self.panel_container_id(panel_id)} MenuItem, "
+                f"#{self.panel_container_id(panel_id)} ListView, "
+                f"#{self.panel_container_id(panel_id)} SelectionList, "
+                f"#{self.panel_container_id(panel_id)} Tabs, "
+                f"#{self.panel_container_id(panel_id)} SettingRow, "
+                f"#{self.panel_container_id(panel_id)} SettingStep, "
+                f"#{self.panel_container_id(panel_id)} RootSelectionAction"
             )
         )
 
     def panel_scroll_target(self, panel_id: str) -> PanelScroll:
         body_id = {
-            "nav": "nav-body",
             "main": "main-body",
             "detail": "detail-body",
         }[panel_id]
         return self.query_one(f"#{body_id}", PanelScroll)
+
+    def panel_container_id(self, panel_id: str) -> str:
+        return "menu-bar" if panel_id == "menu" else panel_id
+
+    def focusable_by_id(self, panel_id: str, widget_id: str | None) -> Any | None:
+        if widget_id is None:
+            return None
+        for widget in self.panel_focusables(panel_id):
+            if getattr(widget, "id", None) == widget_id:
+                return widget
+        return None
+
+    def focus_directional_item(self, panel_id: str, *, dx: int, dy: int) -> bool:
+        focused = getattr(self, "focused", None)
+        if self.panel_id_for_widget(focused) != panel_id:
+            self.focus_panel_by_id(panel_id)
+            return True
+
+        focusables = self.panel_focusables(panel_id)
+        if not focusables:
+            return False
+        if focused not in focusables:
+            focusables[0].focus()
+            return True
+
+        focused_region = getattr(focused, "region", None)
+        if focused_region is None:
+            return self.focus_linear_fallback(focusables, focused, dx=dx, dy=dy)
+
+        focused_center_x = focused_region.x + focused_region.width / 2
+        focused_center_y = focused_region.y + focused_region.height / 2
+        candidates: list[tuple[float, float, Any]] = []
+        for candidate in focusables:
+            if candidate is focused:
+                continue
+            region = getattr(candidate, "region", None)
+            if region is None:
+                continue
+            candidate_center_x = region.x + region.width / 2
+            candidate_center_y = region.y + region.height / 2
+            delta_x = candidate_center_x - focused_center_x
+            delta_y = candidate_center_y - focused_center_y
+            if dx < 0 and delta_x >= 0:
+                continue
+            if dx > 0 and delta_x <= 0:
+                continue
+            if dy < 0 and delta_y >= 0:
+                continue
+            if dy > 0 and delta_y <= 0:
+                continue
+            vertical_overlap = self.range_overlap(
+                focused_region.y,
+                focused_region.y + focused_region.height,
+                region.y,
+                region.y + region.height,
+            )
+            horizontal_overlap = self.range_overlap(
+                focused_region.x,
+                focused_region.x + focused_region.width,
+                region.x,
+                region.x + region.width,
+            )
+            if dx and vertical_overlap <= 0:
+                continue
+            if dy and horizontal_overlap <= 0:
+                continue
+            primary = abs(delta_x) if dx else abs(delta_y)
+            secondary = abs(delta_y) if dx else abs(delta_x)
+            candidates.append((primary, secondary, candidate))
+
+        if not candidates:
+            return False
+        _, _, target = min(candidates, key=lambda item: (item[0], item[1]))
+        target.focus()
+        return True
+
+    def range_overlap(self, start_a: float, end_a: float, start_b: float, end_b: float) -> float:
+        return min(end_a, end_b) - max(start_a, start_b)
+
+    def focus_linear_fallback(
+        self, focusables: list[Any], focused: Any, *, dx: int, dy: int
+    ) -> bool:
+        try:
+            focused_index = focusables.index(focused)
+        except ValueError:
+            return False
+        direction = dx or dy
+        next_index = focused_index + direction
+        if next_index < 0 or next_index >= len(focusables):
+            return False
+        focusables[next_index].focus()
+        return True
+
+    def update_compact_visibility(self) -> None:
+        active_panel_id = self.PANEL_IDS[self.panel_index]
+        try:
+            self.query_one("#menu-bar").display = not self.menu_compact or active_panel_id == "menu"
+            self.query_one("#main").display = not self.compact or active_panel_id == "main"
+            self.query_one("#detail").display = not self.compact or active_panel_id == "detail"
+        except NoMatches:
+            return
+
+    def update_panel_focus_styles(self) -> None:
+        active_panel_id = self.PANEL_IDS[self.panel_index]
+        for panel_id in self.PANEL_IDS:
+            remembered_id = self.panel_focus_ids.get(panel_id)
+            for widget in self.panel_focusables(panel_id):
+                is_remembered = getattr(widget, "id", None) == remembered_id
+                widget.set_class(
+                    is_remembered and panel_id == active_panel_id,
+                    "active-panel-focus",
+                )
+                widget.set_class(
+                    is_remembered and panel_id != active_panel_id,
+                    "inactive-panel-focus",
+                )
 
     def focus_parent_or_panel(self, widget: Any | None, panel_id: str) -> None:
         parent = getattr(widget, "parent", None)
@@ -1454,6 +1294,15 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.focus_click_target(button)
         return True
 
+    def prepare_menu_item_click(self, item: MenuItem) -> bool:
+        if self.cancel_settings_edit_from_mouse():
+            return False
+        self.sync_panel_from_widget(item)
+        self.focus_click_target(item)
+        if item.id in self.NAV_BUTTON_IDS:
+            self.set_nav_selection(self.NAV_BUTTON_IDS.index(item.id))
+        return True
+
     def cancel_settings_edit_from_mouse(self) -> bool:
         if self.current_page_id != "settings" or not self.settings_editing:
             return False
@@ -1464,12 +1313,11 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if widget is None:
             return
         for index, panel_id in enumerate(self.PANEL_IDS):
-            panel = self.query_one(f"#{panel_id}")
+            panel = self.query_one(f"#{self.panel_container_id(panel_id)}")
             if widget is panel or panel in getattr(widget, "ancestors", ()):
-                if self.compact and panel_id == "detail":
-                    return
                 self.panel_index = index
                 self.set_active_panel(panel_id)
+                self.update_compact_visibility()
                 return
 
     def focus_click_target(self, widget: Any | None) -> None:
@@ -1484,7 +1332,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if widget is None:
             return None
         for panel_id in self.PANEL_IDS:
-            panel = self.query_one(f"#{panel_id}")
+            panel = self.query_one(f"#{self.panel_container_id(panel_id)}")
             if widget is panel or panel in getattr(widget, "ancestors", ()):
                 return panel_id
         return None
@@ -1494,13 +1342,14 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if widget_panel_id is None:
             return
         active_panel_id = self.PANEL_IDS[self.panel_index]
-        if widget_panel_id == active_panel_id or active_panel_id == "nav":
+        if widget_panel_id == active_panel_id or active_panel_id == "menu":
             self.sync_panel_from_widget(widget)
 
     def set_active_panel(self, panel_id: str) -> None:
         for candidate in self.PANEL_IDS:
-            widget = self.query_one(f"#{candidate}")
+            widget = self.query_one(f"#{self.panel_container_id(candidate)}")
             widget.set_class(candidate == panel_id, "active-panel")
+        self.update_panel_focus_styles()
 
     def update_clock(self) -> None:
         try:
@@ -1581,7 +1430,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             value = self.query_one("#footer-height-value", Static)
         except NoMatches:
             return
-        row.set_class(getattr(self, "focused", None) is row and not self.settings_editing, "active-nav")
+        row.set_class(
+            getattr(self, "focused", None) is row and not self.settings_editing, "active-nav"
+        )
         row.set_class(self.settings_editing, "editing-setting")
         value.set_class(self.settings_editing, "editing-setting")
 
@@ -1613,10 +1464,31 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self.render_dashboard()
 
     def _main_body(self) -> PanelScroll:
-        return self.query_one("#main-body", PanelScroll)
+        try:
+            return self.query_one("#main-body", PanelScroll)
+        except NoMatches:
+            main = self.query_one("#main")
+            was_displayed = bool(main.display)
+            main.display = True
+            try:
+                return self.query_one("#main-body", PanelScroll)
+            finally:
+                main.display = was_displayed
 
     def _detail_text(self) -> Static:
-        return self.query_one("#detail-text", Static)
+        try:
+            return self.query_one("#detail-text", Static)
+        except NoMatches:
+            try:
+                detail = self.query_one("#detail")
+            except NoMatches:
+                return Static("")
+            was_displayed = bool(detail.display)
+            detail.display = True
+            try:
+                return self.query_one("#detail-text", Static)
+            finally:
+                detail.display = was_displayed
 
     async def _replace_main(self, *widgets: Any, page_id: str | None = None) -> bool:
         if self.skip_next_main_state_save:
@@ -1625,15 +1497,26 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self.save_panel_state("main")
         if page_id is not None:
             self.current_page_id = page_id
+        try:
+            main_panel = self.query_one("#main")
+        except NoMatches:
+            return False
+        was_displayed = bool(main_panel.display)
+        main_panel.display = True
         main = self._main_body()
         main.scroll_home(animate=False)
         await main.remove_children()
         for widget in widgets:
             await main.mount(widget)
+        main_panel.display = was_displayed
         self.restore_panel_state("main")
         if self.focus_next_main_tabs:
             self.focus_next_main_tabs = False
             self.focus_panel_tabs("main")
+        elif self.PANEL_IDS[self.panel_index] == "main":
+            self.focus_panel_by_id("main")
+        else:
+            self.update_panel_focus_styles()
         return False
 
     async def _replace_detail(self, *widgets: Any) -> bool:
@@ -1641,15 +1524,23 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self.skip_next_detail_state_save = False
         else:
             self.save_panel_state("detail")
+        detail_panel = self.query_one("#detail")
+        was_displayed = bool(detail_panel.display)
+        detail_panel.display = True
         detail = self.query_one("#detail-body", PanelScroll)
         detail.scroll_home(animate=False)
         await detail.remove_children()
         for widget in widgets:
             await detail.mount(widget)
+        detail_panel.display = was_displayed
         self.restore_panel_state("detail")
         if self.focus_next_detail_tabs:
             self.focus_next_detail_tabs = False
             self.focus_panel_tabs("detail")
+        elif self.PANEL_IDS[self.panel_index] == "detail":
+            self.focus_panel_by_id("detail")
+        else:
+            self.update_panel_focus_styles()
         return False
 
     async def restore_default_detail(self) -> None:
@@ -1681,7 +1572,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             return
         self.set_focus(tabs)
 
-    def panel_state_scope(self, panel_id: str, tab_id: str | None = None) -> tuple[str, str, str | None]:
+    def panel_state_scope(
+        self, panel_id: str, tab_id: str | None = None
+    ) -> tuple[str, str, str | None]:
         return (self.current_page_id, panel_id, tab_id)
 
     def widget_state_key(
@@ -1699,13 +1592,15 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         except NoMatches:
             return
 
-        tab_id = tab_id_override if tab_id_override is not None else self.panel_active_tab_id(panel_id)
+        tab_id = (
+            tab_id_override if tab_id_override is not None else self.panel_active_tab_id(panel_id)
+        )
         for input_widget in panel.query(Input).results(Input):
             if not input_widget.id:
                 continue
-            self.ui_state[
-                self.widget_state_key(panel_id, input_widget.id, tab_id=tab_id)
-            ] = UiWidgetState(value=input_widget.value)
+            self.ui_state[self.widget_state_key(panel_id, input_widget.id, tab_id=tab_id)] = (
+                UiWidgetState(value=input_widget.value)
+            )
 
     def restore_panel_state(self, panel_id: str) -> None:
         try:
@@ -1717,7 +1612,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         for input_widget in panel.query(Input).results(Input):
             if not input_widget.id:
                 continue
-            state = self.ui_state.get(self.widget_state_key(panel_id, input_widget.id, tab_id=tab_id))
+            state = self.ui_state.get(
+                self.widget_state_key(panel_id, input_widget.id, tab_id=tab_id)
+            )
             if state is None:
                 continue
             if state.value is not None:
@@ -1764,7 +1661,10 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     async def _render_index_targets_required(self) -> None:
         await self._replace_main(
             Static("Memory directory required", classes="title"),
-            Static("Configuration exists, but no memory directories are configured.", classes="warning"),
+            Static(
+                "Configuration exists, but no memory directories are configured.",
+                classes="warning",
+            ),
             Static("Add a memory directory before indexing.", classes="muted"),
             PanelButton("Refresh", id="refresh-after-index"),
             page_id="setup",
@@ -1785,7 +1685,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                 classes="warning",
             ),
             Static(dirs or "(no memory dirs)", classes="muted"),
-            PanelButton("Index now", id="run-index", variant="primary"),
+            PanelButton("Index now", id="run-index", classes="cyan"),
             PanelButton("Refresh", id="refresh-after-index"),
             Static("", id="index-log"),
             page_id="setup",
@@ -1820,16 +1720,37 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             Static(f"Sources: {self.readiness.total_sources}"),
             Static(f"Memory dirs: {len(self.readiness.memory_dirs)}", classes="muted"),
             PanelButton("Refresh", id="refresh-after-index"),
+            Static("Temporary color CSS preview", classes="muted"),
+            PanelButton(
+                "Refresh",
+                id="dashboard-refresh-preview-panel-blue",
+                classes="cyan",
+            ),
+            PanelButton(
+                "Refresh",
+                id="dashboard-refresh-preview-primary-blue",
+                classes="blue",
+            ),
+            PanelButton(
+                "Refresh",
+                id="dashboard-refresh-preview-green",
+                classes="green",
+            ),
+            PanelButton(
+                "Refresh",
+                id="dashboard-refresh-preview-red",
+                classes="red",
+            ),
+            PanelButton(
+                "Refresh",
+                id="dashboard-refresh-preview-yellow",
+                classes="yellow",
+            ),
             PanelButton("Command catalog", id="open-commands"),
             page_id="dashboard",
         )
         self._detail_text().update(
-            "Ready for native screens:\n"
-            "- Search\n"
-            "- Add memory\n"
-            "- Recall\n"
-            "- Tags\n"
-            "- Config\n"
+            "Ready for native screens:\n- Search\n- Add memory\n- Recall\n- Tags\n- Config\n"
         )
 
     def render_search(self) -> None:
@@ -1853,8 +1774,10 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         widgets.extend(
             [
                 query_input,
-                PanelButton("Search", id="run-search", classes="tui-secondary"),
-                Static("Enter a query, then press Enter or the Search button.", classes="muted"),
+                PanelButton("Search", id="run-search", classes="cyan"),
+                Static(
+                    "Enter a query, then press Enter or the Search button.", classes="muted"
+                ),
                 ListView(id="search-results"),
             ]
         )
@@ -1959,7 +1882,10 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.run_worker(
             self._replace_main(
                 Static("TUI command catalog", classes="title"),
-                Static("Tracks how existing mm commands will be surfaced in the TUI.", classes="muted"),
+                Static(
+                    "Tracks how existing mm commands will be surfaced in the TUI.",
+                    classes="muted",
+                ),
                 list_view,
                 page_id="commands",
             ),
@@ -2057,8 +1983,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
 
     async def _render_test_detail(self) -> None:
         content = (
-            "Details tab alpha.\n"
-            "Move focus to this panel, then press F7/F8 to verify detail tabs."
+            "Details tab alpha.\nMove focus to this panel, then press F7/F8 to verify detail tabs."
             if self.test_detail_section == "alpha"
             else "Details tab beta.\nThis panel has its own independent tab group."
         )
@@ -2178,18 +2103,20 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                 id="root-selection-toolbar",
             ),
             add_input,
-            PanelButton("Add root", id="add-root", classes="tui-secondary"),
-            PanelButton("Reindex selected", id="reindex-selected-root", classes="tui-secondary"),
+            PanelButton("Add root", id="add-root", classes="cyan"),
+            PanelButton(
+                "Reindex selected", id="reindex-selected-root", classes="cyan"
+            ),
             PanelButton(
                 "Force reindex selected",
                 id="force-reindex-selected-root",
-                classes="tui-secondary",
+                classes="cyan",
             ),
-            PanelButton("Remove selected", id="remove-selected-root", classes="tui-secondary"),
+            PanelButton("Remove selected", id="remove-selected-root", classes="cyan"),
             PanelButton(
                 "Remove selected + delete chunks",
                 id="remove-selected-root-delete-chunks",
-                classes="tui-secondary",
+                classes="cyan",
             ),
             Static("", id="index-log"),
             page_id="index",
@@ -2213,7 +2140,11 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                 classes="muted",
             ),
             path_input,
-            PanelButton("Index now", id="run-one-time-index", variant="primary"),
+            PanelButton(
+                "Index now",
+                id="run-one-time-index",
+                classes="cyan",
+            ),
             Static("", id="index-log"),
             page_id="index",
         )
@@ -2232,7 +2163,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             widgets.extend(
                 [
                     Static("Source list is not loaded yet.", classes="muted"),
-                    PanelButton(load_label, id="load-sources", classes="tui-secondary"),
+                    PanelButton(load_label, id="load-sources", classes="cyan"),
                     ListView(id="source-list"),
                 ]
             )
@@ -2257,7 +2188,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                         f"Cached {len(self.index_sources_cache)} source(s) at {cached_at}.",
                         classes="muted",
                     ),
-                    PanelButton(load_label, id="load-sources", classes="tui-secondary"),
+                    PanelButton(load_label, id="load-sources", classes="cyan"),
                     ListView(*items, id="source-list"),
                 ]
             )
@@ -2515,4 +2446,6 @@ def run_input_diagnostics(
 ) -> None:
     """Run the Textual input diagnostics app."""
 
-    InputDiagnosticsApp(border_style=border_style, terminal_profile=terminal_profile).run(mouse=mouse)
+    InputDiagnosticsApp(border_style=border_style, terminal_profile=terminal_profile).run(
+        mouse=mouse
+    )

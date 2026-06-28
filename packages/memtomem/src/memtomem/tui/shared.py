@@ -2,54 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 
 from memtomem.tui.terminal import BorderStyle
 
 
-COMMON_PANEL_CSS = """
-Button {
-    margin-top: 1;
-    margin-right: 1;
-}
-
-Button.active-nav {
-    background: #123447;
-    color: #ffffff;
-    text-style: bold;
-}
-
-Button.tui-secondary {
-    background: #123447;
-    color: #ffffff;
-}
-
-.title {
-    color: #45e0ff;
-    text-style: bold;
-    margin-bottom: 1;
-}
-
-.muted {
-    color: #8b9aad;
-}
-
-.warning {
-    color: #ffd166;
-    text-style: bold;
-}
-
-.ok {
-    color: #4ade80;
-    text-style: bold;
-}
-
-.error {
-    color: #ff6b6b;
-    text-style: bold;
-}
-"""
+TUI_CSS = Path(__file__).with_name("styles.tcss").read_text(encoding="utf-8")
 
 
 class BorderStyleMixin:
@@ -77,10 +38,10 @@ class PanelScroll(VerticalScroll):
         self._call_owner_action("action_item_next")
 
     def action_scroll_left(self) -> None:
-        self._call_owner_action("action_panel_previous")
+        self._call_owner_action("action_item_left")
 
     def action_scroll_right(self) -> None:
-        self._call_owner_action("action_panel_next")
+        self._call_owner_action("action_item_right")
 
     def _call_owner_action(self, action_name: str) -> None:
         handler = getattr(self.screen, action_name, None) or getattr(self.app, action_name, None)
