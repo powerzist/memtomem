@@ -1,3 +1,26 @@
+/*
+ * TUI CSS architecture
+ *
+ * Style reusable meaning, not individual objects. Compose independent layers:
+ * structure -> component -> role/variant -> color -> interaction state.
+ * Component families: layout, section, modal, button, compact-control, input,
+ * list, tabs, text-status, and log.
+ *
+ * Keep layout IDs only for the application skeleton or documented exceptions.
+ * Shared modal parts use modal-screen/dialog/title/body/actions concepts.
+ * Main and detail share a section-panel concept; size and placement are variants.
+ * Inputs, lists, tabs, titles, status text, and logs get shared bases before any
+ * page-specific variant. Add a variant only for a real difference.
+ *
+ * Buttons compose Button base; PanelButton/ModalButton context;
+ * action-button/choice-button/compact-button role; color; and state.
+ * Basic palette classes stay concise: cyan, blue, green, red, yellow.
+ * Always scope them by component (for example Button.cyan), never global .cyan.
+ * Keep warning/error/ok/muted semantic. Add text-/border-/surface- color names
+ * only when one component truly needs separately controlled color channels.
+ * Color rules own color only; state rules own hover/focus/selected/disabled.
+ */
+
 KeybindingsScreen {
     align: center middle;
 }

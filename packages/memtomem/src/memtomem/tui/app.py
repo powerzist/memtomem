@@ -2265,7 +2265,8 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self._detail_text().update("Select at least one managed root first.")
             return
         from memtomem.config import save_config_overrides
-        from memtomem.indexing.engine import norm_dir_prefix, norm_path
+        from memtomem.indexing.engine import norm_dir_prefix
+        from memtomem.storage.sqlite_helpers import norm_path
 
         selected_norms = {norm_path(root) for root in roots}
         current_norms = {

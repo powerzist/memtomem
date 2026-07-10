@@ -1207,6 +1207,63 @@ async def test_tui_reindex_runs_for_selected_roots(tmp_path) -> None:
         assert all(kwargs["force"] is False for _path, kwargs in engine.paths)
 
 
+async def test_tui_removes_selected_root_and_its_chunks(tmp_path, monkeypatch) -> None:
+    root_a = tmp_path / "a"
+    root_b = tmp_path / "b"
+    source_a = root_a / "a.md"
+    source_b = root_b / "b.md"
+    root_a.mkdir()
+    root_b.mkdir()
+
+    class Storage:
+        def __init__(self) -> None:
+            self.deleted_sources = []
+
+        async def get_source_files_with_counts(self):
+            return [(source_a, 2, None), (source_b, 3, None)]
+
+        async def delete_by_source(self, source_path):
+            self.deleted_sources.append(source_path)
+            return 2
+
+    class Indexing:
+        memory_dirs = [root_a, root_b]
+        supported_extensions = frozenset({".md"})
+
+        def all_index_roots(self):
+            return self.memory_dirs
+
+    storage = Storage()
+    config = SimpleNamespace(indexing=Indexing())
+    saved_configs = []
+    app = make_tui_app()
+    app.comp = SimpleNamespace(storage=storage, config=config)
+    monkeypatch.setattr(
+        "memtomem.config.save_config_overrides", lambda saved: saved_configs.append(saved)
+    )
+
+    async def keep_test_components() -> None:
+        return None
+
+    monkeypatch.setattr(app, "refresh_readiness", keep_test_components)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.render_index("roots")
+        await pilot.pause()
+        monkeypatch.setattr(app, "render_index", lambda _section: None)
+
+        root_list = app.query_one("#root-list", SelectionList)
+        root_list.select(str(root_a.resolve()))
+
+        await app.remove_selected_root(delete_chunks=True)
+
+        assert config.indexing.memory_dirs == [root_b]
+        assert saved_configs == [config]
+        assert storage.deleted_sources == [source_a]
+        assert "Deleted chunks: 2" in app.query_one("#detail-text", Static).content
+
+
 async def test_tui_one_time_index_uses_stream_without_memory_dirs(tmp_path) -> None:
     class IndexEngine:
         def __init__(self) -> None:
