@@ -34,7 +34,16 @@ from textual.widgets import (
 
 from memtomem.tui.catalog import COMMAND_CATALOG
 from memtomem.tui.clipboard import read_os_clipboard, write_os_clipboard
-from memtomem.tui.runtime import Readiness, ReadinessState, config_exists, inspect_readiness
+from memtomem.tui.runtime import (
+    Readiness,
+    ReadinessState,
+    TuiPaths,
+    config_exists,
+    inspect_readiness,
+    resolve_tui_paths,
+    save_tui_config,
+    tui_components,
+)
 from memtomem.tui.shared import TUI_CSS, BorderStyleMixin, PanelScroll
 from memtomem.tui.terminal import BorderStyle, detect_terminal_profile, has_ime_limitations
 
@@ -589,6 +598,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         startup_refresh: bool = True,
         terminal_profile: str | None = None,
         mouse_enabled: bool = True,
+        paths: TuiPaths | None = None,
     ) -> None:
         super().__init__()
         self._components_cm: AbstractAsyncContextManager[Any] | None = None
@@ -602,6 +612,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.border_style = border_style
         self.terminal_profile = terminal_profile or detect_terminal_profile()
         self.mouse_enabled = mouse_enabled
+        self.paths = paths or resolve_tui_paths(dev=False)
         self.search_results: list[SearchResult] = []
         self.last_search_query = ""
         self.index_section = "overview"
@@ -628,6 +639,12 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         with Container(id="root", classes="app-shell"):
             with Horizontal(id="topbar", classes="topbar"):
                 yield Static("memtomem", id="top-title", classes="app-title")
+                if self.paths.is_dev:
+                    yield Static(
+                        "DEV",
+                        id="environment-status",
+                        classes="status-item environment-status warning",
+                    )
                 yield Static("", id="mouse-status", classes="status-item mouse-status")
                 yield Static("", id="top-clock", classes="status-item clock-status")
             with Horizontal(id="menu-bar", classes="menu-bar"):
@@ -1471,7 +1488,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         value.set_class(self.settings_editing, "editing-setting")
 
     async def refresh_readiness(self) -> None:
-        if not config_exists():
+        if not config_exists(self.paths.config_path):
             self.readiness = Readiness(
                 state=ReadinessState.SETUP_REQUIRED,
                 message="memtomem is not configured yet.",
@@ -1480,9 +1497,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             return
 
         if self.comp is None:
-            from memtomem.cli._bootstrap import cli_components
-
-            self._components_cm = cli_components()
+            self._components_cm = tui_components(self.paths)
             self.comp = await self._components_cm.__aenter__()
 
         self.readiness = await inspect_readiness(self.comp)
@@ -1668,7 +1683,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         await self._replace_main(
             Static("Setup required", classes="title"),
             Static(
-                "No ~/.memtomem/config.json was found. The TUI should route first-time "
+                f"No {self.paths.config_path} was found. The TUI should route first-time "
                 "users into a native init wizard here.",
                 classes="warning",
             ),
@@ -2322,9 +2337,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         current = [Path(p).expanduser().resolve() for p in self.comp.config.indexing.memory_dirs]
         if resolved not in current:
             self.comp.config.indexing.memory_dirs.append(resolved)
-            from memtomem.config import save_config_overrides
-
-            save_config_overrides(self.comp.config)
+            save_tui_config(self.paths, self.comp.config)
         self.notify(f"Added root: {resolved}")
         self.render_index("roots")
 
@@ -2367,7 +2380,6 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if self.comp is None or not roots:
             self._detail_text().update("Select at least one managed root first.")
             return
-        from memtomem.config import save_config_overrides
         from memtomem.indexing.engine import norm_dir_prefix
         from memtomem.storage.sqlite_helpers import norm_path
 
@@ -2388,7 +2400,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             return
         deleted_chunks = 0
         self.comp.config.indexing.memory_dirs = new_dirs
-        save_config_overrides(self.comp.config)
+        save_tui_config(self.paths, self.comp.config)
         if delete_chunks:
             rows = await self.comp.storage.get_source_files_with_counts()
             prefixes = [norm_dir_prefix(root) for root in roots]
@@ -2532,6 +2544,7 @@ def run(
     border_style: BorderStyle = "solid",
     mouse: bool = True,
     terminal_profile: str | None = None,
+    paths: TuiPaths | None = None,
 ) -> None:
     """Run the Textual app."""
 
@@ -2539,6 +2552,7 @@ def run(
         border_style=border_style,
         terminal_profile=terminal_profile,
         mouse_enabled=mouse,
+        paths=paths,
     ).run(mouse=mouse)
 
 

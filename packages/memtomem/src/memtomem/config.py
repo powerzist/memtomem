@@ -1137,7 +1137,12 @@ def _override_path() -> Path:
     return _CONFIG_OVERRIDE_PATH.expanduser()
 
 
-def load_config_overrides(config: Mem2MemConfig, *, migrate: bool = True) -> None:
+def load_config_overrides(
+    config: Mem2MemConfig,
+    *,
+    migrate: bool = True,
+    override_path: Path | None = None,
+) -> None:
     """Apply persisted overrides from ~/.memtomem/config.json (if exists).
 
     Precedence: ``MEMTOMEM_<SECTION>__<FIELD>`` env vars win over
@@ -1155,7 +1160,7 @@ def load_config_overrides(config: Mem2MemConfig, *, migrate: bool = True) -> Non
 
     _log = logging.getLogger(__name__)
 
-    path = _override_path()
+    path = override_path or _override_path()
     if not path.exists():
         return
     try:
@@ -1274,7 +1279,12 @@ def _dedup_key(item: object) -> object:
     return item
 
 
-def load_config_d(config: Mem2MemConfig, *, quiet: bool = False) -> None:
+def load_config_d(
+    config: Mem2MemConfig,
+    *,
+    quiet: bool = False,
+    config_d_path: Path | None = None,
+) -> None:
     """Apply fragments from ``~/.memtomem/config.d/*.json`` (if dir exists).
 
     Intended for integration-installed fragments (``mm init <client>`` drops
@@ -1311,7 +1321,7 @@ def load_config_d(config: Mem2MemConfig, *, quiet: bool = False) -> None:
         if not quiet:
             _log.warning(msg, *args)
 
-    dir_ = _config_d_path()
+    dir_ = config_d_path or _config_d_path()
     if not dir_.is_dir():
         return
 
@@ -2032,6 +2042,9 @@ def build_comparand(*, quiet: bool = True) -> "Mem2MemConfig":
 def save_config_overrides(
     config: Mem2MemConfig,
     mutable_fields: dict[str, set[str]] | None = None,
+    *,
+    override_path: Path | None = None,
+    comparand: Mem2MemConfig | None = None,
 ) -> None:
     """Persist user-set overrides to ~/.memtomem/config.json.
 
@@ -2071,9 +2084,9 @@ def save_config_overrides(
 
     _log = logging.getLogger(__name__)
     base_fields: dict[str, set[str]] = mutable_fields or MUTABLE_FIELDS
-    comparand = build_comparand(quiet=True)
+    comparand = comparand or build_comparand(quiet=True)
 
-    path = _override_path()
+    path = override_path or _override_path()
 
     existing: dict = {}
     if path.exists():

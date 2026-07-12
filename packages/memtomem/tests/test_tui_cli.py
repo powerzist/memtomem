@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -27,7 +28,7 @@ from memtomem.tui.app import (
 )
 from memtomem.tui import runtime
 from memtomem.tui.catalog import COMMAND_CATALOG
-from memtomem.tui.runtime import ReadinessState
+from memtomem.tui.runtime import ReadinessState, resolve_tui_paths
 from memtomem.tui.shared import PanelScroll
 from memtomem.tui.terminal import choose_border_style, detect_terminal_profile
 
@@ -61,6 +62,7 @@ def test_tui_help_does_not_require_textual() -> None:
     assert result.exit_code == 0
     assert "terminal UI" in result.output
     assert "--border" in result.output
+    assert "--dev" in result.output
     assert "--diagnose-terminal" in result.output
     assert "--diagnose-input" in result.output
     assert "--mouse / --no-mouse" in result.output
@@ -99,7 +101,10 @@ def test_tui_launch_passes_mouse_option(monkeypatch) -> None:
     calls = []
 
     monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
-    monkeypatch.setattr("memtomem.tui.terminal.detect_terminal_profile", lambda: "windows-terminal")
+    monkeypatch.setattr(
+        "memtomem.tui.terminal.detect_terminal_profile",
+        lambda *args, **kwargs: "windows-terminal",
+    )
     monkeypatch.setattr("memtomem.tui.app.run", lambda **kwargs: calls.append(("run", kwargs)))
 
     result = CliRunner().invoke(cli, ["tui", "--border", "ascii", "--no-mouse"])
@@ -111,6 +116,40 @@ def test_tui_launch_passes_mouse_option(monkeypatch) -> None:
             {"border_style": "ascii", "mouse": False, "terminal_profile": "windows-terminal"},
         )
     ]
+
+
+def test_tui_dev_launch_uses_project_local_paths(tmp_path, monkeypatch) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    calls = []
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
+    monkeypatch.setattr(
+        "memtomem.tui.terminal.detect_terminal_profile",
+        lambda *args, **kwargs: "windows-terminal",
+    )
+    monkeypatch.setattr("memtomem.tui.app.run", lambda **kwargs: calls.append(kwargs))
+
+    result = CliRunner().invoke(cli, ["tui", "--dev"])
+
+    assert result.exit_code == 0
+    paths = calls[0]["paths"]
+    assert paths.is_dev
+    assert paths.state_root == tmp_path / ".dev" / ".memtomem"
+    assert paths.config_path == paths.state_root / "config.json"
+    assert paths.database_path == paths.state_root / "memtomem.db"
+    assert paths.memories_path == paths.state_root / "memories"
+
+
+def test_tui_dev_requires_project_root(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
+
+    result = CliRunner().invoke(cli, ["tui", "--dev"])
+
+    assert result.exit_code == 2
+    assert "must be run from the memtomem project root" in result.output
 
 
 def test_tui_input_diagnostics_uses_textual_app(monkeypatch) -> None:
@@ -183,9 +222,7 @@ async def test_tui_search_warns_about_conhost_ime_limitations() -> None:
         app.render_search()
         await pilot.pause()
 
-        warnings = [
-            widget.content for widget in app.query("#main-body .warning").results(Static)
-        ]
+        warnings = [widget.content for widget in app.query("#main-body .warning").results(Static)]
         assert any("Korean IME input is limited" in warning for warning in warnings)
 
 
@@ -266,9 +303,7 @@ async def test_tui_input_diagnostics_warns_about_conhost_ime_limitations() -> No
     async with app.run_test() as pilot:
         await pilot.pause()
 
-        warnings = [
-            widget.content for widget in app.query("#diagnostics .warning").results(Static)
-        ]
+        warnings = [widget.content for widget in app.query("#diagnostics .warning").results(Static)]
         assert any("Korean IME input is limited" in warning for warning in warnings)
 
 
@@ -368,6 +403,74 @@ def test_count_indexable_files(tmp_path) -> None:
     (nested / "two.json").write_text("{}", encoding="utf-8")
 
     assert runtime.count_indexable_files((root,), {".md", ".json"}) == 2
+
+
+def test_tui_dev_config_is_isolated_and_rejects_database_escape(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    paths.state_root.mkdir(parents=True)
+    paths.config_path.write_text(
+        json.dumps(
+            {
+                "storage": {"sqlite_path": str(tmp_path / "outside.db")},
+                "indexing": {"memory_dirs": [str(paths.memories_path)]},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        runtime.load_tui_config(paths)
+    except ValueError as exc:
+        assert "must stay under" in str(exc)
+    else:
+        raise AssertionError("dev config accepted a database outside its state root")
+
+
+def test_tui_dev_config_save_writes_only_project_local_config(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    config = runtime.load_tui_config(paths)
+    extra_root = tmp_path / "external-memory"
+    config.indexing.memory_dirs.append(extra_root)
+
+    runtime.save_tui_config(paths, config)
+
+    assert paths.config_path.is_file()
+    saved = json.loads(paths.config_path.read_text(encoding="utf-8"))
+    assert str(extra_root) in saved["indexing"]["memory_dirs"]
+    assert config.storage.sqlite_path == paths.database_path
+
+
+async def test_tui_dev_mode_shows_dev_badge_and_uses_dev_setup_state(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    app = MemtomemTuiApp(
+        paths=paths,
+        startup_refresh=False,
+        terminal_profile="windows-terminal",
+    )
+
+    async with app.run_test() as pilot:
+        await app.refresh_readiness()
+        await pilot.pause()
+
+        assert app.query_one("#environment-status", Static).content == "DEV"
+        assert app.readiness is not None
+        assert app.readiness.state == ReadinessState.SETUP_REQUIRED
+        assert any(str(paths.config_path) in str(widget.content) for widget in app.query(Static))
+        topbar = app.query_one("#topbar")
+        title = app.query_one("#top-title")
+        environment = app.query_one("#environment-status")
+        mouse = app.query_one("#mouse-status")
+        clock = app.query_one("#top-clock")
+        assert title.region.width >= len("memtomem")
+        assert environment.region.width == 4
+        assert mouse.region.right <= topbar.region.right
+        assert clock.region.right <= topbar.region.right
 
 
 async def test_inspect_readiness_flags_index_required(tmp_path) -> None:
@@ -1272,7 +1375,8 @@ async def test_tui_removes_selected_root_and_its_chunks(tmp_path, monkeypatch) -
     app = make_tui_app()
     app.comp = SimpleNamespace(storage=storage, config=config)
     monkeypatch.setattr(
-        "memtomem.config.save_config_overrides", lambda saved: saved_configs.append(saved)
+        "memtomem.tui.app.save_tui_config",
+        lambda _paths, saved: saved_configs.append(saved),
     )
 
     async def keep_test_components() -> None:

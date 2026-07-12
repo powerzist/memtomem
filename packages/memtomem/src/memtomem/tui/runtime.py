@@ -2,16 +2,130 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from memtomem.config import Mem2MemConfig
     from memtomem.server.component_factory import Components
 
 
 CONFIG_PATH = Path.home() / ".memtomem" / "config.json"
+
+
+@dataclass(frozen=True)
+class TuiPaths:
+    """Persistent paths selected once for a TUI process."""
+
+    mode: Literal["normal", "dev"]
+    project_root: Path | None
+    state_root: Path
+    config_path: Path
+    config_d_path: Path
+    database_path: Path
+    memories_path: Path
+
+    @property
+    def is_dev(self) -> bool:
+        return self.mode == "dev"
+
+
+def resolve_tui_paths(*, dev: bool, cwd: Path | None = None) -> TuiPaths:
+    """Resolve the single canonical state tree for this TUI process."""
+
+    if dev:
+        project_root = (cwd or Path.cwd()).resolve()
+        if (
+            not (project_root / "pyproject.toml").is_file()
+            or not (project_root / "packages" / "memtomem").is_dir()
+        ):
+            raise ValueError("--dev must be run from the memtomem project root")
+        state_root = project_root / ".dev" / ".memtomem"
+        mode: Literal["normal", "dev"] = "dev"
+    else:
+        project_root = None
+        state_root = Path.home() / ".memtomem"
+        mode = "normal"
+    return TuiPaths(
+        mode=mode,
+        project_root=project_root,
+        state_root=state_root,
+        config_path=state_root / "config.json",
+        config_d_path=state_root / "config.d",
+        database_path=state_root / "memtomem.db",
+        memories_path=state_root / "memories",
+    )
+
+
+def _dev_default_config(paths: TuiPaths) -> Mem2MemConfig:
+    from memtomem.config import Mem2MemConfig
+
+    config = Mem2MemConfig()
+    config.storage.sqlite_path = paths.database_path
+    config.indexing.memory_dirs = [paths.memories_path]
+    return config
+
+
+def load_tui_config(paths: TuiPaths) -> Mem2MemConfig:
+    """Load config without allowing dev mode to consult normal state files."""
+
+    from memtomem.config import Mem2MemConfig, load_config_d, load_config_overrides
+
+    if not paths.is_dev:
+        config = Mem2MemConfig()
+        load_config_d(config)
+        load_config_overrides(config)
+        return config
+
+    config = _dev_default_config(paths)
+    load_config_d(config, config_d_path=paths.config_d_path)
+    load_config_overrides(config, migrate=False, override_path=paths.config_path)
+    database_path = Path(config.storage.sqlite_path).expanduser().resolve()
+    if not database_path.is_relative_to(paths.state_root.resolve()):
+        raise ValueError(f"development storage.sqlite_path must stay under {paths.state_root}")
+    return config
+
+
+def save_tui_config(paths: TuiPaths, config: Mem2MemConfig) -> None:
+    """Persist TUI changes into the selected normal or development config."""
+
+    from memtomem.config import load_config_d, save_config_overrides
+
+    if not paths.is_dev:
+        save_config_overrides(config)
+        return
+    comparand = _dev_default_config(paths)
+    load_config_d(comparand, quiet=True, config_d_path=paths.config_d_path)
+    save_config_overrides(
+        config,
+        override_path=paths.config_path,
+        comparand=comparand,
+    )
+
+
+@asynccontextmanager
+async def tui_components(paths: TuiPaths) -> AsyncIterator[Components]:
+    """Create components without crossing the selected TUI state boundary."""
+
+    if not paths.is_dev:
+        from memtomem.cli._bootstrap import cli_components
+
+        async with cli_components() as comp:
+            yield comp
+        return
+
+    from memtomem.server.component_factory import close_components, create_components
+
+    comp = await create_components(load_tui_config(paths), load_persisted_config=False)
+    try:
+        yield comp
+    finally:
+        await close_components(comp)
 
 
 class ReadinessState(str, Enum):

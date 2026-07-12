@@ -44,13 +44,18 @@ class Components:
     embedding_broken: dict | None = None
 
 
-async def create_components(config: Mem2MemConfig | None = None) -> Components:
+async def create_components(
+    config: Mem2MemConfig | None = None,
+    *,
+    load_persisted_config: bool = True,
+) -> Components:
     """Create and initialise all core components."""
     from memtomem.config import load_config_d, load_config_overrides
 
     config = config or Mem2MemConfig()
-    load_config_d(config)
-    load_config_overrides(config)
+    if load_persisted_config:
+        load_config_d(config)
+        load_config_overrides(config)
 
     # Initialize FTS tokenizer from config
     from memtomem.storage.fts_tokenizer import set_tokenizer

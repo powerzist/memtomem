@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
 
 import click
@@ -26,6 +27,11 @@ def _check_tui_deps() -> None:
 
 @click.command("tui")
 @click.option(
+    "--dev",
+    is_flag=True,
+    help="Use project-local TUI state under .dev/.memtomem.",
+)
+@click.option(
     "--border",
     "border_mode",
     type=click.Choice(("auto", "solid", "ascii"), case_sensitive=False),
@@ -49,7 +55,13 @@ def _check_tui_deps() -> None:
     show_default=True,
     help="Enable or disable terminal mouse tracking.",
 )
-def tui(border_mode: str, diagnose_terminal: bool, diagnose_input: bool, mouse: bool) -> None:
+def tui(
+    border_mode: str,
+    dev: bool,
+    diagnose_terminal: bool,
+    diagnose_input: bool,
+    mouse: bool,
+) -> None:
     """Launch the memtomem terminal UI."""
     from memtomem.tui.terminal import (
         BorderMode,
@@ -66,6 +78,7 @@ def tui(border_mode: str, diagnose_terminal: bool, diagnose_input: bool, mouse: 
 
     _check_tui_deps()
     from memtomem.tui.app import run, run_input_diagnostics
+    from memtomem.tui.runtime import resolve_tui_paths
 
     border_style = choose_border_style(normalized_border_mode)
     terminal_profile = detect_terminal_profile()
@@ -77,4 +90,14 @@ def tui(border_mode: str, diagnose_terminal: bool, diagnose_input: bool, mouse: 
         )
         return
 
-    run(border_style=border_style, mouse=mouse, terminal_profile=terminal_profile)
+    kwargs = {
+        "border_style": border_style,
+        "mouse": mouse,
+        "terminal_profile": terminal_profile,
+    }
+    if dev:
+        try:
+            kwargs["paths"] = resolve_tui_paths(dev=True, cwd=Path.cwd())
+        except ValueError as exc:
+            raise click.UsageError(str(exc)) from exc
+    run(**kwargs)

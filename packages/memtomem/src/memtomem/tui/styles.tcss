@@ -111,6 +111,10 @@ QuitConfirmScreen {
     margin-right: 1;
 }
 
+.environment-status {
+    width: 4;
+}
+
 .clock-status {
     width: 10;
 }
