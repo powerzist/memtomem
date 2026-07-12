@@ -28,6 +28,7 @@ from memtomem.tui.app import (
 from memtomem.tui import runtime
 from memtomem.tui.catalog import COMMAND_CATALOG
 from memtomem.tui.runtime import ReadinessState
+from memtomem.tui.shared import PanelScroll
 from memtomem.tui.terminal import choose_border_style, detect_terminal_profile
 
 
@@ -306,6 +307,36 @@ def test_tui_catalog_covers_top_level_commands() -> None:
 
     missing = expected - catalog
     assert not missing
+
+
+async def test_tui_catalog_assigns_scroll_to_list_until_minimum_height() -> None:
+    async def measure(size: tuple[int, int]) -> tuple[bool, int, bool]:
+        app = make_tui_app()
+        async with app.run_test(size=size) as pilot:
+            await pilot.pause()
+            app.render_catalog()
+            await pilot.pause()
+            body = app.query_one("#main-body", PanelScroll)
+            command_list = app.query_one(".command-list", ListView)
+            return (
+                body.show_vertical_scrollbar,
+                command_list.size.height,
+                command_list.show_vertical_scrollbar,
+            )
+
+    normal_body_scroll, normal_list_height, normal_list_scroll = await measure((120, 30))
+    assert not normal_body_scroll
+    assert normal_list_height > 1
+    assert normal_list_scroll
+
+    short_body_scroll, short_list_height, short_list_scroll = await measure((120, 15))
+    assert not short_body_scroll
+    assert short_list_height == 1
+    assert short_list_scroll
+
+    extreme_body_scroll, extreme_list_height, _ = await measure((120, 12))
+    assert extreme_body_scroll
+    assert extreme_list_height == 1
 
 
 def test_init_flow_definition_uses_canonical_presets() -> None:
@@ -1000,12 +1031,14 @@ async def test_tui_managed_roots_uses_selection_list(tmp_path) -> None:
     app = make_tui_app()
     app.comp = SimpleNamespace(storage=Storage(), config=SimpleNamespace(indexing=Indexing()))
 
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.render_index("roots")
         await pilot.pause()
 
         root_list = app.query_one("#root-list", ManagedRootsSelectionList)
+        assert root_list.option_count == 2
+        assert root_list.size.height > 0
         assert root_list.highlighted == 0
         assert root_list.render_line(0).text.startswith("[ ]")
 

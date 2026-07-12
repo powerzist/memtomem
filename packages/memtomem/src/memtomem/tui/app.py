@@ -207,15 +207,17 @@ class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
                 "  Shift+Insert    Paste",
             ]
         )
-        dialog_classes = "ascii-border" if self.border_style == "ascii" else ""
+        dialog_classes = "modal-dialog modal-wide"
+        if self.border_style == "ascii":
+            dialog_classes += " ascii-border"
         with Vertical(id="keybindings-dialog", classes=dialog_classes):
-            yield Static("Keyboard shortcuts", id="keybindings-title")
-            with PanelScroll(id="keybindings-body-scroll"):
-                yield Static(body, id="keybindings-body")
+            yield Static("Keyboard shortcuts", id="keybindings-title", classes="modal-title")
+            with PanelScroll(id="keybindings-body-scroll", classes="modal-body-scroll"):
+                yield Static(body, id="keybindings-body", classes="modal-body")
             yield ModalButton(
                 "Close",
                 id="close-keybindings",
-                classes="cyan",
+                classes="action-button cyan",
             )
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -253,16 +255,26 @@ class ConhostWarningScreen(BorderStyleMixin, ModalScreen[None]):
         self.border_style = border_style
 
     def compose(self) -> ComposeResult:
-        dialog_classes = "ascii-border" if self.border_style == "ascii" else ""
+        dialog_classes = "modal-dialog modal-wide warning"
+        if self.border_style == "ascii":
+            dialog_classes += " ascii-border"
         body = (
             "Legacy Windows console hosts are not fully supported by the TUI.\n\n"
             "Known limitations include Korean IME input, mouse text selection, and "
             "some clipboard behavior. Windows Terminal is strongly recommended."
         )
         with Vertical(id="conhost-warning-dialog", classes=dialog_classes):
-            yield Static("Windows Terminal strongly recommended", id="conhost-warning-title")
-            yield Static(body, id="conhost-warning-body")
-            yield ModalButton("Continue", id="close-conhost-warning", classes="cyan")
+            yield Static(
+                "Windows Terminal strongly recommended",
+                id="conhost-warning-title",
+                classes="modal-title",
+            )
+            yield Static(body, id="conhost-warning-body", classes="modal-body")
+            yield ModalButton(
+                "Continue",
+                id="close-conhost-warning",
+                classes="action-button cyan",
+            )
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-conhost-warning":
@@ -290,13 +302,19 @@ class QuitConfirmScreen(BorderStyleMixin, ModalScreen[bool]):
         self.border_style = border_style
 
     def compose(self) -> ComposeResult:
-        dialog_classes = "ascii-border" if self.border_style == "ascii" else ""
+        dialog_classes = "modal-dialog modal-compact warning"
+        if self.border_style == "ascii":
+            dialog_classes += " ascii-border"
         with Vertical(id="quit-confirm-dialog", classes=dialog_classes):
-            yield Static("Quit memtomem?", id="quit-confirm-title")
-            yield Static("Choose Yes to quit, or No/Esc to return.", id="quit-confirm-body")
-            with Horizontal():
-                yield ModalButton("Yes", id="confirm-quit")
-                yield ModalButton("No", id="cancel-quit")
+            yield Static("Quit memtomem?", id="quit-confirm-title", classes="modal-title")
+            yield Static(
+                "Choose Yes to quit, or No/Esc to return.",
+                id="quit-confirm-body",
+                classes="modal-body",
+            )
+            with Horizontal(classes="modal-actions"):
+                yield ModalButton("Yes", id="confirm-quit", classes="choice-button")
+                yield ModalButton("No", id="cancel-quit", classes="choice-button")
 
     def on_mount(self) -> None:
         self.focus_quit_button("cancel-quit")
@@ -455,9 +473,15 @@ class InputDiagnosticsApp(BorderStyleMixin, App[None]):
         self.input_events: list[str] = []
 
     def compose(self) -> ComposeResult:
-        log_classes = "ascii-border" if self.border_style == "ascii" else ""
-        with Vertical(id="diagnostics"):
-            yield Static("memtomem TUI Input Diagnostics", id="diagnostics-title")
+        log_classes = "log-panel diagnostic-log"
+        if self.border_style == "ascii":
+            log_classes += " ascii-border"
+        with Vertical(id="diagnostics", classes="diagnostic-screen"):
+            yield Static(
+                "memtomem TUI Input Diagnostics",
+                id="diagnostics-title",
+                classes="title diagnostic-title",
+            )
             if has_ime_limitations(self.terminal_profile):
                 yield Static(
                     "Korean IME input is limited in legacy Windows consoles. "
@@ -468,7 +492,11 @@ class InputDiagnosticsApp(BorderStyleMixin, App[None]):
                 "Type Korean text in the field below. Press Escape or Ctrl+Q to quit.",
                 classes="muted",
             )
-            yield DiagnosticInput(placeholder="Type here...", id="diagnostics-input")
+            yield DiagnosticInput(
+                placeholder="Type here...",
+                id="diagnostics-input",
+                classes="text-input diagnostic-input",
+            )
             yield Static("", id="diagnostics-value")
             with PanelScroll(id="diagnostics-log", classes=log_classes):
                 yield Static("Waiting for key events...", id="diagnostics-log-text")
@@ -597,27 +625,33 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.settings_draft_footer_offset = 0
 
     def compose(self) -> ComposeResult:
-        with Container(id="root"):
-            with Horizontal(id="topbar"):
-                yield Static("memtomem", id="top-title")
-                yield Static("", id="mouse-status")
-                yield Static("", id="top-clock")
-            with Horizontal(id="menu-bar"):
-                yield MenuItem("Dashboard", id="nav-dashboard")
-                yield MenuItem("Search", id="nav-search")
-                yield MenuItem("Index", id="nav-index")
-                yield MenuItem("Test", id="nav-test")
-                yield MenuItem("Commands", id="nav-commands")
-                yield MenuItem("Settings", id="nav-settings")
-                yield MenuItem("Refresh", id="nav-refresh")
-                yield MenuItem("Help", id="nav-help")
+        with Container(id="root", classes="app-shell"):
+            with Horizontal(id="topbar", classes="topbar"):
+                yield Static("memtomem", id="top-title", classes="app-title")
+                yield Static("", id="mouse-status", classes="status-item mouse-status")
+                yield Static("", id="top-clock", classes="status-item clock-status")
+            with Horizontal(id="menu-bar", classes="menu-bar"):
+                yield MenuItem("Dashboard", id="nav-dashboard", classes="menu-item")
+                yield MenuItem("Search", id="nav-search", classes="menu-item")
+                yield MenuItem("Index", id="nav-index", classes="menu-item")
+                yield MenuItem("Test", id="nav-test", classes="menu-item")
+                yield MenuItem("Commands", id="nav-commands", classes="menu-item")
+                yield MenuItem("Settings", id="nav-settings", classes="menu-item")
+                yield MenuItem("Refresh", id="nav-refresh", classes="menu-item")
+                yield MenuItem("Help", id="nav-help", classes="menu-item")
             with Horizontal(id="layout"):
-                with Vertical(id="main", classes=self.border_class):
-                    with PanelScroll(id="main-body"):
+                with Vertical(
+                    id="main",
+                    classes=f"section-panel main-section {self.border_class}".strip(),
+                ):
+                    with PanelScroll(id="main-body", classes="section-body"):
                         yield Static("Loading memtomem state...", id="main-content")
-                with Vertical(id="detail", classes=self.border_class):
-                    with PanelScroll(id="detail-body"):
-                        yield Static("Details", classes="title")
+                with Vertical(
+                    id="detail",
+                    classes=f"section-panel detail-section {self.border_class}".strip(),
+                ):
+                    with PanelScroll(id="detail-body", classes="section-body"):
+                        yield Static("Details", classes="title section-title")
                         yield Static(
                             "Press Ctrl+K to inspect the TUI command catalog.",
                             id="detail-text",
@@ -1685,7 +1719,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                 classes="warning",
             ),
             Static(dirs or "(no memory dirs)", classes="muted"),
-            PanelButton("Index now", id="run-index", classes="cyan"),
+            PanelButton("Index now", id="run-index", classes="action-button cyan"),
             PanelButton("Refresh", id="refresh-after-index"),
             Static("", id="index-log"),
             page_id="setup",
@@ -1724,27 +1758,27 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             PanelButton(
                 "Refresh",
                 id="dashboard-refresh-preview-panel-blue",
-                classes="cyan",
+                classes="action-button cyan",
             ),
             PanelButton(
                 "Refresh",
                 id="dashboard-refresh-preview-primary-blue",
-                classes="blue",
+                classes="action-button blue",
             ),
             PanelButton(
                 "Refresh",
                 id="dashboard-refresh-preview-green",
-                classes="green",
+                classes="action-button green",
             ),
             PanelButton(
                 "Refresh",
                 id="dashboard-refresh-preview-red",
-                classes="red",
+                classes="action-button red",
             ),
             PanelButton(
                 "Refresh",
                 id="dashboard-refresh-preview-yellow",
-                classes="yellow",
+                classes="action-button yellow",
             ),
             PanelButton("Command catalog", id="open-commands"),
             page_id="dashboard",
@@ -1761,6 +1795,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             value=self.last_search_query,
             placeholder="Search memories...",
             id="search-query",
+            classes="text-input search-input",
         )
         widgets: list[Static | Button | Input | ListView] = [Static("Search", classes="title")]
         if has_ime_limitations(self.terminal_profile):
@@ -1774,11 +1809,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         widgets.extend(
             [
                 query_input,
-                PanelButton("Search", id="run-search", classes="cyan"),
-                Static(
-                    "Enter a query, then press Enter or the Search button.", classes="muted"
-                ),
-                ListView(id="search-results"),
+                PanelButton("Search", id="run-search", classes="action-button cyan"),
+                Static("Enter a query, then press Enter or the Search button.", classes="muted"),
+                ListView(id="search-results", classes="data-list result-list"),
             ]
         )
         await self._replace_main(
@@ -1878,7 +1911,10 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         for entry in COMMAND_CATALOG:
             label = f"{entry.command:<24} {entry.support.value:<9} {entry.title}"
             items.append(ListItem(Static(label)))
-        list_view = ListView(*items)
+        list_view = ListView(
+            *items,
+            classes="data-list remaining-space-list command-list",
+        )
         self.run_worker(
             self._replace_main(
                 Static("TUI command catalog", classes="title"),
@@ -1907,13 +1943,31 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             ),
             Vertical(
                 Horizontal(
-                    SettingRow("Footer height", id="footer-height-setting"),
-                    SettingStep("v", id="footer-height-decrease"),
-                    Static(str(self.footer_offset), id="footer-height-value"),
-                    SettingStep("^", id="footer-height-increase"),
+                    SettingRow(
+                        "Footer height",
+                        id="footer-height-setting",
+                        classes="setting-row",
+                    ),
+                    SettingStep(
+                        "v",
+                        id="footer-height-decrease",
+                        classes="compact-control setting-step",
+                    ),
+                    Static(
+                        str(self.footer_offset),
+                        id="footer-height-value",
+                        classes="setting-value",
+                    ),
+                    SettingStep(
+                        "^",
+                        id="footer-height-increase",
+                        classes="compact-control setting-step",
+                    ),
                     id="footer-height-row",
+                    classes="setting-row-layout",
                 ),
                 id="settings-list",
+                classes="settings-list",
             ),
             page_id="settings",
         )
@@ -1940,15 +1994,27 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             widgets.extend(
                 [
                     Static("One input tab", classes="muted"),
-                    TuiInput(placeholder="Test input one...", id="test-input-one"),
+                    TuiInput(
+                        placeholder="Test input one...",
+                        id="test-input-one",
+                        classes="text-input",
+                    ),
                 ]
             )
         elif self.test_section == "two":
             widgets.extend(
                 [
                     Static("Two inputs tab", classes="muted"),
-                    TuiInput(placeholder="Test input two A...", id="test-input-two-a"),
-                    TuiInput(placeholder="Test input two B...", id="test-input-two-b"),
+                    TuiInput(
+                        placeholder="Test input two A...",
+                        id="test-input-two-a",
+                        classes="text-input",
+                    ),
+                    TuiInput(
+                        placeholder="Test input two B...",
+                        id="test-input-two-b",
+                        classes="text-input",
+                    ),
                 ]
             )
         else:
@@ -1961,6 +2027,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                         ListItem(Static("List row 2")),
                         ListItem(Static("List row 3")),
                         id="test-list",
+                        classes="data-list",
                     ),
                 ]
             )
@@ -1974,6 +2041,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             Tab("No input", id="test-tab-empty"),
             active=f"test-tab-{self.test_section}",
             id="test-tabs",
+            classes="tab-bar",
         )
 
     def render_test_detail(self, section: str | None = None) -> None:
@@ -1999,6 +2067,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             Tab("Beta", id="test-detail-tab-beta"),
             active=f"test-detail-tab-{self.test_detail_section}",
             id="test-detail-tabs",
+            classes="tab-bar",
         )
 
     def render_index(self, section: str | None = None) -> None:
@@ -2024,6 +2093,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             Tab("Indexed sources", id="index-tab-sources"),
             active=f"index-tab-{self.index_section}",
             id="index-tabs",
+            classes="tab-bar index-tabs",
         )
 
     async def _render_index_overview(self) -> None:
@@ -2085,8 +2155,16 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             )
             for idx, row in enumerate(self.index_root_rows)
         ]
-        list_view = ManagedRootsSelectionList(*items, id="root-list")
-        add_input = TuiInput(placeholder="Path to add to memory_dirs...", id="add-root-path")
+        list_view = ManagedRootsSelectionList(
+            *items,
+            id="root-list",
+            classes="data-list selection-list managed-roots-list",
+        )
+        add_input = TuiInput(
+            placeholder="Path to add to memory_dirs...",
+            id="add-root-path",
+            classes="text-input",
+        )
         await self._replace_main(
             Static("Managed roots", classes="title"),
             self.index_tabs(),
@@ -2097,28 +2175,41 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             ),
             list_view,
             Horizontal(
-                RootSelectionAction("*", id="select-all-roots"),
-                RootSelectionAction("-", id="deselect-all-roots"),
-                RootSelectionAction("~", id="toggle-all-roots"),
+                RootSelectionAction(
+                    "*", id="select-all-roots", classes="compact-control selection-action"
+                ),
+                RootSelectionAction(
+                    "-", id="deselect-all-roots", classes="compact-control selection-action"
+                ),
+                RootSelectionAction(
+                    "~", id="toggle-all-roots", classes="compact-control selection-action"
+                ),
                 id="root-selection-toolbar",
+                classes="compact-toolbar",
             ),
             add_input,
-            PanelButton("Add root", id="add-root", classes="cyan"),
+            PanelButton("Add root", id="add-root", classes="action-button cyan"),
             PanelButton(
-                "Reindex selected", id="reindex-selected-root", classes="cyan"
+                "Reindex selected",
+                id="reindex-selected-root",
+                classes="action-button cyan",
             ),
             PanelButton(
                 "Force reindex selected",
                 id="force-reindex-selected-root",
-                classes="cyan",
+                classes="action-button cyan",
             ),
-            PanelButton("Remove selected", id="remove-selected-root", classes="cyan"),
+            PanelButton(
+                "Remove selected",
+                id="remove-selected-root",
+                classes="action-button cyan",
+            ),
             PanelButton(
                 "Remove selected + delete chunks",
                 id="remove-selected-root-delete-chunks",
-                classes="cyan",
+                classes="action-button cyan",
             ),
-            Static("", id="index-log"),
+            Static("", id="index-log", classes="log-panel index-log"),
             page_id="index",
         )
         self._detail_text().update(
@@ -2130,7 +2221,11 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             list_view.highlighted = 0
 
     async def _render_index_one_time(self) -> None:
-        path_input = TuiInput(placeholder="Path to index once...", id="one-time-index-path")
+        path_input = TuiInput(
+            placeholder="Path to index once...",
+            id="one-time-index-path",
+            classes="text-input",
+        )
         await self._replace_main(
             Static("One-time index", classes="title"),
             self.index_tabs(),
@@ -2143,9 +2238,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             PanelButton(
                 "Index now",
                 id="run-one-time-index",
-                classes="cyan",
+                classes="action-button cyan",
             ),
-            Static("", id="index-log"),
+            Static("", id="index-log", classes="log-panel index-log"),
             page_id="index",
         )
         self._detail_text().update(
@@ -2163,8 +2258,12 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             widgets.extend(
                 [
                     Static("Source list is not loaded yet.", classes="muted"),
-                    PanelButton(load_label, id="load-sources", classes="cyan"),
-                    ListView(id="source-list"),
+                    PanelButton(
+                        load_label,
+                        id="load-sources",
+                        classes="action-button cyan",
+                    ),
+                    ListView(id="source-list", classes="data-list source-list"),
                 ]
             )
         else:
@@ -2188,8 +2287,12 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                         f"Cached {len(self.index_sources_cache)} source(s) at {cached_at}.",
                         classes="muted",
                     ),
-                    PanelButton(load_label, id="load-sources", classes="cyan"),
-                    ListView(*items, id="source-list"),
+                    PanelButton(
+                        load_label,
+                        id="load-sources",
+                        classes="action-button cyan",
+                    ),
+                    ListView(*items, id="source-list", classes="data-list source-list"),
                 ]
             )
         await self._replace_main(*widgets, page_id="index")

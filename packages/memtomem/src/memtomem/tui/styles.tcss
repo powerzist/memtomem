@@ -1,32 +1,18 @@
-/*
- * TUI CSS architecture
- *
- * Style reusable meaning, not individual objects. Compose independent layers:
- * structure -> component -> role/variant -> color -> interaction state.
- * Component families: layout, section, modal, button, compact-control, input,
- * list, tabs, text-status, and log.
- *
- * Keep layout IDs only for the application skeleton or documented exceptions.
- * Shared modal parts use modal-screen/dialog/title/body/actions concepts.
- * Main and detail share a section-panel concept; size and placement are variants.
- * Inputs, lists, tabs, titles, status text, and logs get shared bases before any
- * page-specific variant. Add a variant only for a real difference.
- *
- * Buttons compose Button base; PanelButton/ModalButton context;
- * action-button/choice-button/compact-button role; color; and state.
- * Basic palette classes stay concise: cyan, blue, green, red, yellow.
- * Always scope them by component (for example Button.cyan), never global .cyan.
- * Keep warning/error/ok/muted semantic. Add text-/border-/surface- color names
- * only when one component truly needs separately controlled color channels.
- * Color rules own color only; state rules own hover/focus/selected/disabled.
- */
+/* Reusable layers: structure -> component -> role/variant -> color -> state. */
 
-KeybindingsScreen {
+Screen {
+    background: #0d141c;
+    color: #d8dee9;
+}
+
+/* Modal family */
+KeybindingsScreen,
+ConhostWarningScreen,
+QuitConfirmScreen {
     align: center middle;
 }
 
-#keybindings-dialog {
-    width: 74;
+.modal-dialog {
     max-width: 90%;
     max-height: 90%;
     border: solid #45e0ff;
@@ -34,134 +20,106 @@ KeybindingsScreen {
     padding: 1 2;
 }
 
-#keybindings-title {
+.modal-dialog.modal-wide {
+    width: 76;
+}
+
+.modal-dialog.modal-compact {
+    width: 50;
+}
+
+.modal-dialog.warning {
+    border: solid #f2c94c;
+}
+
+.modal-dialog.ascii-border {
+    border: ascii #45e0ff;
+}
+
+.modal-dialog.warning.ascii-border {
+    border: ascii #f2c94c;
+}
+
+.modal-title {
     color: #45e0ff;
     text-style: bold;
     margin-bottom: 1;
 }
 
-#keybindings-body {
+.modal-dialog.warning > .modal-title {
+    color: #f2c94c;
+}
+
+.modal-body {
     margin-bottom: 1;
 }
 
-#keybindings-body-scroll {
+.modal-body-scroll {
     height: 1fr;
     overflow-y: auto;
     margin-bottom: 1;
 }
 
-#keybindings-dialog.ascii-border {
-    border: ascii #45e0ff;
+.modal-actions {
+    height: auto;
 }
 
-ConhostWarningScreen {
-    align: center middle;
-}
-
-#conhost-warning-dialog {
-    width: 76;
-    max-width: 90%;
-    max-height: 90%;
-    border: solid #f2c94c;
-    background: #0d141c;
-    padding: 1 2;
-}
-
-#conhost-warning-title {
-    color: #f2c94c;
-    text-style: bold;
-    margin-bottom: 1;
-}
-
-#conhost-warning-body {
-    margin-bottom: 1;
-}
-
-#conhost-warning-dialog.ascii-border {
-    border: ascii #f2c94c;
-}
-
-QuitConfirmScreen {
-    align: center middle;
-}
-
-#quit-confirm-dialog {
-    width: 50;
-    max-width: 90%;
-    border: solid #f2c94c;
-    background: #0d141c;
-    padding: 1 2;
-}
-
-#quit-confirm-title {
-    color: #f2c94c;
-    text-style: bold;
-    margin-bottom: 1;
-}
-
-#quit-confirm-body {
-    margin-bottom: 1;
-}
-
-#quit-confirm-dialog.ascii-border {
-    border: ascii #f2c94c;
-}
-
-Screen {
-    background: #0d141c;
-    color: #d8dee9;
-}
-
-#diagnostics {
+/* Diagnostics family */
+.diagnostic-screen {
     height: 1fr;
     padding: 1;
 }
 
-#diagnostics-title {
-    color: #45e0ff;
-    text-style: bold;
+.diagnostic-title {
     margin-bottom: 1;
 }
 
-#diagnostics-input {
+.diagnostic-input {
     margin: 1 0;
 }
 
-#diagnostics-log {
-    height: 1fr;
-    border: solid #1d2a37;
-    padding: 1;
-}
-
-#diagnostics-log.ascii-border {
-    border: ascii #1d2a37;
-}
-
+/* Application layout skeleton */
 #root {
     height: 100%;
     padding: 1 2;
 }
 
-#topbar {
+#layout {
+    height: 1fr;
+}
+
+#footer-spacer {
+    height: 0;
+    display: none;
+}
+
+.topbar {
     height: 1;
     layout: horizontal;
     margin: 0 1 1 1;
 }
 
-#top-title {
+.app-title {
     width: 1fr;
     color: #45e0ff;
     text-style: bold;
 }
 
-#top-clock {
-    width: 10;
+.status-item {
     content-align: right middle;
     color: #8b9aad;
     margin-right: 1;
 }
 
-#menu-bar {
+.clock-status {
+    width: 10;
+}
+
+.mouse-status {
+    width: 12;
+}
+
+.menu-bar {
     height: 1;
     layout: horizontal;
     margin: 0 1 1 1;
@@ -169,7 +127,11 @@ Screen {
     overflow-y: hidden;
 }
 
-MenuItem {
+.menu-bar.active-panel {
+    background: #101d28;
+}
+
+MenuItem.menu-item {
     width: auto;
     height: 1;
     padding: 0 1;
@@ -178,48 +140,41 @@ MenuItem {
     color: #d8dee9;
 }
 
-MenuItem.inactive-panel-focus {
-    background: #123447;
-    color: #d8dee9;
-    outline: none;
-}
-
-MenuItem.active-panel-focus {
-    background: #45e0ff;
-    color: #0d141c;
-    text-style: bold;
-    outline: none;
-}
-
-#layout {
-    height: 1fr;
-}
-
-#main {
-    width: 1fr;
-    border: solid #233242;
-    margin-right: 1;
-    padding: 1 2;
-}
-
-#main-body {
-    height: 1fr;
-    overflow-y: auto;
-    padding-right: 1;
-}
-
-#detail {
-    width: 34;
+/* Section family */
+.section-panel {
     border: solid #233242;
     padding: 1;
 }
 
-#detail-body {
+.main-section {
+    width: 1fr;
+    margin-right: 1;
+    padding: 1 2;
+}
+
+.detail-section {
+    width: 34;
+}
+
+.section-body {
     height: 1fr;
     overflow-y: auto;
     padding-right: 1;
 }
 
+.section-panel.active-panel {
+    border: solid #45e0ff;
+}
+
+.section-panel.ascii-border {
+    border: ascii #233242;
+}
+
+.section-panel.ascii-border.active-panel {
+    border: ascii #45e0ff;
+}
+
+/* Titles and semantic status text */
 .title {
     color: #45e0ff;
     text-style: bold;
@@ -245,6 +200,7 @@ MenuItem.active-panel-focus {
     text-style: bold;
 }
 
+/* Shared focus state */
 .inactive-panel-focus {
     outline: tall #2f5f75;
 }
@@ -253,148 +209,138 @@ MenuItem.active-panel-focus {
     outline: tall #45e0ff;
 }
 
-#main.active-panel,
-#detail.active-panel {
-    border: solid #45e0ff;
+MenuItem.inactive-panel-focus {
+    background: #123447;
+    color: #d8dee9;
+    outline: none;
 }
 
-#main.ascii-border,
-#detail.ascii-border {
-    border: ascii #233242;
+MenuItem.active-panel-focus {
+    background: #45e0ff;
+    color: #0d141c;
+    text-style: bold;
+    outline: none;
 }
 
-#main.ascii-border.active-panel,
-#detail.ascii-border.active-panel {
-    border: ascii #45e0ff;
+/* Inputs, lists, and tabs */
+.text-input {
+    width: 1fr;
 }
 
-#menu-bar.active-panel {
-    background: #101d28;
+.search-input {
+    margin-bottom: 1;
 }
 
-#index-log {
+ListView.data-list,
+SelectionList.data-list {
+    height: auto;
+    max-height: 100%;
+}
+
+ListView.data-list.remaining-space-list,
+SelectionList.data-list.remaining-space-list {
     height: 1fr;
+    min-height: 1;
+}
+
+.result-list {
     margin-top: 1;
+}
+
+.tab-bar {
+    margin-bottom: 1;
+}
+
+/* Logs */
+.log-panel {
+    height: 1fr;
     border: solid #1d2a37;
     padding: 1;
 }
 
-#search-query {
-    margin-bottom: 1;
+.log-panel.ascii-border {
+    border: ascii #1d2a37;
 }
 
-#search-results {
-    height: 1fr;
+.index-log {
     margin-top: 1;
 }
 
-#index-tabs {
-    margin-bottom: 1;
-}
-
-#root-selection-toolbar {
+/* Compact controls and settings */
+.compact-toolbar {
     height: 1;
-    margin-top: 0;
-    margin-bottom: 1;
+    margin: 0 0 1 0;
 }
 
-RootSelectionAction {
+.compact-control {
     width: 3;
     height: 1;
     padding: 0;
-    margin-right: 1;
     content-align: center middle;
     color: #ffffff;
     background: #123447;
     text-style: bold;
 }
 
-RootSelectionAction:focus {
+.selection-action {
+    margin-right: 1;
+}
+
+.compact-control:focus {
     background: #45e0ff;
     color: #0d141c;
 }
 
-RootSelectionAction.active-panel-focus,
-RootSelectionAction.inactive-panel-focus {
+.compact-control.active-panel-focus,
+.compact-control.inactive-panel-focus {
     outline: none;
 }
 
-#footer-spacer {
-    height: 0;
-    display: none;
-}
-
-#settings-list {
+.settings-list {
     margin-top: 1;
 }
 
-#footer-height-row {
+.setting-row-layout {
     height: 1;
     layout: horizontal;
 }
 
-SettingRow {
+.setting-row {
     width: 1fr;
     height: 1;
     padding: 0 1;
 }
 
-SettingRow.active-nav {
+.setting-row.active-nav {
     background: #123447;
     color: #ffffff;
     text-style: bold;
 }
 
-SettingRow.editing-setting {
+.setting-row.editing-setting {
     background: #1d4d35;
     color: #ffffff;
     text-style: bold;
 }
 
-SettingRow.active-panel-focus,
-SettingRow.inactive-panel-focus {
+.setting-row.active-panel-focus,
+.setting-row.inactive-panel-focus {
     outline: none;
 }
 
-SettingStep {
-    width: 3;
-    height: 1;
-    padding: 0;
-    content-align: center middle;
-    color: #ffffff;
-    background: #123447;
-    text-style: bold;
-}
-
-SettingStep:focus {
-    background: #45e0ff;
-    color: #0d141c;
-}
-
-SettingStep.active-panel-focus,
-SettingStep.inactive-panel-focus {
-    outline: none;
-}
-
-#footer-height-value {
+.setting-value {
     width: 3;
     height: 1;
     content-align: center middle;
 }
 
-#footer-height-value.editing-setting {
+.setting-value.editing-setting {
     background: #45e0ff;
     color: #0d141c;
     text-style: bold;
 }
 
-#mouse-status {
-    width: 12;
-    content-align: right middle;
-    color: #8b9aad;
-    margin-right: 1;
-}
-
+/* Button family: base -> role -> palette -> state. */
 Button {
     margin-top: 1;
     margin-right: 1;
@@ -405,6 +351,11 @@ Button {
 
 Button:hover {
     border: tall #69737b;
+}
+
+Button.action-button,
+Button.choice-button {
+    width: auto;
 }
 
 Button.cyan {
