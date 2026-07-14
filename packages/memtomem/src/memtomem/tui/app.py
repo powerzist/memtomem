@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import datetime
@@ -16,12 +17,13 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.css.query import NoMatches
-from textual.geometry import Spacing
-from textual.screen import ModalScreen
+from textual.geometry import Size, Spacing
+from textual.screen import ModalScreen, Screen
 from textual.strip import Strip
 from textual.widgets._option_list import OptionDoesNotExist, OptionList
 from textual.widgets import (
     Button,
+    DirectoryTree,
     Footer,
     Input,
     ListItem,
@@ -34,18 +36,26 @@ from textual.widgets import (
 
 from memtomem.tui.catalog import COMMAND_CATALOG
 from memtomem.tui.clipboard import read_os_clipboard, write_os_clipboard
+from memtomem.tui.init_flow import PRESETS, TuiInitState, detect_provider_dirs
 from memtomem.tui.runtime import (
     Readiness,
     ReadinessState,
     TuiPaths,
     config_exists,
     inspect_readiness,
+    initialize_tui_config,
     resolve_tui_paths,
     save_tui_config,
     tui_components,
 )
 from memtomem.tui.shared import TUI_CSS, BorderStyleMixin, PanelScroll
-from memtomem.tui.terminal import BorderStyle, detect_terminal_profile, has_ime_limitations
+from memtomem.tui.terminal import (
+    BorderStyle,
+    detect_terminal_profile,
+    has_ime_limitations,
+    normalize_windows_console_buffer_width,
+    windows_console_viewport_size,
+)
 
 if TYPE_CHECKING:
     from memtomem.models import SearchResult
@@ -165,6 +175,450 @@ class ManagedRootsSelectionList(SelectionList[str]):
                 *line,
             ]
         )
+
+
+class InitScreen(BorderStyleMixin, Screen[TuiInitState | None]):
+    """First-run gate shown before the main TUI is available."""
+
+    CSS = TUI_CSS
+    BINDINGS = [
+        Binding("escape", "cancel", "Quit", priority=True),
+        Binding("up,k", "focus_previous", "Previous", show=False, priority=True),
+        Binding("down,j", "focus_next", "Next", show=False, priority=True),
+        Binding("left,h", "focus_left", "Previous", show=False, priority=True),
+        Binding("right,l", "focus_right", "Next", show=False, priority=True),
+        Binding("enter", "activate", "Select", show=False, priority=True),
+        Binding("page_up", "page_up", "Page up", show=False, priority=True),
+        Binding("page_down", "page_down", "Page down", show=False, priority=True),
+    ]
+
+    def __init__(self, *, paths: TuiPaths, border_style: BorderStyle = "solid") -> None:
+        super().__init__()
+        self.paths = paths
+        self.border_style = border_style
+        self.state = TuiInitState(
+            memory_dir=str(paths.memories_path), db_path=str(paths.database_path)
+        )
+        self.state.apply_preset()
+        self.step_index = 0
+        self.detected_provider_dirs = detect_provider_dirs()
+        self.model_button_values: dict[str, tuple[str, int]] = {}
+
+    def compose(self) -> ComposeResult:
+        with Container(classes="init-screen"):
+            with Vertical(classes=f"modal-dialog init-dialog {self.border_class}".strip()):
+                yield Static("Set up memtomem", classes="modal-title")
+                yield Static("", id="init-step-title", classes="title")
+                with Horizontal(id="init-layout"):
+                    with Vertical(
+                        id="init-main",
+                        classes=f"section-panel main-section {self.border_class}".strip(),
+                    ):
+                        with PanelScroll(id="init-step-body", classes="section-body"):
+                            yield Static("")
+                    with Vertical(
+                        id="init-detail",
+                        classes=f"section-panel detail-section {self.border_class}".strip(),
+                    ):
+                        with PanelScroll(id="init-detail-body", classes="section-body"):
+                            yield Static("Details", classes="title section-title")
+                            yield Static("", id="init-detail-text")
+                yield Static("", id="init-error", classes="error")
+                with Horizontal(classes="modal-actions"):
+                    yield ModalButton("Back", id="init-back", classes="action-button")
+                    yield ModalButton("Next", id="init-next", classes="action-button cyan")
+                    yield ModalButton("Quit", id="init-cancel", classes="action-button")
+
+    async def on_mount(self) -> None:
+        await self._render_step()
+
+    async def _render_step(self) -> None:
+        body = self.query_one("#init-step-body", PanelScroll)
+        await body.remove_children()
+        self.query_one("#init-error", Static).update("")
+        back = self.query_one("#init-back", Button)
+        next_button = self.query_one("#init-next", Button)
+        back.disabled = self.step_index == 0
+
+        steps = self.state.steps
+        title = steps[self.step_index]
+        self.query_one("#init-step-title", Static).update(
+            f"Step {self.step_index + 1}/{len(steps)}  {title}"
+        )
+        next_button.label = "Initialize" if self.step_index == len(steps) - 1 else "Next"
+        await self._mount_current_step(body)
+        self._update_init_detail(None)
+        if self.focused is None or not self.focused.is_mounted:
+            next_button.focus()
+
+    async def _choice(
+        self, body: PanelScroll, label: str, button_id: str, selected: bool = False
+    ) -> None:
+        await body.mount(
+            ModalButton(
+                label,
+                id=button_id,
+                classes=f"choice-button {'cyan' if selected else ''}".strip(),
+            )
+        )
+
+    async def _mount_current_step(self, body: PanelScroll) -> None:
+        state = self.state
+        title = state.steps[self.step_index]
+        if title == "Setup style":
+            for name, preset in PRESETS.items():
+                await self._choice(
+                    body,
+                    preset.label,
+                    f"init-preset-{name}",
+                    state.mode == "preset" and state.preset_name == name,
+                )
+            await self._choice(
+                body,
+                "Advanced",
+                "init-mode-advanced",
+                state.mode == "advanced",
+            )
+            self.query_one(f"#init-preset-{state.preset_name}", Button).focus()
+        elif title == "Embedding Provider":
+            for value, label in (
+                ("none", "Quick start"),
+                ("onnx", "Local ONNX"),
+                ("ollama", "Ollama"),
+                ("openai", "OpenAI"),
+            ):
+                await self._choice(body, label, f"init-provider-{value}", state.provider == value)
+            if state.provider == "onnx":
+                models = (("all-MiniLM-L6-v2", 384), ("bge-small-en-v1.5", 384), ("bge-m3", 1024))
+            elif state.provider == "ollama":
+                models = (("nomic-embed-text", 768), ("bge-m3", 1024))
+            elif state.provider == "openai":
+                models = (("text-embedding-3-small", 1536), ("text-embedding-3-large", 3072))
+            else:
+                models = ()
+            self.model_button_values.clear()
+            for index, (model, dimension) in enumerate(models):
+                button_id = f"init-model-{index}"
+                self.model_button_values[button_id] = (model, dimension)
+                await self._choice(
+                    body, f"Model: {model} ({dimension}d)", button_id, state.model == model
+                )
+            if state.provider == "openai":
+                await body.mount(
+                    Input(
+                        value=state.api_key,
+                        placeholder="OpenAI API key",
+                        password=True,
+                        id="init-api-key",
+                        classes="text-input",
+                    )
+                )
+        elif title == "Reranker (optional)":
+            await self._choice(body, "Disabled", "init-rerank-off", not state.rerank_enabled)
+            await self._choice(
+                body,
+                "English",
+                "init-rerank-en",
+                state.rerank_enabled and "multilingual" not in state.rerank_model,
+            )
+            await self._choice(
+                body,
+                "Multilingual",
+                "init-rerank-multi",
+                state.rerank_enabled and "multilingual" in state.rerank_model,
+            )
+        elif title == "Memory Directory":
+            await body.mount(
+                Static("Where are the files you want to index?", classes="muted"),
+                Input(value=state.memory_dir, id="init-memory-dir", classes="text-input"),
+            )
+            self.query_one("#init-memory-dir", Input).focus()
+        elif title == "Provider Memory Folders":
+            available = {key: paths for key, paths in self.detected_provider_dirs.items() if paths}
+            if state.mode == "preset":
+                preset = PRESETS[state.preset_name]
+                state.provider_categories = set(available) if preset.autodetect_providers else set()
+                await body.mount(
+                    Static(
+                        f"Auto-detected {sum(len(paths) for paths in available.values())} provider folder(s).",
+                        classes="muted",
+                    )
+                )
+            if not available:
+                await body.mount(Static("No AI tool memory folders detected.", classes="muted"))
+            for category, paths in available.items():
+                await self._choice(
+                    body,
+                    f"{category} ({len(paths)} folder(s))",
+                    f"init-provider-dir-{category}",
+                    category in state.provider_categories,
+                )
+        elif title == "Storage":
+            await body.mount(
+                Input(
+                    value=state.db_path,
+                    placeholder="SQLite DB path",
+                    id="init-db-path",
+                    classes="text-input",
+                )
+            )
+        elif title == "Namespace":
+            await self._choice(
+                body, "Auto-assign namespace from folder name", "init-auto-ns", state.enable_auto_ns
+            )
+            await self._choice(
+                body, "Use default namespace only", "init-manual-ns", not state.enable_auto_ns
+            )
+            await body.mount(
+                Input(
+                    value=state.default_ns,
+                    placeholder="Default namespace",
+                    id="init-default-ns",
+                    classes="text-input",
+                )
+            )
+        elif title == "Search":
+            await body.mount(
+                Input(
+                    value=str(state.top_k),
+                    placeholder="Results per search",
+                    id="init-top-k",
+                    classes="text-input",
+                )
+            )
+            await self._choice(body, "Time-decay enabled", "init-decay-on", state.decay_enabled)
+            await self._choice(
+                body, "Time-decay disabled", "init-decay-off", not state.decay_enabled
+            )
+        elif title == "Language":
+            await self._choice(
+                body,
+                "Unicode tokenizer",
+                "init-tokenizer-unicode61",
+                state.tokenizer == "unicode61",
+            )
+            await self._choice(
+                body,
+                "Korean tokenizer (kiwipiepy)",
+                "init-tokenizer-kiwipiepy",
+                state.tokenizer == "kiwipiepy",
+            )
+        elif title == "Claude Code Hooks":
+            detected = (Path.home() / ".claude").is_dir()
+            await body.mount(
+                Static(
+                    "Claude Code detected."
+                    if detected
+                    else "Claude Code not detected; this step will be skipped.",
+                    classes="muted",
+                )
+            )
+            await self._choice(body, "Configure hooks", "init-hooks-on", state.settings_hooks)
+            await self._choice(body, "Skip hooks", "init-hooks-off", not state.settings_hooks)
+        elif title == "Connect to AI Editor":
+            for value, label in (
+                (1, "Claude Code"),
+                (2, "Generate .mcp.json"),
+                (3, "Skip"),
+                (4, "Kimi CLI"),
+            ):
+                await self._choice(body, label, f"init-mcp-{value}", state.mcp_choice == value)
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        button_id = event.button.id or ""
+        if await self._handle_choice(button_id):
+            await self._render_step()
+            return
+        if button_id == "init-back":
+            self._capture_inputs()
+            if self.step_index > 0:
+                self.step_index -= 1
+            await self._render_step()
+            return
+        if button_id == "init-cancel":
+            self.dismiss(None)
+            return
+        if button_id != "init-next":
+            return
+        if not self._capture_inputs():
+            return
+        if self.step_index < len(self.state.steps) - 1:
+            self.step_index += 1
+            await self._render_step()
+            return
+        self.state.provider_dirs = [
+            str(path)
+            for category in self.state.provider_categories
+            for path in self.detected_provider_dirs.get(category, [])
+        ]
+        self.dismiss(self.state)
+
+    async def _handle_choice(self, button_id: str) -> bool:
+        state = self.state
+        if button_id.startswith("init-preset-"):
+            state.mode = "preset"
+            state.preset_name = button_id.removeprefix("init-preset-")  # type: ignore[assignment]
+            state.apply_preset()
+        elif button_id == "init-mode-advanced":
+            state.mode = "advanced"
+            self.step_index = 0
+        elif button_id.startswith("init-provider-") and not button_id.startswith(
+            "init-provider-dir-"
+        ):
+            state.provider = button_id.removeprefix("init-provider-")
+            defaults = {
+                "none": ("", 0),
+                "onnx": ("all-MiniLM-L6-v2", 384),
+                "ollama": ("nomic-embed-text", 768),
+                "openai": ("text-embedding-3-small", 1536),
+            }
+            state.model, state.dimension = defaults[state.provider]
+        elif button_id in self.model_button_values:
+            state.model, state.dimension = self.model_button_values[button_id]
+        elif button_id.startswith("init-provider-dir-"):
+            category = button_id.removeprefix("init-provider-dir-")
+            state.provider_categories.symmetric_difference_update({category})
+        elif button_id.startswith("init-rerank-"):
+            value = button_id.removeprefix("init-rerank-")
+            state.rerank_enabled = value != "off"
+            state.rerank_model = (
+                "jinaai/jina-reranker-v2-base-multilingual"
+                if value == "multi"
+                else "Xenova/ms-marco-MiniLM-L-6-v2"
+            )
+        elif button_id in {"init-auto-ns", "init-manual-ns"}:
+            state.enable_auto_ns = button_id == "init-auto-ns"
+        elif button_id in {"init-decay-on", "init-decay-off"}:
+            state.decay_enabled = button_id == "init-decay-on"
+        elif button_id.startswith("init-tokenizer-"):
+            state.tokenizer = button_id.removeprefix("init-tokenizer-")
+        elif button_id in {"init-hooks-on", "init-hooks-off"}:
+            state.settings_hooks = button_id == "init-hooks-on"
+        elif button_id.startswith("init-mcp-"):
+            state.mcp_choice = int(button_id.removeprefix("init-mcp-"))
+        else:
+            return False
+        return True
+
+    def _capture_inputs(self) -> bool:
+        title = self.state.steps[self.step_index]
+        try:
+            if title == "Memory Directory":
+                value = self.query_one("#init-memory-dir", Input).value.strip()
+                if not value:
+                    raise ValueError("Enter a memory directory.")
+                self.state.memory_dir = value
+            elif title == "Embedding Provider" and self.state.provider == "openai":
+                self.state.api_key = self.query_one("#init-api-key", Input).value.strip()
+                if not self.state.api_key:
+                    raise ValueError("Enter an OpenAI API key.")
+            elif title == "Storage":
+                self.state.db_path = self.query_one("#init-db-path", Input).value.strip()
+            elif title == "Namespace":
+                self.state.default_ns = (
+                    self.query_one("#init-default-ns", Input).value.strip() or "default"
+                )
+            elif title == "Search":
+                self.state.top_k = int(self.query_one("#init-top-k", Input).value)
+                if self.state.top_k <= 0:
+                    raise ValueError("Results per search must be positive.")
+        except (ValueError, NoMatches) as exc:
+            self.query_one("#init-error", Static).update(str(exc))
+            return False
+        return True
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_focus_previous(self) -> None:
+        self.focus_previous()
+
+    def action_focus_next(self) -> None:
+        self.focus_next()
+
+    def action_focus_left(self) -> None:
+        focused = self.focused
+        if isinstance(focused, Input):
+            focused.action_cursor_left()
+        elif getattr(focused, "id", None) == "init-next":
+            self.query_one("#init-back", Button).focus()
+        elif getattr(focused, "id", None) == "init-cancel":
+            self.query_one("#init-next", Button).focus()
+        else:
+            self.focus_previous()
+
+    def action_focus_right(self) -> None:
+        focused = self.focused
+        if isinstance(focused, Input):
+            focused.action_cursor_right()
+        elif getattr(focused, "id", None) == "init-back":
+            self.query_one("#init-next", Button).focus()
+        elif getattr(focused, "id", None) == "init-next":
+            self.query_one("#init-cancel", Button).focus()
+        else:
+            self.focus_next()
+
+    def action_activate(self) -> None:
+        focused = self.focused
+        if isinstance(focused, Button):
+            focused.press()
+        elif isinstance(focused, Input):
+            self.query_one("#init-next", Button).press()
+
+    def action_page_up(self) -> None:
+        self.query_one("#init-step-body", PanelScroll).scroll_page_up(animate=False)
+
+    def action_page_down(self) -> None:
+        self.query_one("#init-step-body", PanelScroll).scroll_page_down(animate=False)
+
+    def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        self._update_init_detail(getattr(event.widget, "id", None))
+
+    def _update_init_detail(self, widget_id: str | None) -> None:
+        try:
+            detail = self.query_one("#init-detail-text", Static)
+        except NoMatches:
+            return
+        descriptions = {
+            "init-preset-minimal": PRESETS["minimal"].description,
+            "init-preset-english": PRESETS["english"].description,
+            "init-preset-korean": PRESETS["korean"].description,
+            "init-mode-advanced": "Configure every option through the full 10-step wizard.",
+            "init-provider-none": "BM25 keyword search only. No model download is required.",
+            "init-provider-onnx": "Local dense embeddings through fastembed ONNX.",
+            "init-provider-ollama": "Use a locally running Ollama server for embeddings.",
+            "init-provider-openai": "Use OpenAI cloud embeddings. An API key is required.",
+            "init-rerank-off": "Skip cross-encoder reranking.",
+            "init-rerank-en": "English cross-encoder reranker.",
+            "init-rerank-multi": "Multilingual reranker for Korean and mixed-language memory.",
+            "init-auto-ns": "Derive namespaces from folder names automatically.",
+            "init-manual-ns": "Use the configured default namespace.",
+            "init-decay-on": "Older memories gradually receive a lower search rank.",
+            "init-decay-off": "Do not change rank based on memory age.",
+            "init-tokenizer-unicode61": "General Unicode tokenizer for most languages.",
+            "init-tokenizer-kiwipiepy": "Korean-aware word splitting. Requires the Korean extra.",
+            "init-hooks-on": "Create and synchronize memtomem-managed Claude Code hooks.",
+            "init-hooks-off": "Leave Claude Code hook settings unchanged.",
+            "init-mcp-1": "Register memtomem in Claude Code at user scope.",
+            "init-mcp-2": "Write a project-scoped .mcp.json.",
+            "init-mcp-3": "Do not configure an editor connection during init.",
+            "init-mcp-4": "Write the memtomem entry to the Kimi CLI MCP configuration.",
+            "init-back": "Return to the previous interactive init step.",
+            "init-next": "Validate this step and continue.",
+            "init-cancel": "Cancel initialization and exit.",
+        }
+        if widget_id and widget_id.startswith("init-model-"):
+            model = self.model_button_values.get(widget_id)
+            text = f"Use {model[0]} with {model[1]} dimensions." if model else "Embedding model."
+        elif widget_id and widget_id.startswith("init-provider-dir-"):
+            category = widget_id.removeprefix("init-provider-dir-")
+            paths = self.detected_provider_dirs.get(category, [])
+            text = f"Include {len(paths)} detected {category} folder(s) in search."
+        else:
+            text = descriptions.get(
+                widget_id or "", f"Configure {self.state.steps[self.step_index]}."
+            )
+        detail.update(text)
 
 
 class KeybindingsScreen(BorderStyleMixin, ModalScreen[None]):
@@ -445,6 +899,114 @@ class TuiInput(Input):
         self.replace(clipboard.splitlines()[0] if clipboard else "", start, end)
 
 
+class FolderTree(DirectoryTree):
+    """Directory tree that hides files for folder-selection workflows."""
+
+    def filter_paths(self, paths: Iterable[Path]) -> Iterable[Path]:
+        return [path for path in paths if path.is_dir()]
+
+
+class FolderBrowserScreen(BorderStyleMixin, ModalScreen[Path | None]):
+    """Keyboard- and mouse-accessible experimental folder picker."""
+
+    CSS = TUI_CSS
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    def __init__(self, path: str | Path, *, border_style: BorderStyle = "solid") -> None:
+        super().__init__()
+        self.border_style = border_style
+        self.selected_path = self.existing_directory(path)
+
+    @staticmethod
+    def existing_directory(path: str | Path) -> Path:
+        candidate = Path(path).expanduser().resolve()
+        while not candidate.is_dir() and candidate != candidate.parent:
+            candidate = candidate.parent
+        return candidate if candidate.is_dir() else Path.home().resolve()
+
+    def compose(self) -> ComposeResult:
+        dialog_classes = "modal-dialog folder-browser-dialog"
+        if self.border_style == "ascii":
+            dialog_classes += " ascii-border"
+        with Vertical(classes=dialog_classes):
+            yield Static("Select memory directory", classes="modal-title")
+            yield Static(
+                "Choose an existing folder. This test browser does not create or modify folders.",
+                classes="muted folder-browser-help",
+            )
+            with Horizontal(classes="folder-browser-location-row"):
+                yield Input(
+                    value=str(self.selected_path),
+                    id="folder-browser-location",
+                    classes="text-input",
+                )
+                yield ModalButton("Go", id="folder-browser-go", classes="action-button cyan")
+                yield ModalButton("Up", id="folder-browser-up", classes="action-button")
+            yield FolderTree(
+                self.selected_path,
+                id="folder-browser-tree",
+                classes="folder-browser-tree",
+            )
+            yield Static("Selected", classes="muted")
+            yield Static(
+                str(self.selected_path),
+                id="folder-browser-selected",
+                classes="folder-browser-selected",
+            )
+            with Horizontal(classes="modal-actions"):
+                yield ModalButton(
+                    "Use this folder",
+                    id="folder-browser-use",
+                    classes="action-button cyan",
+                )
+                yield ModalButton(
+                    "Cancel",
+                    id="folder-browser-cancel",
+                    classes="action-button",
+                )
+
+    def on_mount(self) -> None:
+        self.query_one("#folder-browser-tree", FolderTree).focus()
+
+    def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
+        self.set_selected_path(event.path)
+
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "folder-browser-location":
+            self.go_to_location()
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "folder-browser-go":
+            self.go_to_location()
+        elif event.button.id == "folder-browser-up":
+            self.show_directory(self.selected_path.parent)
+        elif event.button.id == "folder-browser-use":
+            self.dismiss(self.selected_path)
+        elif event.button.id == "folder-browser-cancel":
+            self.dismiss(None)
+
+    def go_to_location(self) -> None:
+        value = self.query_one("#folder-browser-location", Input).value.strip()
+        candidate = Path(value).expanduser().resolve()
+        if not candidate.is_dir():
+            self.notify("Enter an existing directory.", severity="error")
+            return
+        self.show_directory(candidate)
+
+    def show_directory(self, path: Path) -> None:
+        resolved = path.expanduser().resolve()
+        self.set_selected_path(resolved)
+        self.query_one("#folder-browser-tree", FolderTree).path = resolved
+
+    def set_selected_path(self, path: Path) -> None:
+        self.selected_path = path.expanduser().resolve()
+        self.query_one("#folder-browser-location", Input).value = str(self.selected_path)
+        self.query_one("#folder-browser-selected", Static).update(str(self.selected_path))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class DiagnosticInput(TuiInput):
     """Input widget that records the raw key events it receives."""
 
@@ -620,6 +1182,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.index_sources_cached_at: datetime | None = None
         self.index_root_rows: list[dict[str, Any]] = []
         self.test_section = "one"
+        self.test_browse_path = str(Path.home())
         self.test_detail_section = "alpha"
         self.current_page_id = "dashboard"
         self.ui_state: dict[tuple[str, str, str | None, str], UiWidgetState] = {}
@@ -634,6 +1197,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.settings_index = 0
         self.settings_editing = False
         self.settings_draft_footer_offset = 0
+        self._requested_conhost_viewport: tuple[int, int] | None = None
 
     def compose(self) -> ComposeResult:
         with Container(id="root", classes="app-shell"):
@@ -681,11 +1245,35 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.update_mouse_status()
         self.set_footer_offset(self.footer_offset)
         self.set_interval(1, self.update_clock)
-        if self.startup_refresh:
+        if self.terminal_profile == "windows-conhost":
+            self.set_interval(0.2, self.correct_conhost_viewport_size)
+        if self.startup_refresh and not config_exists(self.paths.config_path):
+            self.push_screen(
+                InitScreen(paths=self.paths, border_style=self.border_style),
+                self._finish_initial_setup,
+            )
+        elif self.startup_refresh:
             await self.refresh_readiness()
         self.focus_panel(0)
         if has_ime_limitations(self.terminal_profile):
             self.push_screen(ConhostWarningScreen(border_style=self.border_style))
+
+    def _finish_initial_setup(self, result: TuiInitState | None) -> None:
+        if result is None:
+            self.exit()
+            return
+        self.run_worker(self._complete_initial_setup(result), group="startup")
+
+    async def _complete_initial_setup(self, state: TuiInitState) -> None:
+        try:
+            initialize_tui_config(self.paths, state=state)
+            await self.refresh_readiness()
+        except Exception as exc:
+            self.notify(f"Initialization failed: {exc}", severity="error", timeout=8)
+            self.push_screen(
+                InitScreen(paths=self.paths, border_style=self.border_style),
+                self._finish_initial_setup,
+            )
 
     async def on_unmount(self) -> None:
         if self._components_cm is not None:
@@ -701,6 +1289,24 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.compact = compact
         self.menu_compact = menu_compact
         self.update_compact_visibility()
+
+    def correct_conhost_viewport_size(self) -> None:
+        """Correct Textual when conhost restores only its visible viewport."""
+        if self.terminal_profile != "windows-conhost":
+            return
+        normalize_windows_console_buffer_width()
+        viewport = windows_console_viewport_size()
+        if viewport is None:
+            return
+        current = (self.size.width, self.size.height)
+        if current == viewport:
+            self._requested_conhost_viewport = None
+            return
+        if self._requested_conhost_viewport == viewport:
+            return
+        self._requested_conhost_viewport = viewport
+        size = Size(*viewport)
+        self.post_message(events.Resize(size, size))
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id or ""
@@ -782,7 +1388,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                 self.render_index(section)
         elif event.tabs.id == "test-tabs":
             section = tab_id.removeprefix("test-tab-")
-            if section in {"one", "two", "empty"}:
+            if section in {"one", "two", "empty", "browse"}:
                 if section == self.test_section:
                     return
                 self.save_panel_state("main", tab_id_override=f"test-tab-{self.test_section}")
@@ -859,6 +1465,12 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self.adjust_footer_height_from_mouse(-1)
         elif button_id == "footer-height-increase":
             self.adjust_footer_height_from_mouse(1)
+        elif button_id == "test-browse-path-button":
+            self.run_worker(
+                self.browse_test_path(),
+                exclusive=True,
+                group="folder-browser",
+            )
         elif button_id == "refresh-after-index" or button_id.startswith(
             "dashboard-refresh-preview-"
         ):
@@ -1287,7 +1899,12 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     def update_compact_visibility(self) -> None:
         active_panel_id = self.PANEL_IDS[self.panel_index]
         try:
-            self.query_one("#menu-bar").display = not self.menu_compact or active_panel_id == "menu"
+            menu = self.query_one("#menu-bar")
+            layout = self.query_one("#layout")
+            expanded_menu = self.compact and active_panel_id == "menu"
+            menu.set_class(expanded_menu, "compact-expanded")
+            layout.display = not expanded_menu
+            menu.display = not self.menu_compact or active_panel_id == "menu"
             self.query_one("#main").display = not self.compact or active_panel_id == "main"
             self.query_one("#detail").display = not self.compact or active_panel_id == "detail"
         except NoMatches:
@@ -2032,6 +2649,30 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                     ),
                 ]
             )
+        elif self.test_section == "browse":
+            widgets.extend(
+                [
+                    Static("Folder browser prototype", classes="muted"),
+                    Horizontal(
+                        TuiInput(
+                            value=self.test_browse_path,
+                            placeholder="Path to a memory directory...",
+                            id="test-browse-path",
+                            classes="text-input",
+                        ),
+                        PanelButton(
+                            "Browse...",
+                            id="test-browse-path-button",
+                            classes="action-button cyan",
+                        ),
+                        classes="path-picker-row",
+                    ),
+                    Static(
+                        "Type a path directly or open the TUI folder browser.",
+                        classes="muted",
+                    ),
+                ]
+            )
         else:
             widgets.extend(
                 [
@@ -2054,10 +2695,21 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             Tab("One input", id="test-tab-one"),
             Tab("Two inputs", id="test-tab-two"),
             Tab("No input", id="test-tab-empty"),
+            Tab("Browse", id="test-tab-browse"),
             active=f"test-tab-{self.test_section}",
             id="test-tabs",
             classes="tab-bar",
         )
+
+    async def browse_test_path(self) -> None:
+        path_input = self.query_one("#test-browse-path", Input)
+        result = await self.push_screen_wait(
+            FolderBrowserScreen(path_input.value, border_style=self.border_style)
+        )
+        if result is None:
+            return
+        self.test_browse_path = str(result)
+        path_input.value = self.test_browse_path
 
     def render_test_detail(self, section: str | None = None) -> None:
         if section is not None:

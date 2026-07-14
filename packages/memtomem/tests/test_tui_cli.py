@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
 from click.testing import CliRunner
+from textual.geometry import Size
 from textual.widgets import Button, Footer, Input, ListItem, ListView, SelectionList, Static, Tabs
 from textual.widgets._input import Selection
 
 from memtomem.cli import cli
 from memtomem.models import Chunk, ChunkMetadata, SearchResult
 from memtomem.tui import clipboard as tui_clipboard
+from memtomem.tui.init_flow import ADVANCED_STEPS, PRESETS, TuiInitState
 from memtomem.tui.app import (
     ConhostWarningScreen,
+    FolderBrowserScreen,
     InputDiagnosticsApp,
     KeybindingsScreen,
     ManagedRootsSelectionList,
@@ -246,6 +250,64 @@ async def test_tui_does_not_show_conhost_warning_in_windows_terminal() -> None:
         assert not isinstance(app.screen, ConhostWarningScreen)
 
 
+async def test_tui_conhost_corrects_textual_size_to_visible_viewport(monkeypatch) -> None:
+    normalized = []
+    monkeypatch.setattr(
+        "memtomem.tui.app.normalize_windows_console_buffer_width",
+        lambda: normalized.append(True),
+    )
+    monkeypatch.setattr("memtomem.tui.app.windows_console_viewport_size", lambda: (117, 28))
+    app = MemtomemTuiApp(
+        startup_refresh=False,
+        terminal_profile="windows-conhost",
+    )
+
+    async with app.run_test(size=(240, 67)) as pilot:
+        await pilot.pause(0.3)
+
+        assert app.size == Size(117, 28)
+        assert normalized
+
+
+async def test_tui_non_conhost_does_not_poll_windows_viewport(monkeypatch) -> None:
+    def unexpected_viewport_read() -> tuple[int, int]:
+        raise AssertionError("Windows viewport must not be read outside conhost")
+
+    monkeypatch.setattr(
+        "memtomem.tui.app.windows_console_viewport_size",
+        unexpected_viewport_read,
+    )
+    app = MemtomemTuiApp(
+        startup_refresh=False,
+        terminal_profile="windows-terminal",
+    )
+
+    async with app.run_test(size=(120, 30)) as pilot:
+        await pilot.pause(0.3)
+
+        assert app.size == Size(120, 30)
+
+
+async def test_tui_compact_active_menu_uses_available_body_space() -> None:
+    app = MemtomemTuiApp(startup_refresh=False, terminal_profile="windows-terminal")
+
+    async with app.run_test(size=(80, 20)) as pilot:
+        await pilot.pause()
+
+        menu = app.query_one("#menu-bar")
+        assert menu.has_class("compact-expanded")
+        assert menu.display
+        assert not app.query_one("#layout").display
+
+        app.focus_panel_by_id("main")
+        await pilot.pause()
+
+        assert not menu.has_class("compact-expanded")
+        assert menu.display
+        assert app.query_one("#layout").display
+        assert app.query_one("#main").display
+
+
 async def test_tui_mouse_mode_toggle_updates_status(monkeypatch) -> None:
     calls = []
     app = make_tui_app()
@@ -442,6 +504,164 @@ def test_tui_dev_config_save_writes_only_project_local_config(tmp_path) -> None:
     saved = json.loads(paths.config_path.read_text(encoding="utf-8"))
     assert str(extra_root) in saved["indexing"]["memory_dirs"]
     assert config.storage.sqlite_path == paths.database_path
+
+
+def test_initialize_tui_config_applies_preset_and_memory_dir(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    memory_dir = tmp_path / "my-memories"
+
+    state = TuiInitState(preset_name="korean", memory_dir=str(memory_dir), mcp_choice=3)
+    state.apply_preset()
+    runtime.initialize_tui_config(paths, state=state)
+
+    config = runtime.load_tui_config(paths)
+    assert paths.config_path.is_file()
+    assert memory_dir.is_dir()
+    assert [Path(path) for path in config.indexing.memory_dirs] == [memory_dir.resolve()]
+    assert config.embedding.provider == "onnx"
+    assert config.embedding.model == "bge-m3"
+    assert config.search.tokenizer == "kiwipiepy"
+    assert config.namespace.enable_auto_ns
+    assert config.rerank.enabled
+
+
+async def test_tui_first_run_opens_init_gate_before_dashboard(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    app = MemtomemTuiApp(paths=paths, terminal_profile="windows-terminal")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.screen.__class__.__name__ == "InitScreen"
+        assert app.screen.query_one("#init-next", Button)
+        assert app.screen.query_one("#init-step-title", Static).content == "Step 1/4  Setup style"
+        assert not paths.config_path.exists()
+
+
+async def test_tui_init_wizard_preserves_values_when_moving_back(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    app = MemtomemTuiApp(paths=paths, terminal_profile="windows-terminal")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.screen
+        await screen.on_button_pressed(
+            Button.Pressed(screen.query_one("#init-preset-korean", Button))
+        )
+        await screen.on_button_pressed(Button.Pressed(screen.query_one("#init-next", Button)))
+        memory_dir = str(tmp_path / "custom-memories")
+        screen.query_one("#init-memory-dir", Input).value = memory_dir
+        await screen.on_button_pressed(Button.Pressed(screen.query_one("#init-next", Button)))
+        assert screen.state.preset_name == "korean"
+        assert screen.state.memory_dir == memory_dir
+        assert screen.state.steps[screen.step_index] == "Provider Memory Folders"
+        await screen.on_button_pressed(Button.Pressed(screen.query_one("#init-back", Button)))
+        assert screen.query_one("#init-memory-dir", Input).value == memory_dir
+        await screen.on_button_pressed(Button.Pressed(screen.query_one("#init-back", Button)))
+        assert screen.state.preset_name == "korean"
+        assert not paths.config_path.exists()
+
+
+async def test_tui_init_wizard_is_fully_keyboard_operable(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    app = MemtomemTuiApp(paths=paths, terminal_profile="windows-terminal")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.screen
+        assert getattr(screen.focused, "id", None) == "init-preset-english"
+
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert screen.state.preset_name == "korean"
+        assert getattr(screen.focused, "id", None) == "init-preset-korean"
+
+        screen.query_one("#init-next", Button).focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert screen.step_index == 1
+        assert getattr(screen.focused, "id", None) == "init-memory-dir"
+
+        await pilot.press("enter")
+        await pilot.pause()
+        assert screen.step_index == 2
+
+        screen.query_one("#init-back", Button).focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert screen.step_index == 1
+
+
+async def test_tui_init_advanced_exposes_all_ten_cli_steps(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    app = MemtomemTuiApp(paths=paths, terminal_profile="windows-terminal")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.screen
+        await screen.on_button_pressed(
+            Button.Pressed(screen.query_one("#init-mode-advanced", Button))
+        )
+        await screen.on_button_pressed(Button.Pressed(screen.query_one("#init-next", Button)))
+        assert screen.state.mode == "advanced"
+        assert screen.state.steps == ADVANCED_STEPS
+        assert screen.query_one("#init-step-title", Static).content == (
+            "Step 2/10  Reranker (optional)"
+        )
+
+
+async def test_tui_init_uses_scrollable_main_and_detail_panels(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    app = MemtomemTuiApp(paths=paths, terminal_profile="windows-terminal")
+
+    async with app.run_test(size=(80, 16)) as pilot:
+        await pilot.pause()
+        screen = app.screen
+        main_body = screen.query_one("#init-step-body", PanelScroll)
+        detail_body = screen.query_one("#init-detail-body", PanelScroll)
+        assert main_body.allow_vertical_scroll
+        assert detail_body.allow_vertical_scroll
+
+        screen.query_one("#init-preset-korean", Button).focus()
+        await pilot.pause()
+        detail = str(screen.query_one("#init-detail-text", Static).content)
+        assert PRESETS["korean"].description in detail
+
+
+async def test_tui_test_browse_tab_selects_folder(tmp_path) -> None:
+    app = make_tui_app()
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        app.render_test_page("browse")
+        await pilot.pause()
+
+        assert app.query_one("#test-tabs", Tabs).active == "test-tab-browse"
+        path_input = app.query_one("#test-browse-path", Input)
+        path_input.value = str(tmp_path)
+
+        app.focus_panel_by_id("main", target_id="test-browse-path-button")
+        await app.handle_button("test-browse-path-button")
+        await pilot.pause()
+
+        assert isinstance(app.screen, FolderBrowserScreen)
+        browser = app.screen
+        assert browser.selected_path == tmp_path.resolve()
+        browser.dismiss(tmp_path.resolve())
+        await pilot.pause()
+
+        assert path_input.value == str(tmp_path.resolve())
 
 
 async def test_tui_dev_mode_shows_dev_badge_and_uses_dev_setup_state(tmp_path) -> None:

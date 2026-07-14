@@ -108,6 +108,103 @@ def save_tui_config(paths: TuiPaths, config: Mem2MemConfig) -> None:
     )
 
 
+def initialize_tui_config(paths: TuiPaths, *, state: object) -> None:
+    """Persist a completed TUI-owned init state and its optional integrations."""
+    import json
+    import subprocess
+
+    from memtomem.tui.init_flow import TuiInitState
+
+    if not isinstance(state, TuiInitState):
+        raise TypeError("state must be TuiInitState")
+    resolved_memory_dir = Path(state.memory_dir).expanduser().resolve()
+    resolved_memory_dir.mkdir(parents=True, exist_ok=True)
+
+    config_data: dict[str, object] = {
+        "embedding": {
+            "provider": state.provider,
+            "model": state.model,
+            "dimension": state.dimension,
+            "api_key": state.api_key,
+        },
+        "storage": {
+            "backend": "sqlite",
+            "sqlite_path": str(
+                paths.database_path if paths.is_dev else Path(state.db_path).expanduser()
+            ),
+        },
+        "indexing": {
+            "memory_dirs": [str(resolved_memory_dir), *state.provider_dirs],
+            "auto_discover": False,
+        },
+        "namespace": {
+            "enable_auto_ns": state.enable_auto_ns,
+            "default_namespace": state.default_ns,
+        },
+        "search": {
+            "default_top_k": state.top_k,
+            "tokenizer": state.tokenizer,
+        },
+        "decay": {"enabled": state.decay_enabled},
+        "rerank": {
+            "enabled": state.rerank_enabled,
+            "provider": "fastembed",
+            "model": state.rerank_model,
+        },
+    }
+    paths.config_path.parent.mkdir(parents=True, exist_ok=True)
+    paths.config_path.write_text(
+        json.dumps(config_data, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    server_command = (
+        ["uv", "run", "--directory", str(paths.project_root), "memtomem-server"]
+        if paths.is_dev and paths.project_root
+        else ["uvx", "--from", "memtomem", "memtomem-server"]
+    )
+    mcp_entry = {"command": server_command[0], "args": server_command[1:]}
+    if state.mcp_choice == 1:
+        try:
+            subprocess.run(
+                ["claude", "mcp", "add", "memtomem", "-s", "user", "--", *server_command],
+                check=False,
+                timeout=10,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            _write_tui_mcp_json(Path.cwd() / ".mcp.json", mcp_entry)
+    elif state.mcp_choice == 2:
+        _write_tui_mcp_json(Path.cwd() / ".mcp.json", mcp_entry)
+    elif state.mcp_choice == 4:
+        _write_tui_mcp_json(Path.home() / ".kimi" / "mcp.json", mcp_entry)
+
+    if state.settings_hooks and (Path.home() / ".claude").is_dir():
+        from memtomem.context.settings import CANONICAL_SETTINGS_FILE, generate_all_settings
+
+        canonical = Path.cwd() / CANONICAL_SETTINGS_FILE
+        canonical.parent.mkdir(parents=True, exist_ok=True)
+        if not canonical.exists():
+            canonical.write_text('{"hooks": {}}\n', encoding="utf-8")
+        generate_all_settings(Path.cwd(), scope="user")
+
+
+def _write_tui_mcp_json(path: Path, server_entry: dict[str, object]) -> None:
+    """Write or merge the TUI wizard's memtomem MCP entry."""
+    import json
+
+    data: dict[str, object] = {}
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = {}
+    servers = data.setdefault("mcpServers", {})
+    if isinstance(servers, dict):
+        servers["memtomem"] = server_entry
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 @asynccontextmanager
 async def tui_components(paths: TuiPaths) -> AsyncIterator[Components]:
     """Create components without crossing the selected TUI state boundary."""

@@ -5,10 +5,33 @@ Screen {
     color: #d8dee9;
 }
 
+.init-screen {
+    align: center middle;
+    width: 1fr;
+    height: 1fr;
+}
+
+.init-dialog {
+    width: 96%;
+    height: 96%;
+    max-width: 120;
+    max-height: 50;
+}
+
+#init-layout {
+    height: 1fr;
+}
+
+#init-main,
+#init-detail {
+    min-width: 24;
+}
+
 /* Modal family */
 KeybindingsScreen,
 ConhostWarningScreen,
-QuitConfirmScreen {
+QuitConfirmScreen,
+FolderBrowserScreen {
     align: center middle;
 }
 
@@ -62,6 +85,38 @@ QuitConfirmScreen {
 
 .modal-actions {
     height: auto;
+}
+
+.folder-browser-dialog {
+    width: 96%;
+    height: 90%;
+    max-width: 120;
+    max-height: 50;
+}
+
+.folder-browser-help {
+    margin-bottom: 1;
+}
+
+.folder-browser-location-row,
+.path-picker-row {
+    height: 4;
+}
+
+.folder-browser-tree {
+    height: 1fr;
+    border: solid #233242;
+    margin-bottom: 1;
+}
+
+.folder-browser-dialog.ascii-border .folder-browser-tree {
+    border: ascii #233242;
+}
+
+.folder-browser-selected {
+    height: auto;
+    min-height: 1;
+    margin-bottom: 1;
 }
 
 /* Diagnostics family */
@@ -133,6 +188,20 @@ QuitConfirmScreen {
 
 .menu-bar.active-panel {
     background: #101d28;
+}
+
+.menu-bar.compact-expanded {
+    height: 1fr;
+    layout: vertical;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.menu-bar.compact-expanded MenuItem.menu-item {
+    width: 1fr;
+    height: 1;
+    margin-right: 0;
+    content-align: left middle;
 }
 
 MenuItem.menu-item {
