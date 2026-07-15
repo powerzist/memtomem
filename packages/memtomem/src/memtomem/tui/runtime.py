@@ -209,13 +209,6 @@ def _write_tui_mcp_json(path: Path, server_entry: dict[str, object]) -> None:
 async def tui_components(paths: TuiPaths) -> AsyncIterator[Components]:
     """Create components without crossing the selected TUI state boundary."""
 
-    if not paths.is_dev:
-        from memtomem.cli._bootstrap import cli_components
-
-        async with cli_components() as comp:
-            yield comp
-        return
-
     from memtomem.server.component_factory import close_components, create_components
 
     comp = await create_components(load_tui_config(paths), load_persisted_config=False)

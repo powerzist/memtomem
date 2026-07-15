@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -36,7 +37,7 @@ from textual.widgets import (
 
 from memtomem.tui.catalog import COMMAND_CATALOG
 from memtomem.tui.clipboard import read_os_clipboard, write_os_clipboard
-from memtomem.tui.init_flow import PRESETS, TuiInitState, detect_provider_dirs
+from memtomem.tui.init_flow import ADVANCED_STEPS, PRESETS, TuiInitState, detect_provider_dirs
 from memtomem.tui.runtime import (
     Readiness,
     ReadinessState,
@@ -1262,7 +1263,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if result is None:
             self.exit()
             return
-        self.run_worker(self._complete_initial_setup(result), group="startup")
+        self.run_worker(partial(self._complete_initial_setup, result), group="startup")
 
     async def _complete_initial_setup(self, state: TuiInitState) -> None:
         try:
@@ -1349,7 +1350,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if event.input.id == "search-query":
             await self.run_search_from_input()
         elif event.input.id == "one-time-index-path":
-            self.run_worker(self.index_one_time_path(), exclusive=True, group="index")
+            self.run_worker(self.index_one_time_path, exclusive=True, group="index")
         elif event.input.id == "add-root-path":
             await self.add_memory_dir_from_input()
 
@@ -1432,7 +1433,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         elif button_id == "run-search":
             await self.run_search_from_input()
         elif button_id == "run-index":
-            self.run_worker(self.index_all_memory_dirs(), exclusive=True, group="index")
+            self.run_worker(self.index_all_memory_dirs, exclusive=True, group="index")
         elif button_id == "index-overview":
             self.render_index("overview")
         elif button_id == "index-roots":
@@ -1444,9 +1445,17 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         elif button_id == "add-root":
             await self.add_memory_dir_from_input()
         elif button_id == "reindex-selected-root":
-            self.run_worker(self.reindex_selected_root(force=False), exclusive=True, group="index")
+            self.run_worker(
+                partial(self.reindex_selected_root, force=False),
+                exclusive=True,
+                group="index",
+            )
         elif button_id == "force-reindex-selected-root":
-            self.run_worker(self.reindex_selected_root(force=True), exclusive=True, group="index")
+            self.run_worker(
+                partial(self.reindex_selected_root, force=True),
+                exclusive=True,
+                group="index",
+            )
         elif button_id == "remove-selected-root":
             await self.remove_selected_root(delete_chunks=False)
         elif button_id == "remove-selected-root-delete-chunks":
@@ -1458,16 +1467,16 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         elif button_id == "toggle-all-roots":
             self.apply_root_selection("invert")
         elif button_id == "run-one-time-index":
-            self.run_worker(self.index_one_time_path(), exclusive=True, group="index")
+            self.run_worker(self.index_one_time_path, exclusive=True, group="index")
         elif button_id == "load-sources":
-            self.run_worker(self.load_index_sources(), exclusive=True, group="sources")
+            self.run_worker(self.load_index_sources, exclusive=True, group="sources")
         elif button_id == "footer-height-decrease":
             self.adjust_footer_height_from_mouse(-1)
         elif button_id == "footer-height-increase":
             self.adjust_footer_height_from_mouse(1)
         elif button_id == "test-browse-path-button":
             self.run_worker(
-                self.browse_test_path(),
+                self.browse_test_path,
                 exclusive=True,
                 group="folder-browser",
             )
@@ -1519,7 +1528,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.focus_parent_or_panel(focused, active_panel_id)
 
     def action_request_quit(self) -> None:
-        self.run_worker(self.confirm_quit(), exclusive=True, group="quit")
+        self.run_worker(self.confirm_quit, exclusive=True, group="quit")
 
     async def confirm_quit(self) -> None:
         should_quit = await self.push_screen_wait(QuitConfirmScreen(border_style=self.border_style))
@@ -1604,7 +1613,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             await self.run_search_from_input()
             return
         if isinstance(focused, Input) and focused.id == "one-time-index-path":
-            self.run_worker(self.index_one_time_path(), exclusive=True, group="index")
+            self.run_worker(self.index_one_time_path, exclusive=True, group="index")
             return
         if isinstance(focused, Input) and focused.id == "add-root-path":
             await self.add_memory_dir_from_input()
@@ -2287,15 +2296,12 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                 input_widget.value = state.value
 
     def render_setup_required(self) -> None:
-        self.run_worker(self._render_setup_required(), exclusive=True, group="render")
+        self.run_worker(self._render_setup_required, exclusive=True, group="render")
 
     async def _render_setup_required(self) -> None:
-        from memtomem.cli.init_cmd import get_init_flow_definition
-
-        flow = get_init_flow_definition()
         preset_lines = []
-        for preset in flow.presets:
-            marker = " (default)" if preset.default_interactive else ""
+        for name, preset in PRESETS.items():
+            marker = " (default)" if name == "english" else ""
             preset_lines.append(f"- {preset.label}{marker}: {preset.description}")
         await self._replace_main(
             Static("Setup required", classes="title"),
@@ -2307,7 +2313,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             Static("Canonical mm init presets:", classes="title"),
             Static("\n".join(preset_lines)),
             Static(
-                f"Advanced wizard: {len(flow.advanced_step_titles)} steps. "
+                f"Advanced wizard: {len(ADVANCED_STEPS)} steps. "
                 "Re-init policy is intentionally not implemented yet.",
                 classes="muted",
             ),
@@ -2322,7 +2328,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self._detail_text().update("State: SetupRequired\nNext: native init wizard.")
 
     def render_index_targets_required(self) -> None:
-        self.run_worker(self._render_index_targets_required(), exclusive=True, group="render")
+        self.run_worker(self._render_index_targets_required, exclusive=True, group="render")
 
     async def _render_index_targets_required(self) -> None:
         await self._replace_main(
@@ -2338,7 +2344,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self._detail_text().update("State: IndexTargetsRequired")
 
     def render_index_required(self) -> None:
-        self.run_worker(self._render_index_required(), exclusive=True, group="render")
+        self.run_worker(self._render_index_required, exclusive=True, group="render")
 
     async def _render_index_required(self) -> None:
         assert self.readiness is not None
@@ -2359,7 +2365,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self._detail_text().update("State: IndexRequired\nAction: Index configured memory dirs.")
 
     def render_error(self) -> None:
-        self.run_worker(self._render_error(), exclusive=True, group="render")
+        self.run_worker(self._render_error, exclusive=True, group="render")
 
     async def _render_error(self) -> None:
         assert self.readiness is not None
@@ -2373,7 +2379,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self._detail_text().update("State: Error")
 
     def render_dashboard(self) -> None:
-        self.run_worker(self._render_dashboard(), exclusive=True, group="render")
+        self.run_worker(self._render_dashboard, exclusive=True, group="render")
 
     async def _render_dashboard(self) -> None:
         if self.readiness is None:
@@ -2420,7 +2426,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         )
 
     def render_search(self) -> None:
-        self.run_worker(self._render_search(), exclusive=True, group="render")
+        self.run_worker(self._render_search, exclusive=True, group="render")
 
     async def _render_search(self) -> None:
         query_input = TuiInput(
@@ -2464,7 +2470,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if not query:
             self._detail_text().update("Search query cannot be empty.")
             return
-        self.run_worker(self._run_search(query), exclusive=True, group="search")
+        self.run_worker(partial(self._run_search, query), exclusive=True, group="search")
 
     async def _run_search(self, query: str) -> None:
         results_view = self.query_one("#search-results", ListView)
@@ -2548,7 +2554,8 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             classes="data-list remaining-space-list command-list",
         )
         self.run_worker(
-            self._replace_main(
+            partial(
+                self._replace_main,
                 Static("TUI command catalog", classes="title"),
                 Static(
                     "Tracks how existing mm commands will be surfaced in the TUI.",
@@ -2563,7 +2570,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self._detail_text().update("Catalog statuses: native, palette, planned, dangerous.")
 
     def render_settings(self) -> None:
-        self.run_worker(self._render_settings(), exclusive=True, group="render")
+        self.run_worker(self._render_settings, exclusive=True, group="render")
 
     async def _render_settings(self) -> None:
         await self._replace_main(
@@ -2615,7 +2622,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     def render_test_page(self, section: str | None = None) -> None:
         if section is not None:
             self.test_section = section
-        self.run_worker(self._render_test_page(), exclusive=True, group="render")
+        self.run_worker(self._render_test_page, exclusive=True, group="render")
 
     async def _render_test_page(self) -> None:
         widgets: list[Any] = [
@@ -2714,7 +2721,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     def render_test_detail(self, section: str | None = None) -> None:
         if section is not None:
             self.test_detail_section = section
-        self.run_worker(self._render_test_detail(), exclusive=True, group="render")
+        self.run_worker(self._render_test_detail, exclusive=True, group="render")
 
     async def _render_test_detail(self) -> None:
         content = (
@@ -2740,7 +2747,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     def render_index(self, section: str | None = None) -> None:
         if section is not None:
             self.index_section = section
-        self.run_worker(self._render_index(), exclusive=True, group="render")
+        self.run_worker(self._render_index, exclusive=True, group="render")
 
     async def _render_index(self) -> None:
         if self.index_section == "overview":

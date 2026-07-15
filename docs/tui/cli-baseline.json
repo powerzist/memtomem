@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "cli_files_sha256": {
+    "packages/memtomem/src/memtomem/cli/__init__.py": "be1fe29249fb6e855b3b95af257c932693da9cd9e09146d54ce49268a9c23300",
+    "packages/memtomem/src/memtomem/cli/_bootstrap.py": "054b1df4329a1832c05c2ad2056b2b75a27ac390475b3cacbb3b9d26663d7dba",
+    "packages/memtomem/src/memtomem/cli/_index_progress.py": "2de35afec59d5ee4bc7b4d0c56c67bb9db6af1da2fcad06ba454a117c7ad155f",
+    "packages/memtomem/src/memtomem/cli/_liveness.py": "729511cdb1499059688a4233bd89c5f31fbcd02d80ded3ff27564381835046f2",
+    "packages/memtomem/src/memtomem/cli/agent_cmd.py": "0a4c25a9c706515ef1aa878d4ecd47c310d8860ed870a60deab44ef6e0f84f07",
+    "packages/memtomem/src/memtomem/cli/config_cmd.py": "a590fc360a5a0a964e56927d58609fee95656c96b2fbc82e9e3cc2bf582087f4",
+    "packages/memtomem/src/memtomem/cli/context_cmd.py": "0aacfc43b5ef8fc953b3e46b589d848dac3b88eba818096e4ede9cdd31e9e9da",
+    "packages/memtomem/src/memtomem/cli/embedding_cmd.py": "97b6363c1cb9a382596535f5ff8915a6f2b879b8752ca4da2c08ca67a935e9d1",
+    "packages/memtomem/src/memtomem/cli/gc_cmd.py": "c2f5ae4da79c9dd060aa3e6b7c7121e441c34f1213b3971778975b0842e81bb9",
+    "packages/memtomem/src/memtomem/cli/indexing.py": "72c106ba67869a21f2a02ea71ae94ee4758e74756dd9dc9c1d2df658ec3a8ad1",
+    "packages/memtomem/src/memtomem/cli/ingest_cmd.py": "e3c663297dfb0e21455d63c2a0ef5d853ce5335d398261aad83c2253feaccd46",
+    "packages/memtomem/src/memtomem/cli/init_cmd.py": "e133066f40b3552e1ccd190996580aaf58ad51ed2747220798368a4cca2680ef",
+    "packages/memtomem/src/memtomem/cli/init_presets.py": "100b0238887942bec35b1905db2baca2ad4609ecb9d6f4664a46c4539e6a9c39",
+    "packages/memtomem/src/memtomem/cli/mem_cmd.py": "1857cf89a354ab04cd8ba2321e140fafdc621f128110c69f88686d077bf7195b",
+    "packages/memtomem/src/memtomem/cli/memory.py": "6143ffe462c8b635bcb5a63210a8b2cdba6d8a3a1e2eee0a704e9972a63a7546",
+    "packages/memtomem/src/memtomem/cli/memory_doctor_cmd.py": "6fba0b859c6422158f4d67a78d7d6754b2c25c4753a031760754abe0b1c4492e",
+    "packages/memtomem/src/memtomem/cli/purge_cmd.py": "2e73e09954d89d0bcb0002237363afbb84dcbd605c8b720d357be83909381018",
+    "packages/memtomem/src/memtomem/cli/reset_cmd.py": "de0bfe1aec51c383a93f3cda5c4bd9dd74c12b993fa70ce0a5ae7564b30ff268",
+    "packages/memtomem/src/memtomem/cli/schedule_cmd.py": "32c87845e5094e2e21a127d6d903881be4e5bb4981a8eac8ad340d3a72b944ca",
+    "packages/memtomem/src/memtomem/cli/search.py": "ee4ef45b900fdc6e011cf96a68424c43893295d4202b17290a63d499aac5d582",
+    "packages/memtomem/src/memtomem/cli/session_cmd.py": "938b46d771cab2bdd22f0a63884ba1aed9a71b2ebfbba18a4adc8f80bfbae93a",
+    "packages/memtomem/src/memtomem/cli/shell.py": "adc6a15825910d226b0c5ae31f716d8259d168cf89b04f52552b3343a1d920d6",
+    "packages/memtomem/src/memtomem/cli/status_cmd.py": "299549726427cc75b967cc54cc3912dc68bf8b62cc29e6b60c5a80996b072a87",
+    "packages/memtomem/src/memtomem/cli/sync_doctor_cmd.py": "f9fa61802928788a0399cda10d83e377ddb5acc509afb0817b9231a27274b523",
+    "packages/memtomem/src/memtomem/cli/tags_cmd.py": "58eaa0207dbe45a402471d75f80750e017539f52ae5b611819c506542504a654",
+    "packages/memtomem/src/memtomem/cli/tui_cmd.py": "9259c903d9e026a69d08fc5d16a3d46ee961dbf3b5b8452d7c74584c1603629a",
+    "packages/memtomem/src/memtomem/cli/uninstall_cmd.py": "f09d0c28c76554c6e2afee6a869526e8134c0f96c243f12ff1ee61e3e9685cc6",
+    "packages/memtomem/src/memtomem/cli/upgrade_cmd.py": "1fd6fa2fd3edab1aff0ae36ef8b59e047adc880ab7bc45d2193e30312dd480d1",
+    "packages/memtomem/src/memtomem/cli/watchdog_cmd.py": "a28bd4da5e32b469f85b6ebe48816e41773e577d6e669ca7aa8519e1ed454180",
+    "packages/memtomem/src/memtomem/cli/web.py": "c539d7ce8e5d00bf31d488a281c9c211d16d31b4127a54b7cf1bfa925cc728d7",
+    "packages/memtomem/src/memtomem/cli/wiki_cmd.py": "5aeade3cf9679c9f3d2999f361cfeb6e5b3ead4ea165cb7e0dc236eb44f367e0",
+    "packages/memtomem/src/memtomem/cli/wizard.py": "ec0a87736baa9083d2f938ad0b6247b950a726ab907ea62c9439878e10b4b6d2"
+  },
+  "project_scripts": {
+    "memtomem": "memtomem.cli:cli",
+    "mm": "memtomem.cli:cli",
+    "memtomem-server": "memtomem.server:main",
+    "memtomem-web": "memtomem.web.app:main"
+  }
+}

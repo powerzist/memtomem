@@ -1,0 +1,5758 @@
+{
+  "schema_version": 1,
+  "authoritative_plan": "packages/memtomem/src/memtomem/tui/AGENTS.md#authoritative-full-rebuild-plan-2026-07-15",
+  "allowed_dispositions": [
+    "native",
+    "managed-external",
+    "deferred",
+    "not-applicable"
+  ],
+  "counts": {
+    "top_level_click_commands": 29,
+    "click_command_paths": 87,
+    "click_groups": 18,
+    "click_leaf_commands": 69,
+    "click_user_executable_paths": 70,
+    "additional_surfaces": 5
+  },
+  "surfaces": [
+    {
+      "id": "click:cli activity",
+      "surface_kind": "click",
+      "path": "cli activity",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Log agent activity events to the current session.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli activity log",
+      "surface_kind": "click",
+      "path": "cli activity log",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Log an activity event to the current session.\n\nSilent by default so hook callers never fail. ``--json`` emits an ack\nshape on stdout: ``{\"ok\": true, ...}`` on success, ``{\"ok\": false,\n\"reason\": ...}`` when there is no active session or the write failed.\nExit code is always 0.\n",
+      "inputs": [
+        {
+          "name": "event_type",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "tool_call",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--type"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "content",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--content",
+            "-c"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "meta",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--meta"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli add",
+      "surface_kind": "click",
+      "path": "cli add",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Add a memory entry and index it.",
+      "inputs": [
+        {
+          "name": "content",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "title",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--title",
+            "-t"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "tags",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--tags"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "file_name",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--file"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "force_unsafe",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force-unsafe"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "scope",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "user",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "confirm_project_shared",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--confirm-project-shared"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes",
+            "-y"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli agent",
+      "surface_kind": "click",
+      "path": "cli agent",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Multi-agent memory management commands.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli agent debug-resolve",
+      "surface_kind": "click",
+      "path": "cli agent debug-resolve",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": true,
+      "invoke_without_command": false,
+      "help": "Dump the namespace ``mem_agent_search`` would resolve, as JSON.\n\nHidden e2e helper — does not require a running MCP server. Lets the\nmulti-agent integration scripts assert namespace resolution without\nspinning up an MCP client.\n",
+      "inputs": [
+        {
+          "name": "agent_id",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--agent-id"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "current_agent_id",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--current-agent-id"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "current_namespace",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--current-namespace"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "include_shared",
+          "parameter_kind": "option",
+          "required": false,
+          "default": true,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--include-shared",
+            "--no-include-shared"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli agent list",
+      "surface_kind": "click",
+      "path": "cli agent list",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "List registered agents (``agent-runtime:`` namespaces) and ``shared``.\n\nDefault output is a table grouped by ``agents`` and ``shared`` —\nmachine-readable form via ``--json`` for use in scripts.\n",
+      "inputs": [
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli agent migrate",
+      "surface_kind": "click",
+      "path": "cli agent migrate",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Rename legacy ``agent/{id}`` namespaces to ``agent-runtime:{id}``.\n\nMoves multi-agent namespaces from the pre-#318 format (``agent/{id}``)\nto the current ``agent-runtime:{id}`` format. Safe to re-run — rows that\nare already in the new format are left untouched.\n",
+      "inputs": [
+        {
+          "name": "dry_run",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--dry-run"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli agent register",
+      "surface_kind": "click",
+      "path": "cli agent register",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Register an agent and create its ``agent-runtime:<id>`` namespace.\n\nMirrors the ``mem_agent_register`` MCP tool so operators don't have to\nspin up an MCP client for one-off agent setup. Also ensures the\ncross-agent ``shared`` namespace exists.\n\n``agent_id`` is validated against the canonical ``[A-Za-z0-9._-]``\ncharset (same gate as ``mm session start``); hostile shapes like\n``foo:bar`` or ``../x`` are rejected loudly rather than silently\nsanitised.\n",
+      "inputs": [
+        {
+          "name": "agent_id",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "description",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--description"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "color",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--color"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli agent share",
+      "surface_kind": "click",
+      "path": "cli agent share",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Copy a chunk's content into another namespace.\n\nMirrors the ``mem_agent_share`` MCP tool. The new chunk gets a fresh\nUUID; this command does *not* create a true cross-reference link.\nSee the multi-agent guide for the exact semantics and the ongoing\nRFC for true link support.\n\n``target`` is run through :func:`validate_namespace` before any\nstorage write — same gate the MCP path closes on issue #496 / PR\n#499. Hostile shapes like ``agent-runtime:foo:bar`` are rejected\nloudly so the CLI cannot smuggle a row past the contract that the\ndirect ``agent_id`` and ``mem_agent_share`` MCP surfaces enforce.\n\nThe chunk's content is re-scanned by the trust-boundary redaction\nguard before the copy is written. A chunk that originally landed\nvia ``force_unsafe`` will block again on share unless ``--force-unsafe``\nis repeated here, so secret content does not silently propagate\ninto a wider namespace.\n",
+      "inputs": [
+        {
+          "name": "chunk_id",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "target",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "shared",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--target"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "force_unsafe",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force-unsafe"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli config",
+      "surface_kind": "click",
+      "path": "cli config",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "View or modify memtomem configuration.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli config set",
+      "surface_kind": "click",
+      "path": "cli config set",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Set a config field (e.g., 'search.default_top_k 20'). Persists to ~/.memtomem/config.json.",
+      "inputs": [
+        {
+          "name": "key",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "value",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli config show",
+      "surface_kind": "click",
+      "path": "cli config show",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Show current configuration (API keys masked).",
+      "inputs": [
+        {
+          "name": "fmt",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "table",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--format"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli config unset",
+      "surface_kind": "click",
+      "path": "cli config unset",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Remove config.json overrides for the given KEYs (e.g., 'mmr.enabled').\n\nTargeted, idempotent removal: each KEY is ``section.field`` form.\nCanonical keys that aren't currently pinned exit 0 with an\ninformational note; unknown keys exit 1 (with a suggestion when close\nto a canonical key). When every override is removed the config file\nitself is deleted. For a wholesale reset of wizard-untouched keys, use\n``mm init --fresh``.\n",
+      "inputs": [
+        {
+          "name": "keys",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": -1,
+          "multiple": false
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context",
+      "surface_kind": "click",
+      "path": "cli context",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Manage unified agent context (CLAUDE.md, .cursorrules, GEMINI.md, etc.).",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context detect",
+      "surface_kind": "click",
+      "path": "cli context detect",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Detect agent configuration files in the current project.",
+      "inputs": [
+        {
+          "name": "include",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": true,
+          "opts": [
+            "--include"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context diff",
+      "surface_kind": "click",
+      "path": "cli context diff",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Show differences between context.md and agent files.",
+      "inputs": [
+        {
+          "name": "include",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": true,
+          "opts": [
+            "--include"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "scope_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context generate",
+      "surface_kind": "click",
+      "path": "cli context generate",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Generate agent files from .memtomem/context.md.",
+      "inputs": [
+        {
+          "name": "agent",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "all",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--agent",
+            "-a"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "include",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": true,
+          "opts": [
+            "--include"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "strict",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--strict"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "on_drop",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "ignore",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--on-drop"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes",
+            "-y"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "scope_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "label",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--label"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context init",
+      "surface_kind": "click",
+      "path": "cli context init",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Seed canonical artifact dirs and (optionally) import existing runtime files.\n\nWithout ``--scope`` the command preserves pre-PR-E2 behavior: writes\n``<proj>/.memtomem/context.md`` and (with ``--include``) imports under\n``<proj>/.memtomem/{agents,skills,commands}/`` (the implicit\n``project_shared`` tier). Pass ``--scope=user`` /\n``--scope=project_local`` to seed at the user or local-draft tier\ninstead. ADR-0011 §5 Gate A scans every imported file's bytes for\nsecrets; project_shared hard-refuses on any hit.\n",
+      "inputs": [
+        {
+          "name": "include",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": true,
+          "opts": [
+            "--include"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "overwrite",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--overwrite"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "scope_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "confirm_project_shared",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--confirm-project-shared"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "force_unsafe_import",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force-unsafe-import"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context install",
+      "surface_kind": "click",
+      "path": "cli context install",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Install a wiki asset into ``<project>/.memtomem/<type>/<name>/``.\n\nWithout ``--all``: install a single ``<type> <name>`` from the wiki at\nHEAD. The wiki at ``~/.memtomem-wiki/`` must be initialized first\n(``mm wiki init``).\n\nWith ``--all``: walk ``<project>/.memtomem/lock.json`` and re-install\nevery entry **at the commit each entry pins** (NOT wiki HEAD). This\nis the \"fresh-machine restore\" verb: a teammate ``git clone``s the\nproject, runs ``mm context install --all``, and reproduces the exact\nasset bytes the lockfile recorded. To advance to wiki HEAD instead,\nuse ``mm context update --all``.\n",
+      "inputs": [
+        {
+          "name": "asset_type",
+          "parameter_kind": "argument",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "name",
+          "parameter_kind": "argument",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "all_assets",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--all"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "force",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context memory-migrate",
+      "surface_kind": "click",
+      "path": "cli context memory-migrate",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Move markdown memory file(s) between ADR-0011 scope tiers.\n\nChunk-id-stable, single-DB rename. The source file moves on disk\nto the target tier's canonical directory; the chunks table is\nUPDATED in-place via ``update_chunks_scope_for_source`` so chunk\nUUIDs and the ``chunk_links`` lineage are preserved. No re-index\nis triggered.\n\n``SOURCE`` is either a single existing file path (back-compat with\nv1) or a glob pattern (quote it to prevent shell expansion). For\na glob, pre-flight (privacy scan + per-file lockfile probe) runs\nover every match before any FS move; on per-file DB failure\nmid-batch, the failing file is reverted, the remaining files are\nleft untouched, and the command exits — ADR-0011 §5 compensation\napplies per file so the user has a deterministic resumption point.\n\nDefault is dry-run; pass ``--apply`` to execute. When the target\nis ``project_shared`` (git-tracked), file content is re-scanned by\n``enforce_write_guard``; secret hits reject the migration with no\nforce bypass — git history would carry them forever (ADR-0011 §5).\n\nCross-DB migration is deferred; see ADR-0012 / #911.\n",
+      "inputs": [
+        {
+          "name": "source",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "from_scope",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--from"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "to_scope",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--to"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "apply_",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--apply"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes",
+            "-y"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "confirm_project_shared",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--confirm-project-shared"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context migrate",
+      "surface_kind": "click",
+      "path": "cli context migrate",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Migrate canonical context artifacts.\n\nTwo modes share this verb:\n\n* **Flat→dir layout** (PR-D, default when ``--to`` is omitted) —\n  converts pre-PR-C ``agents/<name>.md`` to ``agents/<name>/agent.md``.\n  Skills are always directory layout (Agent Skills spec) and exit 0\n  with an informational message in this mode.\n* **Scope-tier move** (PR-E4, when ``--to`` is set) — moves the\n  canonical between ADR-0011 tiers (``user`` /\n  ``project_shared`` / ``project_local``). Supports agents,\n  commands, skills, and memory (memory delegates to\n  ``mm context memory-migrate``'s impl with parity behaviour).\n\nDefault mode is a dry-run preview; pass ``--apply`` to execute.\n",
+      "inputs": [
+        {
+          "name": "asset_type",
+          "parameter_kind": "argument",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "name",
+          "parameter_kind": "argument",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "from_scope",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--from"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "to_scope",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--to"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "apply_",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--apply"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "force",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes",
+            "-y"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "confirm_project_shared",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--confirm-project-shared"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context rescan",
+      "surface_kind": "click",
+      "path": "cli context rescan",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Re-run the privacy guard over scope-tiered context artifacts.\n\nRead-only: no file is modified. The guard is invoked with\n``record_outcome=False`` so the rescan does not double-count outcomes\nor emit bypass audit lines. ``on_blocked=\"skip_warn\"`` collects every\nviolation in the scanned set (not just the first).\n\nExit codes: 0 if no violations, 1 if any violation found.\n",
+      "inputs": [
+        {
+          "name": "scope",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "quiet",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--quiet",
+            "-q"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context settings-doctor",
+      "surface_kind": "click",
+      "path": "cli context settings-doctor",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Detect memtomem-managed hooks duplicated across settings tiers.\n\nImplements ADR-0010 §4's scoped on-demand check. Same canonical-\nsignature detection used by the sync-time warning, exposed as a\nstandalone subcommand for CI / scripting use.\n\nExit codes: ``0`` clean, ``1`` duplicates found.\n",
+      "inputs": [
+        {
+          "name": "json_out",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "scope_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context settings-migrate",
+      "surface_kind": "click",
+      "path": "cli context settings-migrate",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Move memtomem-managed hook entries between settings tiers.\n\nImplements ADR-0010 §4's third follow-up. Reads canonical-signature-\nmatched entries from the source tier (``--from``) and lands them in\nthe target tier (``--to``) using the canonical rule from\n``.memtomem/settings.json`` so the target ends up byte-clean rather\nthan carrying any source-side whitespace variant. Idempotent —\nre-running after a clean migration finds nothing to move.\n\nDefault is a dry-run; pass ``--apply`` to mutate disk. The host-\nwrite prompt mirrors ``mm context sync --include=settings``: writes\noutside the project root require an interactive confirmation (or\n``--yes``).\n\nExit codes: ``0`` clean (or dry-run), ``1`` user declined the\nconfirmation prompt or the plan reported conflicts requiring manual\nresolution.\n",
+      "inputs": [
+        {
+          "name": "from_scope",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--from"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "to_scope",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--to"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "apply_",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--apply"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes",
+            "-y"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "json_out",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context status",
+      "surface_kind": "click",
+      "path": "cli context status",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Show installed wiki assets and their drift state.\n\nRead-only. Walks ``<project>/.memtomem/lock.json`` and classifies\neach entry against the dest tree and the wiki. Always exits 0 for\nnormal runs (cron-friendly chaining via ``mm context status && mm\ncontext update --all``); only a corrupt / version-mismatched\nlockfile produces a non-zero exit.\n",
+      "inputs": [
+        {
+          "name": "scope_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "project_shared",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context sync",
+      "surface_kind": "click",
+      "path": "cli context sync",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Sync context.md to all detected agent files.",
+      "inputs": [
+        {
+          "name": "include",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": true,
+          "opts": [
+            "--include"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "strict",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--strict"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "on_drop",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "ignore",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--on-drop"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes",
+            "-y"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "scope_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "label",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--label"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context update",
+      "surface_kind": "click",
+      "path": "cli context update",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Refresh an installed wiki asset from the wiki HEAD.\n\nWithout ``--all``: refresh in the current project only. No-op when\nthe wiki commit pinned in ``.memtomem/lock.json`` already matches\nthe wiki HEAD — the lockfile is not touched and ``unchanged`` is\nreported. Refuses to write when local edits are detected, unless\n``--force`` is passed (each dirty file is preserved as ``<file>.bak``\nbefore overwriting with wiki bytes).\n\nWith ``--all``: classify the asset across every known project, print\na 4-state preview (update / unchanged / refuse / error), prompt for\nconfirmation, then refresh each project that needs it. ``--yes``\nskips the prompt for automation. ``--yes --force`` is the\nautomation invariant — destructive batch with WARNING on stderr,\nno prompt.\n",
+      "inputs": [
+        {
+          "name": "asset_type",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "name",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "all_projects",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--all"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "force",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context version",
+      "surface_kind": "click",
+      "path": "cli context version",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Manage version snapshots + label pointers for agents/commands (ADR-0022).\n\nA version is an immutable snapshot of an artifact's working canonical;\na label (e.g. 'production') is a movable pointer over versions. Use\n`mm context sync --label <name>` to fan out a labeled version.\n",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context version create",
+      "surface_kind": "click",
+      "path": "cli context version create",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Snapshot the current working canonical as a new immutable version.\n\nExample: `mm context version create agents my-agent --note \"stable\"`\n",
+      "inputs": [
+        {
+          "name": "artifact_type",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "name",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "note",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--note"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "scope_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context version list",
+      "surface_kind": "click",
+      "path": "cli context version list",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "List versions and label pointers for an artifact.",
+      "inputs": [
+        {
+          "name": "artifact_type",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "name",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "scope_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli context version promote",
+      "surface_kind": "click",
+      "path": "cli context version promote",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Move a label pointer to a specific version (rollout == rollback).\n\nExample: `mm context version promote agents my-agent --to production --version v2`\n",
+      "inputs": [
+        {
+          "name": "artifact_type",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "name",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "label",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--to"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "version",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--version"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "scope_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli embedding-reset",
+      "surface_kind": "click",
+      "path": "cli embedding-reset",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Check or resolve embedding configuration mismatches.\n\n\b\nModes:\n  status          Show DB stored values vs current config (default)\n  apply-current   Reset DB to current config — deletes all vectors, re-index required\n  revert-to-stored  Switch runtime embedder to match DB stored values (non-destructive)\n",
+      "inputs": [
+        {
+          "name": "mode",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "status",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--mode"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli gc",
+      "surface_kind": "click",
+      "path": "cli gc",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Storage maintenance: garbage-collect stale rows in the user-local DB.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli gc orphan-projects",
+      "surface_kind": "click",
+      "path": "cli gc orphan-projects",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Remove chunks whose ``project_root`` directory no longer exists.\n\nWhen you index a folder under ``--scope project_shared`` or\n``project_local`` and later delete the folder, the rows survive in\n``~/.memtomem/memtomem.db`` with a now-vanished ``project_root``.\nThey are hidden by the default in-project search filter but bloat\nthe DB and surface under explicit cross-project queries\n(``--scope=project_shared`` from outside any project). This command\ndetects and removes them.\n\nRemovable disks and unmounted filesystems will be reported as\norphaned. The per-root confirmation prompt (``--apply`` without\n``--yes``) is the safety gate — answer ``n`` for any root whose\ndisk you intend to plug back in.\n",
+      "inputs": [
+        {
+          "name": "apply_",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--apply"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "assume_yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli index",
+      "surface_kind": "click",
+      "path": "cli index",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Index files at PATH into the knowledge base.\n\nThe debounce flags (``--debounce-window`` / ``--flush`` / ``--status``)\nare mutually exclusive with each other; ``--debounce-window`` and the\nplain index path are also mutually exclusive — pick recording for a\nlater drain or indexing now.\n",
+      "inputs": [
+        {
+          "name": "path",
+          "parameter_kind": "argument",
+          "required": false,
+          "default": ".",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "recursive",
+          "parameter_kind": "option",
+          "required": false,
+          "default": true,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--recursive",
+            "--no-recursive"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "force",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "namespace",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--namespace",
+            "-n"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "debounce_window",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "float range",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--debounce-window"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "do_flush",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--flush"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "do_status",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--status"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli ingest",
+      "surface_kind": "click",
+      "path": "cli ingest",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Ingest memories from external sources.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli ingest claude-memory",
+      "surface_kind": "click",
+      "path": "cli ingest claude-memory",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Index a Claude Code auto-memory directory into memtomem.\n\nRead-only snapshot: the source files stay where they are — memtomem\nrecords the absolute path as ``source_file`` and indexes the content\nunder namespace ``claude-memory:<slug>``. Re-run to pick up new or\nchanged files; unchanged files are skipped via content hash.\n",
+      "inputs": [
+        {
+          "name": "source_path",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "directory",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--source"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "dry_run",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--dry-run"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli ingest codex-memory",
+      "surface_kind": "click",
+      "path": "cli ingest codex-memory",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Index a Codex CLI memories directory into memtomem.\n\nRead-only snapshot: the source files stay where they are — memtomem\nrecords the absolute path as ``source_file`` and indexes the content\nunder namespace ``codex-memory:<slug>``. Re-run to pick up new or\nchanged files; unchanged files are skipped via content hash.\n",
+      "inputs": [
+        {
+          "name": "source_path",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "directory",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--source"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "dry_run",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--dry-run"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli ingest gemini-memory",
+      "surface_kind": "click",
+      "path": "cli ingest gemini-memory",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Index a Gemini CLI GEMINI.md memory file into memtomem.\n\nRead-only snapshot: the source file stays where it is — memtomem\nrecords the absolute path as ``source_file`` and indexes the content\nunder namespace ``gemini-memory:<slug>``. Re-run to pick up changes;\nunchanged content is skipped via content hash.\n",
+      "inputs": [
+        {
+          "name": "source_path",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "path",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--source"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "dry_run",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--dry-run"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli init",
+      "surface_kind": "click",
+      "path": "cli init",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Set up memtomem with an interactive wizard.",
+      "inputs": [
+        {
+          "name": "non_interactive",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "-y",
+            "--non-interactive"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "provider",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--provider"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "model",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--model"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "memory_dir",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--memory-dir"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "db_path",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--db-path"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "namespace",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--namespace"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "auto_ns",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--auto-ns"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "top_k",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "integer",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--top-k"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "tokenizer",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--tokenizer"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "decay",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--decay"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "api_key",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--api-key"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "mcp_mode",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--mcp"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "include_providers",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": true,
+          "opts": [
+            "--include-provider"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "fresh",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--fresh"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "preset",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--preset"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "advanced",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--advanced"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli mem",
+      "surface_kind": "click",
+      "path": "cli mem",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Audit and inspect stored memories.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli mem rescan",
+      "surface_kind": "click",
+      "path": "cli mem rescan",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Re-run the privacy guard over stored chunks for ``--scope``.\n\nRead-only: no chunk is created, deleted, or re-embedded. The guard is\ninvoked with ``record_outcome=False`` so the rescan does not double-\ncount outcomes or emit bypass audit lines. Decision values reported\nin v1 are ``\"pass\"`` or ``\"blocked\"``; ``\"bypassed\"`` /\n``\"blocked_project_shared\"`` cannot fire because v1 always passes\n``force_unsafe=False``.\n\nExit codes: 0 if no violations, 1 if any violation found.\n",
+      "inputs": [
+        {
+          "name": "scope",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "source",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--source"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "quiet",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--quiet",
+            "-q"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli memory",
+      "surface_kind": "click",
+      "path": "cli memory",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Memory-store hygiene: inspect index/DB/disk consistency.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli memory doctor",
+      "surface_kind": "click",
+      "path": "cli memory doctor",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Report drift between disk, the index file, and the searchable DB (read-only).\n\nWith no PATH, inspects every configured ``memory_dir``. Pass a PATH to\nscope the report to one configured dir.\n\nExit codes: ``0`` clean (or advisory-only findings), ``1`` when any\nerror-severity finding exists (stale DB sources, convention violations,\nor broken index links).\n\n``--fix`` switches to a subtractive curation mode: it removes index-file\npointer lines whose target is missing on disk (``broken_link`` /\n``missing_target``) and nothing else (ADR-0020). It is a dry-run preview\nunless ``--apply`` is also passed. The default report is read-only and\nunchanged.\n",
+      "inputs": [
+        {
+          "name": "path",
+          "parameter_kind": "argument",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "path",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "json_out",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "fix",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--fix"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "apply_",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--apply"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli purge",
+      "surface_kind": "click",
+      "path": "cli purge",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Remove stored chunks matching a selector.\n\nCurrently one selector is supported: ``--matching-excluded`` scans every\nsource_file in storage and deletes chunks whose path the indexer would\nnow exclude — built-in secret/noise patterns, ``indexing.exclude_patterns``,\nand provider index-file conventions (e.g. a ``claude-memory`` root's\n``MEMORY.md``/``README.md``). Use it to reclaim chunks indexed before a\nconvention/exclude was added.\n\nDefault is dry-run. Pass ``--apply`` to execute deletion.\n",
+      "inputs": [
+        {
+          "name": "matching_excluded",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--matching-excluded"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "apply_",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--apply"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "sample_size",
+          "parameter_kind": "option",
+          "required": false,
+          "default": 5,
+          "type": "integer",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--sample"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli recall",
+      "surface_kind": "click",
+      "path": "cli recall",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Recall recent memory chunks.",
+      "inputs": [
+        {
+          "name": "since",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--since"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "until",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--until"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "limit",
+          "parameter_kind": "option",
+          "required": false,
+          "default": 20,
+          "type": "integer",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--limit",
+            "-l"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "source_filter",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--source-filter",
+            "-s"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "namespace",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--namespace",
+            "-n"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "scope",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "fmt",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "table",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--format"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli reset",
+      "surface_kind": "click",
+      "path": "cli reset",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Delete ALL data (chunks, sessions, history, etc.) and reinitialize the DB.\n\nEmbedding configuration is preserved — no need to re-configure after reset.\nA re-index is required to repopulate memory.\n",
+      "inputs": [
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes",
+            "-y"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli schedule",
+      "surface_kind": "click",
+      "path": "cli schedule",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Scheduled jobs — register, list, run, and delete cron schedules (UTC).",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli schedule add",
+      "surface_kind": "click",
+      "path": "cli schedule add",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Register a new schedule.",
+      "inputs": [
+        {
+          "name": "cron_expr",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--cron"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "job_kind",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--job"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "params_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--params"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli schedule delete",
+      "surface_kind": "click",
+      "path": "cli schedule delete",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Delete a schedule by id.",
+      "inputs": [
+        {
+          "name": "sched_id",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli schedule list",
+      "surface_kind": "click",
+      "path": "cli schedule list",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "List all registered schedules.",
+      "inputs": [
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli schedule run-now",
+      "surface_kind": "click",
+      "path": "cli schedule run-now",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Run a scheduled job synchronously (out-of-band).",
+      "inputs": [
+        {
+          "name": "sched_id",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli search",
+      "surface_kind": "click",
+      "path": "cli search",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Search the knowledge base.",
+      "inputs": [
+        {
+          "name": "query",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "top_k",
+          "parameter_kind": "option",
+          "required": false,
+          "default": 10,
+          "type": "integer",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--top-k",
+            "-k"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "source_filter",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--source-filter",
+            "-s"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "tag_filter",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--tag-filter",
+            "-t"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "namespace",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--namespace",
+            "-n"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "scope",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--scope"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "as_of",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--as-of"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "fmt",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "table",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--format"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli session",
+      "surface_kind": "click",
+      "path": "cli session",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Manage agent sessions — start, end, list, events.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli session end",
+      "surface_kind": "click",
+      "path": "cli session end",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "End the current session.",
+      "inputs": [
+        {
+          "name": "summary",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--summary",
+            "-s"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "auto_summary",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--auto"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli session events",
+      "surface_kind": "click",
+      "path": "cli session events",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Show events for a session. Uses current session if no ID given.",
+      "inputs": [
+        {
+          "name": "session_id",
+          "parameter_kind": "argument",
+          "required": false,
+          "default": "",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli session list",
+      "surface_kind": "click",
+      "path": "cli session list",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "List sessions.",
+      "inputs": [
+        {
+          "name": "agent_id",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--agent-id",
+            "-a"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "since",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--since"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "limit",
+          "parameter_kind": "option",
+          "required": false,
+          "default": 20,
+          "type": "integer",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--limit",
+            "-l"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli session start",
+      "surface_kind": "click",
+      "path": "cli session start",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Start a new session and save its ID to ~/.memtomem/.current_session.\n\nWith ``--idempotent``, return the active session for the same ``--agent-id``\nif one exists; with ``--auto-end-stale=<duration>``, first close any active\nsessions older than the duration. See\n``memtomem-docs/memtomem/planning/hooks-session-cli-rfc.md`` for the\nSessionStart hook design these flags back.\n\n``--idempotent`` is safe for serial hook callers but not for concurrent\nones. Two parallel ``mm session start --idempotent`` invocations can both\nobserve a missing/stale state file and both create a session — the state\nfile is written atomically per call but the read-then-create is not\nlocked. Claude Code's SessionStart fires once per session, so this is\nfine for the documented hook recipe; multi-process callers must\nserialize themselves.\n",
+      "inputs": [
+        {
+          "name": "agent_id",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "default",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--agent-id",
+            "-a"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "title",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--title",
+            "-t"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "namespace",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--namespace",
+            "-n"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "idempotent",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--idempotent"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "auto_end_stale",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--auto-end-stale"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli session wrap",
+      "surface_kind": "click",
+      "path": "cli session wrap",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Wrap a command with session start/end.\n\nUsage: mm session wrap -- claude -p \"run tests\"\n",
+      "inputs": [
+        {
+          "name": "agent_id",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "headless",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--agent-id",
+            "-a"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "title",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--title",
+            "-t"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "command",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": -1,
+          "multiple": false
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli shell",
+      "surface_kind": "click",
+      "path": "cli shell",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Interactive memory shell — search, add, recall, and browse.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli status",
+      "surface_kind": "click",
+      "path": "cli status",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Show indexing statistics and current configuration summary.\n\nMirrors the MCP ``mem_status`` tool — same output, callable from a\nterminal without an MCP client. Useful as a post-install sanity\ncheck that the binary works, the config is readable, and the DB is\nreachable, without having to run a search.\n",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli sync-doctor",
+      "surface_kind": "click",
+      "path": "cli sync-doctor",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Validate the current working tree as a memtomem private-sync repo (read-only).\n\nRun from inside the private repo (the one tracking your synced ``memories/``\n+ ``config.d/``). Reports six checks; exits non-zero on any failure. Warns\ndon't fail the exit code (a future ``--strict`` may flip that).\n",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli tags",
+      "surface_kind": "click",
+      "path": "cli tags",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Manage tags: list, rename, delete, or merge them across all chunks.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli tags delete",
+      "surface_kind": "click",
+      "path": "cli tags delete",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Remove NAME from every chunk that carries it (the chunks stay indexed).",
+      "inputs": [
+        {
+          "name": "name",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "apply_",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--apply"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "assume_yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli tags list",
+      "surface_kind": "click",
+      "path": "cli tags list",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "List every tag and its chunk count, most frequent first.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli tags merge",
+      "surface_kind": "click",
+      "path": "cli tags merge",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Fold one or more SOURCES tags into --into TARGET across all chunks.",
+      "inputs": [
+        {
+          "name": "sources",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": -1,
+          "multiple": false
+        },
+        {
+          "name": "target",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--into"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "apply_",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--apply"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "assume_yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli tags rename",
+      "surface_kind": "click",
+      "path": "cli tags rename",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Rename OLD_TAG to NEW_TAG across every chunk that carries it.",
+      "inputs": [
+        {
+          "name": "old_tag",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "new_tag",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "apply_",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--apply"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "assume_yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--yes"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli tui",
+      "surface_kind": "click",
+      "path": "cli tui",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Launch the memtomem terminal UI.",
+      "inputs": [
+        {
+          "name": "dev",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--dev"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "border_mode",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "auto",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--border"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "diagnose_terminal",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--diagnose-terminal"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "diagnose_input",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--diagnose-input"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "mouse",
+          "parameter_kind": "option",
+          "required": false,
+          "default": true,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--mouse",
+            "--no-mouse"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli uninstall",
+      "surface_kind": "click",
+      "path": "cli uninstall",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Remove memtomem user state. The binary itself stays — use your package\nmanager to uninstall it (the command is printed at the end for your\ninstall context).\n",
+      "inputs": [
+        {
+          "name": "keep_config",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--keep-config"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "keep_data",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--keep-data"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "force",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "-y",
+            "--yes"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli upgrade",
+      "surface_kind": "click",
+      "path": "cli upgrade",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Stop a running memtomem-server, then reinstall via ``uv tool``.\n\nThe canonical ``uv tool install --reinstall memtomem`` only swaps the\non-disk bytes; any server already imported by an MCP client keeps\nrunning the previous version. ``mm upgrade`` adds the missing\nprocess-level hygiene step around it.\n",
+      "inputs": [
+        {
+          "name": "version",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--version"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "grace",
+          "parameter_kind": "option",
+          "required": false,
+          "default": 5.0,
+          "type": "float range",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--grace"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "extras_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--extras"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "yes",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "-y",
+            "--yes"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "json_out",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "dry_run",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--dry-run"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli version",
+      "surface_kind": "click",
+      "path": "cli version",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Show the installed memtomem version.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli watchdog",
+      "surface_kind": "click",
+      "path": "cli watchdog",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Health watchdog — check system status and run health checks.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli watchdog history",
+      "surface_kind": "click",
+      "path": "cli watchdog history",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Show historical results for a specific check.",
+      "inputs": [
+        {
+          "name": "check_name",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "hours",
+          "parameter_kind": "option",
+          "required": false,
+          "default": 24.0,
+          "type": "float",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--hours"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli watchdog run",
+      "surface_kind": "click",
+      "path": "cli watchdog run",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Run all health checks immediately and show results.",
+      "inputs": [
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli watchdog status",
+      "surface_kind": "click",
+      "path": "cli watchdog status",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Show latest health check results.",
+      "inputs": [
+        {
+          "name": "as_json",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--json"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli web",
+      "surface_kind": "click",
+      "path": "cli web",
+      "command_kind": "group",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": true,
+      "help": "Launch and manage the memtomem Web UI (FastAPI + SPA).",
+      "inputs": [
+        {
+          "name": "host",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "127.0.0.1",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--host"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "port",
+          "parameter_kind": "option",
+          "required": false,
+          "default": 8080,
+          "type": "integer",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--port"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "open_browser",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--open"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "timeout",
+          "parameter_kind": "option",
+          "required": false,
+          "default": 30,
+          "type": "integer",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--timeout"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "mode",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--mode"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "dev_flag",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--dev"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "allow_remote_ui",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--allow-remote-ui"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "trusted_origins",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": true,
+          "opts": [
+            "--trusted-origin"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "trusted_hosts",
+          "parameter_kind": "option",
+          "required": false,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": true,
+          "opts": [
+            "--trusted-host"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "background",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "-b",
+            "--background"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "log_file",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "file",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--log-file"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "internal_foreground",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--_internal-foreground"
+          ],
+          "hidden": true,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli web status",
+      "surface_kind": "click",
+      "path": "cli web status",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Show whether the Web UI daemon is running.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli web stop",
+      "surface_kind": "click",
+      "path": "cli web stop",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Stop a background or foreground Web UI process tracked by pid file.",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli wiki",
+      "surface_kind": "click",
+      "path": "cli wiki",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Manage the local memtomem wiki (skills/agents/commands library).",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli wiki agent",
+      "surface_kind": "click",
+      "path": "cli wiki agent",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Per-agent operations on the wiki (override seeding, ...).",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli wiki agent override",
+      "surface_kind": "click",
+      "path": "cli wiki agent override",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Seed a wiki override file from the canonical agent content.\n\n``mm wiki agent override <name> --vendor <claude|gemini|codex>`` writes\n``<wiki>/agents/<name>/overrides/<vendor>.<ext>``. Bytes come from the\nvendor renderer applied to the canonical ``agent.md`` so the seed\nmatches what the runtime would produce. Fields the vendor format\ncannot represent (e.g. gemini agents drop ``skills`` / ``isolation``)\nare surfaced via a stderr warning so the editor knows what the\nruntime won't see.\n",
+      "inputs": [
+        {
+          "name": "name",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "vendor",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--vendor",
+            "-v"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "force",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force",
+            "-f"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "editor",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--editor",
+            "-e"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli wiki command",
+      "surface_kind": "click",
+      "path": "cli wiki command",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Per-command operations on the wiki (override seeding, ...).",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli wiki command override",
+      "surface_kind": "click",
+      "path": "cli wiki command override",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Seed a wiki override file from the canonical command content.\n\n``mm wiki command override <name> --vendor <claude|gemini|codex>`` writes\n``<wiki>/commands/<name>/overrides/<vendor>.<ext>``. ``--vendor codex``\nis a permanent placeholder (no ``codex_commands`` generator); the\ncommand surfaces a classified error rather than silently failing.\nFields the vendor format cannot represent (e.g. gemini commands drop\n``argument-hint`` / ``allowed-tools`` / ``model``) are surfaced via a\nstderr warning so the editor knows what the runtime won't see.\n",
+      "inputs": [
+        {
+          "name": "name",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "vendor",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--vendor",
+            "-v"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "force",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force",
+            "-f"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "editor",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--editor",
+            "-e"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli wiki init",
+      "surface_kind": "click",
+      "path": "cli wiki init",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Create or clone the wiki at ``~/.memtomem-wiki/``.",
+      "inputs": [
+        {
+          "name": "from_url",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "text",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--from"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli wiki list",
+      "surface_kind": "click",
+      "path": "cli wiki list",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "List skills, agents, and commands in the wiki.",
+      "inputs": [
+        {
+          "name": "asset_type",
+          "parameter_kind": "option",
+          "required": false,
+          "default": null,
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--type"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli wiki skill",
+      "surface_kind": "click",
+      "path": "cli wiki skill",
+      "command_kind": "group",
+      "user_executable": false,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Per-skill operations on the wiki (override seeding, ...).",
+      "inputs": [],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "click:cli wiki skill override",
+      "surface_kind": "click",
+      "path": "cli wiki skill override",
+      "command_kind": "command",
+      "user_executable": true,
+      "hidden": false,
+      "invoke_without_command": false,
+      "help": "Seed a wiki override file from the canonical skill content.\n\n``mm wiki skill override <name> --vendor <claude|gemini|codex>`` writes\n``<wiki>/skills/<name>/overrides/<vendor>.md`` using the canonical\n``SKILL.md`` as the working baseline. Edit the file (``--editor`` opens\n``$EDITOR``) and commit it inside the wiki repo so that future\n``mm context install`` snapshots pick it up.\n",
+      "inputs": [
+        {
+          "name": "name",
+          "parameter_kind": "argument",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "text",
+          "nargs": 1,
+          "multiple": false
+        },
+        {
+          "name": "vendor",
+          "parameter_kind": "option",
+          "required": true,
+          "default": "Sentinel.UNSET",
+          "type": "choice",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--vendor",
+            "-v"
+          ],
+          "hidden": false,
+          "is_flag": false,
+          "flag_value": null,
+          "prompt": null
+        },
+        {
+          "name": "force",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--force",
+            "-f"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        },
+        {
+          "name": "editor",
+          "parameter_kind": "option",
+          "required": false,
+          "default": false,
+          "type": "boolean",
+          "nargs": 1,
+          "multiple": false,
+          "opts": [
+            "--editor",
+            "-e"
+          ],
+          "hidden": false,
+          "is_flag": true,
+          "flag_value": true,
+          "prompt": null
+        }
+      ],
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "script:memtomem-server",
+      "surface_kind": "console-script",
+      "path": "memtomem-server",
+      "entrypoint": "memtomem.server:main",
+      "user_executable": true,
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "script:memtomem-web",
+      "surface_kind": "console-script",
+      "path": "memtomem-web",
+      "entrypoint": "memtomem.web.app:main",
+      "user_executable": true,
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "repl:ask",
+      "surface_kind": "shell-repl",
+      "path": "shell:ask",
+      "user_executable": true,
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "repl:aliases",
+      "surface_kind": "shell-repl",
+      "path": "shell:aliases",
+      "user_executable": true,
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    },
+    {
+      "id": "repl:implicit-search",
+      "surface_kind": "shell-repl",
+      "path": "shell:implicit-search",
+      "user_executable": true,
+      "validation": "unreviewed",
+      "preview_and_confirmation": "unreviewed",
+      "core_dependencies": [],
+      "outputs": "unreviewed",
+      "errors_and_exit_meaning": "unreviewed",
+      "mutations_and_side_effects": "unreviewed",
+      "partial_failure": "unreviewed",
+      "cancellation": "unreviewed",
+      "tui_destination": null,
+      "tests": [],
+      "disposition": null,
+      "decision_notes": []
+    }
+  ]
+}
