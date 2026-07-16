@@ -63,11 +63,13 @@ def resolve_tui_paths(*, dev: bool, cwd: Path | None = None) -> TuiPaths:
 
 
 def _dev_default_config(paths: TuiPaths) -> Mem2MemConfig:
-    from memtomem.config import Mem2MemConfig
+    from memtomem.config import IndexingConfig, Mem2MemConfig
 
-    config = Mem2MemConfig()
+    # Development mode intentionally replaces the user-tier root so it cannot
+    # consult normal ~/.memtomem state. Construct that scope explicitly rather
+    # than mutating the registry after validation.
+    config = Mem2MemConfig(indexing=IndexingConfig(memory_dirs=[paths.memories_path]))
     config.storage.sqlite_path = paths.database_path
-    config.indexing.memory_dirs = [paths.memories_path]
     return config
 
 
@@ -163,7 +165,10 @@ def initialize_tui_config(paths: TuiPaths, *, state: object) -> None:
         if paths.is_dev and paths.project_root
         else ["uvx", "--from", "memtomem", "memtomem-server"]
     )
-    mcp_entry = {"command": server_command[0], "args": server_command[1:]}
+    mcp_entry: dict[str, object] = {
+        "command": server_command[0],
+        "args": server_command[1:],
+    }
     if state.mcp_choice == 1:
         try:
             subprocess.run(
@@ -279,7 +284,9 @@ async def inspect_readiness(comp: Components) -> Readiness:
     """Inspect configured state and index coverage for startup routing."""
 
     try:
-        memory_dirs = tuple(Path(p).expanduser() for p in comp.config.indexing.memory_dirs)
+        memory_dirs = tuple(
+            Path(path).expanduser() for path in comp.config.indexing.all_index_roots()
+        )
         if not memory_dirs:
             return Readiness(
                 state=ReadinessState.INDEX_TARGETS_REQUIRED,

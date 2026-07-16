@@ -19,6 +19,15 @@ decision before the corresponding TUI workflow is implemented.
 terminal, dev paths, focus, clipboard, selection, and lifecycle behavior that
 must survive replacement of the old Textual composition.
 
+`phase2-modular-shell.md` records the post-baseline modular shell, Stitch
+evidence, semantic stylesheet boundaries, and the deliberate Phase 2/3/4/5
+feature boundary.
+
+`corrections/2026-07-16-phase2-closeout.md` is the rollback-safe Phase 2 exit
+record. It captures the final mouse lifecycle, Refresh, modal-key, and literal
+rendering corrections, their verification, and the remaining Phase 3 entry
+notes without modifying the original Phase 2 record.
+
 Regenerate the inventory after an approved CLI-tree change:
 
 ```powershell

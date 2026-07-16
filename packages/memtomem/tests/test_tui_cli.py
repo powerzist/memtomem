@@ -1,1882 +1,911 @@
-"""Tests for the ``mm tui`` entry point and command catalog."""
+"""Phase 2 contract tests for the independent modular Textual shell."""
 
 from __future__ import annotations
 
-import json
+from html import unescape
+import inspect
 from pathlib import Path
-from types import SimpleNamespace
-from uuid import uuid4
 
-from click.testing import CliRunner
-from textual.geometry import Size
-from textual.widgets import Button, Footer, Input, ListItem, ListView, SelectionList, Static, Tabs
-from textual.widgets._input import Selection
+import pytest
+from textual.app import App, ComposeResult
+from textual.widgets import Button, Static
 
-from memtomem.cli import cli
-from memtomem.models import Chunk, ChunkMetadata, SearchResult
-from memtomem.tui import clipboard as tui_clipboard
-from memtomem.tui.init_flow import ADVANCED_STEPS, PRESETS, TuiInitState
 from memtomem.tui.app import (
     ConhostWarningScreen,
-    FolderBrowserScreen,
-    InputDiagnosticsApp,
-    KeybindingsScreen,
-    ManagedRootsSelectionList,
     MemtomemTuiApp,
-    MenuItem,
-    ModalButton,
     QuitConfirmScreen,
-    RootSelectionAction,
-    SettingRow,
-    SettingStep,
+    run,
+    run_input_diagnostics,
 )
-from memtomem.tui import runtime
-from memtomem.tui.catalog import COMMAND_CATALOG
-from memtomem.tui.runtime import ReadinessState, resolve_tui_paths
-from memtomem.tui.shared import PanelScroll
-from memtomem.tui.terminal import choose_border_style, detect_terminal_profile
+from memtomem.tui.application.tasks import (
+    TaskCancellationPolicy,
+    TaskCenter,
+    TaskExitPolicy,
+    TaskStatus,
+    TaskSurfaceEffect,
+)
+from memtomem.tui.runtime import TuiPaths
+from memtomem.tui.state import ROUTES, ErrorNotice, LayoutMode
+from memtomem.tui.widgets.controls import ModalButton, PanelButton, TuiInput
+from memtomem.tui.widgets.modals import HelpScreen
+from memtomem.tui.widgets.navigation import NavigationItem
 
 
-def make_tui_app(*, border_style: str = "solid") -> MemtomemTuiApp:
+class _InputTestApp(App[None]):
+    def compose(self) -> ComposeResult:
+        yield TuiInput(value="abcdef", id="test-input")
+
+
+def _paths(tmp_path: Path, *, configured: bool = True) -> TuiPaths:
+    root = tmp_path / ".memtomem"
+    root.mkdir()
+    if configured:
+        (root / "config.json").write_text("{}\n", encoding="utf-8")
+    return TuiPaths(
+        mode="dev",
+        project_root=tmp_path,
+        state_root=root,
+        config_path=root / "config.json",
+        config_d_path=root / "config.d",
+        database_path=root / "memtomem.db",
+        memories_path=root / "memories",
+    )
+
+
+def _app(tmp_path: Path, **kwargs: object) -> MemtomemTuiApp:
     return MemtomemTuiApp(
-        border_style=border_style,
-        startup_refresh=False,
+        startup_refresh=True,
         terminal_profile="windows-terminal",
-        mouse_enabled=True,
+        paths=_paths(tmp_path),
+        **kwargs,
     )
 
 
-class FakeClick:
-    stopped = False
-
-    def stop(self) -> None:
-        self.stopped = True
+def _rendered_text(root: object) -> str:
+    return "\n".join(str(widget.render()) for widget in root.query(Static))
 
 
-def test_tui_in_top_level_help() -> None:
-    result = CliRunner().invoke(cli, ["--help"])
-
-    assert result.exit_code == 0
-    assert "tui" in result.output
+def _rendered_button_text(button: ModalButton) -> str:
+    return "\n".join(button.render_line(row).text for row in range(button.region.height))
 
 
-def test_tui_help_does_not_require_textual() -> None:
-    result = CliRunner().invoke(cli, ["tui", "--help"])
-
-    assert result.exit_code == 0
-    assert "terminal UI" in result.output
-    assert "--border" in result.output
-    assert "--dev" in result.output
-    assert "--diagnose-terminal" in result.output
-    assert "--diagnose-input" in result.output
-    assert "--mouse / --no-mouse" in result.output
+def _composed_screen_line(app: MemtomemTuiApp, row: int) -> str:
+    """Return the fully composited row used by screenshots and terminal output."""
+    return app.screen._compositor.render_strips()[row].text
 
 
-def test_tui_missing_textual_has_install_hint(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "importlib.util.find_spec", lambda name: None if name == "textual" else None
+def test_launcher_signatures_remain_stable() -> None:
+    assert tuple(inspect.signature(run).parameters) == (
+        "border_style",
+        "mouse",
+        "terminal_profile",
+        "paths",
+    )
+    assert tuple(inspect.signature(run_input_diagnostics).parameters) == (
+        "border_style",
+        "mouse",
+        "terminal_profile",
     )
 
-    result = CliRunner().invoke(cli, ["tui"])
 
-    assert result.exit_code == 1
-    assert "requires the [tui] extra" in result.output
-    assert "memtomem[tui]" in result.output
+@pytest.mark.parametrize(
+    ("width", "height", "expected"),
+    [
+        (160, 50, LayoutMode.WIDE),
+        (120, 30, LayoutMode.WIDE),
+        (100, 24, LayoutMode.WIDE),
+        (99, 24, LayoutMode.STANDARD),
+        (80, 24, LayoutMode.STANDARD),
+        (60, 16, LayoutMode.STANDARD),
+        (59, 16, LayoutMode.COMPACT),
+        (60, 15, LayoutMode.COMPACT),
+        (60, 11, LayoutMode.COMPACT),
+        (48, 12, LayoutMode.COMPACT),
+        (41, 11, LayoutMode.COMPACT),
+        (160, 10, LayoutMode.EXTREME),
+        (40, 11, LayoutMode.EXTREME),
+        (40, 10, LayoutMode.EXTREME),
+        (32, 8, LayoutMode.EXTREME),
+        (31, 8, LayoutMode.SAFE_FLOOR),
+        (40, 7, LayoutMode.SAFE_FLOOR),
+    ],
+)
+def test_layout_mode_uses_authoritative_breakpoints(
+    width: int, height: int, expected: LayoutMode
+) -> None:
+    assert LayoutMode.from_viewport(width, height) is expected
 
 
-def test_tui_diagnose_terminal_does_not_require_textual(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "importlib.util.find_spec", lambda name: None if name == "textual" else None
+async def test_shell_removes_old_test_catalog_and_color_preview(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(160, 50)):
+        labels = [item.route.label for item in app.query(NavigationItem)]
+        assert labels == [route.label for route in ROUTES]
+        assert "Test" not in labels
+        assert "Commands" not in labels
+        assert "color preview" not in _rendered_text(app.screen)
+
+
+async def test_unimplemented_routes_are_honest_disabled_inventory(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(160, 50)):
+        items = list(app.query(NavigationItem))
+        assert items[0].route.id == "home"
+        assert items[0].disabled is False
+        assert items[0].has_class("route-active")
+        assert all(item.disabled for item in items[1:])
+
+
+@pytest.mark.parametrize(
+    ("size", "expected_mode"),
+    [
+        ((120, 30), LayoutMode.WIDE),
+        ((80, 24), LayoutMode.STANDARD),
+        ((60, 16), LayoutMode.STANDARD),
+    ],
+)
+async def test_split_shell_exposes_navigation_main_and_details_at_terminal_defaults(
+    tmp_path: Path,
+    size: tuple[int, int],
+    expected_mode: LayoutMode,
+) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=size):
+        navigation = app.query_one("#navigation")
+        main = app.query_one("#main")
+        detail = app.query_one("#detail")
+        shell = app.query_one("#shell-content")
+
+        assert app.state.layout_mode is expected_mode
+        assert navigation.display and navigation.region.height == 1
+        navigation_line = _composed_screen_line(app, navigation.region.y)
+        expected_memory_label = "Memories" if expected_mode is LayoutMode.WIDE else "Memory"
+        assert "Home" in navigation_line
+        assert expected_memory_label in navigation_line
+        assert len(navigation_line) == size[0]
+        assert navigation.scrollbar_size_horizontal == 0
+        assert main.display and main.region.width > 0
+        assert detail.display and detail.region.width > 0
+        assert main.region.width + detail.region.width == size[0]
+        assert shell.virtual_size.width <= shell.region.width
+        root = app.query_one("#root")
+        assert root.virtual_size.width <= root.region.width
+        assert "Context for the current route" in _rendered_text(detail)
+        assert not app.query("#task-status")
+        assert app.query_one("#environment-status").region.width == 4
+        assert app.query_one("#mouse-status").region.width == 12
+        assert app.query_one("#clock-status").region.width == 10
+
+        clock = str(app.query_one("#clock-status", Static).render())
+        assert len(clock) == 8
+        assert all(len(part) == 2 and part.isdigit() for part in clock.split(":"))
+
+
+@pytest.mark.parametrize(
+    ("size", "expected_route_label"),
+    [
+        ((120, 30), "Memories"),
+        ((80, 24), "Memory"),
+        ((60, 16), "Memory"),
+    ],
+)
+async def test_split_navigation_text_occupies_its_single_rendered_row(
+    tmp_path: Path,
+    size: tuple[int, int],
+    expected_route_label: str,
+) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=size):
+        navigation = app.query_one("#navigation")
+        screenshot = unescape(app.export_screenshot()).replace("\N{NO-BREAK SPACE}", " ")
+
+        assert navigation.region.height == 1
+        assert navigation.styles.scrollbar_size_horizontal == 0
+        assert f"  {expected_route_label}  -" in screenshot
+
+
+async def test_split_navigation_scrolls_the_focused_route_into_its_single_row(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(60, 16)) as pilot:
+        navigation = app.query_one("#navigation")
+        services = app.query_one("#route-services", NavigationItem)
+        services.disabled = False
+
+        await pilot.press("right")
+        await pilot.pause()
+
+        assert app.focused is services
+        assert navigation.scroll_x > 0
+        assert navigation.region.height == 1
+        assert navigation.virtual_size.height == 1
+        assert "Services" in _composed_screen_line(app, navigation.region.y)
+        assert app.query_one("#shell-content").virtual_size.width <= 60
+
+
+async def test_section_hotkeys_update_active_section_and_focus(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        await pilot.press("f3")
+        assert app.state.active_section == "main"
+        assert app.section_for_widget(app.focused) == "main"
+        await pilot.press("f4")
+        assert app.state.active_section == "detail"
+        assert app.section_for_widget(app.focused) == "detail"
+        await pilot.press("f2")
+        assert app.state.active_section == "nav"
+        assert app.section_for_widget(app.focused) == "nav"
+
+
+async def test_mouse_toggle_remains_global_from_input_focus(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        surface = app.query_one("#home-surface")
+        field = TuiInput(id="mouse-test-input")
+        await surface.mount(field)
+        app.activate_section("main")
+        field.focus()
+
+        await pilot.press("f6")
+        assert app.mouse_enabled is False
+        assert str(app.query_one("#mouse-status", Static).render()) == "MOUSE:OS"
+        await pilot.press("alt+m")
+        assert app.mouse_enabled is True
+
+
+async def test_initial_no_mouse_mode_is_synced_to_the_active_driver(tmp_path: Path) -> None:
+    app = _app(tmp_path, mouse_enabled=False)
+    async with app.run_test(size=(100, 24)) as pilot:
+        assert app.mouse_enabled is False
+        assert str(app.query_one("#mouse-status", Static).render()) == "MOUSE:OS"
+
+        await pilot.press("f6")
+        assert app.mouse_enabled is True
+        assert str(app.query_one("#mouse-status", Static).render()) == "MOUSE:ON"
+
+
+async def test_mouse_toggle_failure_is_reported_without_false_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        driver = app._driver
+        assert driver is not None
+
+        def fail_disable() -> None:
+            raise OSError("private terminal failure")
+
+        monkeypatch.setattr(driver, "_disable_mouse_support", fail_disable, raising=False)
+        await pilot.press("f6")
+
+        assert app.mouse_enabled is True
+        assert str(app.query_one("#mouse-status", Static).render()) == "MOUSE:ON"
+        assert app.state.error is not None
+        assert app.state.error.code == "TUI-MOUSE-MODE"
+        assert "private terminal failure" not in _rendered_text(app.screen)
+
+
+async def test_tab_hotkeys_are_noops_when_active_section_has_no_tabs(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        focused = app.focused
+        await pilot.press("f7", "f8")
+        assert app.state.active_section == "nav"
+        assert app.focused is focused
+
+
+async def test_split_layout_keeps_main_and_details_visible_while_focus_changes(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        assert app.state.layout_mode is LayoutMode.STANDARD
+        assert "Agents  -" in str(app.query_one("#route-collaboration").render())
+        await pilot.press("f4")
+        assert app.state.active_section == "detail"
+        assert app.query_one("#navigation").display
+        assert app.query_one("#main").display
+        assert app.query_one("#detail").display
+
+
+@pytest.mark.parametrize("size", [(59, 16), (60, 15)])
+async def test_compact_layout_shows_only_active_section(
+    tmp_path: Path,
+    size: tuple[int, int],
+) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=size) as pilot:
+        assert app.query_one("#navigation").display
+        assert not app.query_one("#main").display
+        assert not app.query_one("#detail").display
+        await pilot.press("f3")
+        assert not app.query_one("#navigation").display
+        assert app.query_one("#main").display
+        assert not app.query_one("#detail").display
+        await pilot.press("f4")
+        assert not app.query_one("#navigation").display
+        assert not app.query_one("#main").display
+        assert app.query_one("#detail").display
+
+
+async def test_extreme_layout_uses_short_labels_and_scrollable_navigation(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(32, 8)) as pilot:
+        navigation = app.query_one("#navigation")
+        collaboration = app.query_one("#route-collaboration", NavigationItem)
+        assert app.state.layout_mode is LayoutMode.EXTREME
+        assert "Agents  -" in str(collaboration.render())
+        assert "Agents & Sessions" not in str(collaboration.render())
+        assert navigation.styles.overflow_y == "auto"
+        assert navigation.virtual_size.height > navigation.container_size.height
+        assert app.query_one("#topbar").virtual_size.height == 1
+
+        await pilot.press("page_down")
+        assert navigation.scroll_y > 0
+        await pilot.press("f3")
+        assert not app.query_one("#navigation").display
+        assert app.query_one("#main").display
+        assert not app.query_one("#detail").display
+
+
+async def test_safe_floor_keeps_help_and_quit_instructions_visible(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(31, 8)):
+        assert app.state.layout_mode is LayoutMode.SAFE_FLOOR
+        floor = app.query_one("#safe-floor", Static)
+        topbar = app.query_one("#topbar")
+        assert floor.display
+        assert app.focused is floor
+        assert topbar.virtual_size.width <= topbar.region.width
+        assert "? Help" in str(floor.render())
+        assert "Ctrl+Q Quit" in str(floor.render())
+
+
+async def test_safe_floor_resize_restores_visible_active_section_focus(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.press("f3")
+        assert app.state.active_section == "main"
+
+        await pilot.resize_terminal(31, 8)
+        assert app.state.layout_mode is LayoutMode.SAFE_FLOOR
+        assert getattr(app.focused, "id", None) == "safe-floor"
+
+        await pilot.resize_terminal(100, 24)
+        assert app.state.active_section == "main"
+        assert app.section_for_widget(app.focused) == "main"
+
+
+async def test_resize_preserves_route_active_section_and_headless_tasks(tmp_path: Path) -> None:
+    tasks = TaskCenter()
+    record = tasks.create("Index files", cancellable=True)
+    tasks.update(record.id, status=TaskStatus.RUNNING, phase="Embedding", progress=0.5)
+    app = _app(tmp_path, task_center=tasks)
+    async with app.run_test(size=(160, 50)) as pilot:
+        await pilot.press("f4")
+        app.state.route_id = "home"
+        await pilot.resize_terminal(60, 16)
+        assert app.state.route_id == "home"
+        assert app.state.active_section == "detail"
+        assert app.task_center.get(record.id).progress == 0.5
+        assert not app.query(".task-row")
+        assert "DETAILS" in _rendered_text(app.query_one("#detail"))
+
+
+def test_task_center_records_structured_terminal_states() -> None:
+    tasks = TaskCenter()
+    record = tasks.create("Reindex", parameters={"root": "C:/memories"}, cancellable=True)
+    running = tasks.update(
+        record.id,
+        status=TaskStatus.RUNNING,
+        phase="Chunking",
+        progress=0.25,
+        completed=5,
+        remaining=15,
     )
-
-    result = CliRunner().invoke(cli, ["tui", "--diagnose-terminal"])
-
-    assert result.exit_code == 0
-    assert "memtomem TUI Terminal Diagnostics" in result.output
-    assert "Rendering probes" in result.output
-    assert "Plain Unicode box drawing" in result.output
-    assert "ANSI-colored Unicode box drawing" in result.output
-    assert "Adjacent colored panels" in result.output
-    assert "ASCII fallback" in result.output
-    assert "Interpretation" in result.output
-
-
-def test_tui_launch_passes_mouse_option(monkeypatch) -> None:
-    calls = []
-
-    monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
-    monkeypatch.setattr(
-        "memtomem.tui.terminal.detect_terminal_profile",
-        lambda *args, **kwargs: "windows-terminal",
+    failed = tasks.update(
+        record.id,
+        status=TaskStatus.PARTIAL,
+        phase="Completed with errors",
+        failed=2,
+        warnings=("Two files were skipped",),
+        recovery_action="Retry failed files",
     )
-    monkeypatch.setattr("memtomem.tui.app.run", lambda **kwargs: calls.append(("run", kwargs)))
+    assert running.started_at is not None
+    assert failed.ended_at is not None
+    assert failed.status is TaskStatus.PARTIAL
+    assert failed.recovery_action == "Retry failed files"
+    assert failed.navigation_effect is TaskSurfaceEffect.NONE
+    assert failed.resize_effect is TaskSurfaceEffect.NONE
+    assert failed.exit_policy is TaskExitPolicy.PROMPT
+    assert failed.cancellation_policy is TaskCancellationPolicy.COOPERATIVE_KEEP_COMPLETED
 
-    result = CliRunner().invoke(cli, ["tui", "--border", "ascii", "--no-mouse"])
 
-    assert result.exit_code == 0
-    assert calls == [
-        (
-            "run",
-            {"border_style": "ascii", "mouse": False, "terminal_profile": "windows-terminal"},
+async def test_task_registry_remains_headless_while_details_stay_contextual(
+    tmp_path: Path,
+) -> None:
+    tasks = TaskCenter()
+    app = _app(tmp_path, task_center=tasks)
+    async with app.run_test(size=(100, 24)) as pilot:
+        task = tasks.create("Index files", cancellable=True)
+        tasks.update(task.id, status=TaskStatus.RUNNING, phase="Embedding", progress=0.5)
+        await pilot.pause()
+
+        assert app.task_center.get(task.id).phase == "Embedding"
+        assert not app.query(".task-row")
+        assert not app.query("#task-status")
+        assert "Use Main for actions" in _rendered_text(app.query_one("#details-surface"))
+
+
+async def test_help_is_keyboard_reachable_and_escape_closes(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.press("?")
+        assert isinstance(app.screen, HelpScreen)
+        help_text = _rendered_text(app.screen)
+        assert "F2  Navigation" in help_text
+        assert "Arrows or h/j/k/l Move within active panel" in help_text
+        assert "[ / ]" in help_text
+        assert "Previous/next panel (no wrap)" in help_text
+        assert "Detail -> Main -> Navigation -> Quit confirmation" in help_text
+        dialog = app.screen.query_one(".modal-dialog")
+        assert dialog.region.x > 0
+        assert dialog.region.y > 0
+        await pilot.press("escape")
+        assert not isinstance(app.screen, HelpScreen)
+
+
+async def test_help_key_toggles_without_stacking_and_restores_focus(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.press("f3")
+        invoking_focus = app.focused
+
+        await pilot.press("?")
+        assert isinstance(app.screen, HelpScreen)
+        await pilot.press("?")
+        await pilot.pause()
+
+        assert not isinstance(app.screen, HelpScreen)
+        assert app.focused is invoking_focus
+
+
+async def test_help_key_does_not_replace_another_modal(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.press("ctrl+q")
+        quit_screen = app.screen
+
+        await pilot.press("?")
+
+        assert app.screen is quit_screen
+        assert isinstance(app.screen, QuitConfirmScreen)
+        await pilot.press("escape")
+
+
+async def test_modal_button_labels_render_as_literal_text(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("?")
+        close = app.screen.query_one("#help-close", ModalButton)
+        assert str(close.label) == "[ CLOSE ]"
+        assert "[ CLOSE ]" in _rendered_button_text(close)
+        await pilot.press("escape")
+
+        await pilot.press("ctrl+q")
+        yes = app.screen.query_one("#quit-yes", ModalButton)
+        no = app.screen.query_one("#quit-no", ModalButton)
+        assert str(yes.label) == "[ YES ]"
+        assert str(no.label) == "[ NO ]"
+        assert "[ YES ]" in _rendered_button_text(yes)
+        assert "[ NO ]" in _rendered_button_text(no)
+        await pilot.press("escape")
+
+        app.push_screen(ConhostWarningScreen())
+        await pilot.pause()
+        warning = app.screen.query_one("#warning-close", ModalButton)
+        assert str(warning.label) == "[ CONTINUE ]"
+        assert "[ CONTINUE ]" in _rendered_button_text(warning)
+        await pilot.press("escape")
+
+
+async def test_help_scrolls_and_restores_invoking_focus(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(40, 10)) as pilot:
+        await pilot.press("f3")
+        invoking_focus = app.focused
+        await pilot.press("?")
+        body = app.screen.query_one(".modal-body")
+        assert body.scroll_y == 0
+        await pilot.press("pagedown")
+        await pilot.pause()
+        assert body.scroll_y > 0
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.focused is invoking_focus
+
+
+async def test_quit_confirmation_defaults_to_no_and_escape_cancels(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.press("ctrl+q")
+        assert isinstance(app.screen, QuitConfirmScreen)
+        assert app.screen.focused is not None
+        assert app.screen.focused.id == "quit-no"
+        dialog = app.screen.query_one(".modal-dialog")
+        assert app.screen.region.contains_region(dialog.region)
+        assert all(
+            dialog.region.contains_region(button.region) for button in app.screen.query(Button)
         )
-    ]
+        await pilot.press("up")
+        assert app.screen.focused.id == "quit-yes"
+        await pilot.press("down")
+        assert app.screen.focused.id == "quit-no"
+        await pilot.press("escape")
+        assert not isinstance(app.screen, QuitConfirmScreen)
 
 
-def test_tui_dev_launch_uses_project_local_paths(tmp_path, monkeypatch) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
-    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
-    calls = []
-
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
-    monkeypatch.setattr(
-        "memtomem.tui.terminal.detect_terminal_profile",
-        lambda *args, **kwargs: "windows-terminal",
-    )
-    monkeypatch.setattr("memtomem.tui.app.run", lambda **kwargs: calls.append(kwargs))
-
-    result = CliRunner().invoke(cli, ["tui", "--dev"])
-
-    assert result.exit_code == 0
-    paths = calls[0]["paths"]
-    assert paths.is_dev
-    assert paths.state_root == tmp_path / ".dev" / ".memtomem"
-    assert paths.config_path == paths.state_root / "config.json"
-    assert paths.database_path == paths.state_root / "memtomem.db"
-    assert paths.memories_path == paths.state_root / "memories"
-
-
-def test_tui_dev_requires_project_root(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
-
-    result = CliRunner().invoke(cli, ["tui", "--dev"])
-
-    assert result.exit_code == 2
-    assert "must be run from the memtomem project root" in result.output
-
-
-def test_tui_input_diagnostics_uses_textual_app(monkeypatch) -> None:
-    calls = []
-
-    monkeypatch.setattr("importlib.util.find_spec", lambda name: object())
-    monkeypatch.setattr("memtomem.tui.terminal.detect_terminal_profile", lambda: "windows-terminal")
-    monkeypatch.setattr(
-        "memtomem.tui.app.run_input_diagnostics",
-        lambda **kwargs: calls.append(("diagnose", kwargs)),
-    )
-
-    result = CliRunner().invoke(cli, ["tui", "--diagnose-input", "--border", "solid", "--no-mouse"])
-
-    assert result.exit_code == 0
-    assert calls == [
-        (
-            "diagnose",
-            {"border_style": "solid", "mouse": False, "terminal_profile": "windows-terminal"},
+async def test_extreme_quit_confirmation_keeps_buttons_inside_dialog(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(32, 8)) as pilot:
+        await pilot.press("ctrl+q")
+        dialog = app.screen.query_one(".modal-dialog")
+        assert app.screen.region.contains_region(dialog.region)
+        assert all(
+            dialog.region.contains_region(button.region) for button in app.screen.query(Button)
         )
-    ]
+        await pilot.press("escape")
 
 
-def test_terminal_border_auto_detection() -> None:
-    assert detect_terminal_profile({"WT_SESSION": "abc"}, os_name="nt") == "windows-terminal"
-    assert choose_border_style("auto", {"WT_SESSION": "abc"}, os_name="nt") == "solid"
-    assert choose_border_style("auto", {}, os_name="nt") == "ascii"
-    assert choose_border_style("auto", {"TERM_PROGRAM": "vscode"}, os_name="nt") == "solid"
-    assert choose_border_style("auto", {"MEMTOMEM_TUI_BORDER": "ascii"}, os_name="posix") == "ascii"
-    assert choose_border_style("solid", {"MEMTOMEM_TUI_BORDER": "ascii"}, os_name="nt") == "solid"
-
-
-def test_windows_clipboard_write_reads_stdin_explicitly(monkeypatch) -> None:
-    calls = []
-
-    def fake_run(args, **kwargs):
-        calls.append((args, kwargs))
-        return SimpleNamespace(returncode=0)
-
-    monkeypatch.setattr(tui_clipboard.os, "name", "nt")
-    monkeypatch.setattr(tui_clipboard.shutil, "which", lambda command: f"C:/{command}")
-    monkeypatch.setattr(tui_clipboard.subprocess, "run", fake_run)
-
-    assert tui_clipboard.write_os_clipboard("copied text")
-
-    assert calls == [
-        (
-            [
-                "C:/powershell.exe",
-                "-NoProfile",
-                "-Command",
-                "Set-Clipboard -Value ([Console]::In.ReadToEnd())",
-            ],
-            {
-                "capture_output": True,
-                "check": False,
-                "input": "copied text",
-                "text": True,
-                "timeout": 2,
-            },
-        )
-    ]
-
-
-async def test_tui_search_warns_about_conhost_ime_limitations() -> None:
-    app = MemtomemTuiApp(startup_refresh=False, terminal_profile="windows-conhost")
-
-    async with app.run_test() as pilot:
+async def test_quit_no_enter_restores_invoking_focus(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.press("f3")
+        invoking_focus = app.focused
+        await pilot.press("ctrl+q")
+        assert getattr(app.screen.focused, "id", None) == "quit-no"
+        await pilot.press("enter")
         await pilot.pause()
-        app.render_search()
-        await pilot.pause()
-
-        warnings = [widget.content for widget in app.query("#main-body .warning").results(Static)]
-        assert any("Korean IME input is limited" in warning for warning in warnings)
+        assert not isinstance(app.screen, QuitConfirmScreen)
+        assert app.focused is invoking_focus
 
 
-async def test_tui_shows_conhost_startup_warning() -> None:
-    app = MemtomemTuiApp(startup_refresh=False, terminal_profile="windows-conhost")
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-
-        assert isinstance(app.screen, ConhostWarningScreen)
-        body = app.screen.query_one("#conhost-warning-body", Static).content
-        assert "Windows Terminal is strongly recommended" in body
-
-
-async def test_tui_does_not_show_conhost_warning_in_windows_terminal() -> None:
-    app = MemtomemTuiApp(startup_refresh=False, terminal_profile="windows-terminal")
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-
-        assert not isinstance(app.screen, ConhostWarningScreen)
-
-
-async def test_tui_conhost_corrects_textual_size_to_visible_viewport(monkeypatch) -> None:
-    normalized = []
-    monkeypatch.setattr(
-        "memtomem.tui.app.normalize_windows_console_buffer_width",
-        lambda: normalized.append(True),
-    )
-    monkeypatch.setattr("memtomem.tui.app.windows_console_viewport_size", lambda: (117, 28))
+async def test_conhost_startup_warning_remains_keyboard_dismissible(tmp_path: Path) -> None:
     app = MemtomemTuiApp(
         startup_refresh=False,
         terminal_profile="windows-conhost",
+        paths=_paths(tmp_path),
     )
+    async with app.run_test(size=(100, 24)) as pilot:
+        assert isinstance(app.screen, ConhostWarningScreen)
+        assert getattr(app.screen.focused, "id", None) == "warning-close"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert not isinstance(app.screen, ConhostWarningScreen)
+        assert getattr(app.focused, "id", None) == "route-home"
 
-    async with app.run_test(size=(240, 67)) as pilot:
-        await pilot.pause(0.3)
 
-        assert app.size == Size(117, 28)
-        assert normalized
-
-
-async def test_tui_non_conhost_does_not_poll_windows_viewport(monkeypatch) -> None:
-    def unexpected_viewport_read() -> tuple[int, int]:
-        raise AssertionError("Windows viewport must not be read outside conhost")
-
-    monkeypatch.setattr(
-        "memtomem.tui.app.windows_console_viewport_size",
-        unexpected_viewport_read,
-    )
+async def test_missing_config_is_disclosed_without_opening_runtime(tmp_path: Path) -> None:
     app = MemtomemTuiApp(
-        startup_refresh=False,
+        startup_refresh=True,
         terminal_profile="windows-terminal",
+        paths=_paths(tmp_path, configured=False),
     )
-
-    async with app.run_test(size=(120, 30)) as pilot:
-        await pilot.pause(0.3)
-
-        assert app.size == Size(120, 30)
-
-
-async def test_tui_compact_active_menu_uses_available_body_space() -> None:
-    app = MemtomemTuiApp(startup_refresh=False, terminal_profile="windows-terminal")
-
-    async with app.run_test(size=(80, 20)) as pilot:
-        await pilot.pause()
-
-        menu = app.query_one("#menu-bar")
-        assert menu.has_class("compact-expanded")
-        assert menu.display
-        assert not app.query_one("#layout").display
-
-        app.focus_panel_by_id("main")
-        await pilot.pause()
-
-        assert not menu.has_class("compact-expanded")
-        assert menu.display
-        assert app.query_one("#layout").display
-        assert app.query_one("#main").display
-
-
-async def test_tui_mouse_mode_toggle_updates_status(monkeypatch) -> None:
-    calls = []
-    app = make_tui_app()
-    monkeypatch.setattr(app, "_write_mouse_sequence", lambda enabled: calls.append(enabled))
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-
-        assert app.query_one("#mouse-status", Static).content == "Mouse:TUI"
-        await pilot.press("f6")
-        assert app.query_one("#mouse-status", Static).content == "Mouse:OS"
-        await pilot.press("f6")
-        assert app.query_one("#mouse-status", Static).content == "Mouse:TUI"
-
-    assert calls == [False, True]
-
-
-async def test_tui_mouse_mode_toggle_works_from_input_focus(monkeypatch) -> None:
-    calls = []
-    app = make_tui_app()
-    monkeypatch.setattr(app, "_write_mouse_sequence", lambda enabled: calls.append(enabled))
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_search()
-        await pilot.pause()
-        query = app.query_one("#search-query")
-        query.focus()
-
-        await pilot.press("f6")
-
-        assert query.value == ""
-        assert app.query_one("#mouse-status", Static).content == "Mouse:OS"
-
-    assert calls == [False]
-
-
-async def test_tui_alt_m_mouse_mode_toggle_still_works(monkeypatch) -> None:
-    calls = []
-    app = make_tui_app()
-    monkeypatch.setattr(app, "_write_mouse_sequence", lambda enabled: calls.append(enabled))
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("alt+m")
-
-        assert app.query_one("#mouse-status", Static).content == "Mouse:OS"
-
-    assert calls == [False]
-
-
-async def test_tui_input_diagnostics_warns_about_conhost_ime_limitations() -> None:
-    app = InputDiagnosticsApp(terminal_profile="windows-conhost")
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-
-        warnings = [widget.content for widget in app.query("#diagnostics .warning").results(Static)]
-        assert any("Korean IME input is limited" in warning for warning in warnings)
-
-
-def test_tui_catalog_covers_top_level_commands() -> None:
-    catalog = {entry.command for entry in COMMAND_CATALOG}
-    expected = {
-        "mm activity",
-        "mm add",
-        "mm agent",
-        "mm config",
-        "mm context",
-        "mm embedding-reset",
-        "mm gc",
-        "mm index",
-        "mm ingest",
-        "mm init",
-        "mm mem",
-        "mm memory doctor",
-        "mm purge",
-        "mm recall",
-        "mm reset",
-        "mm schedule",
-        "mm search",
-        "mm session",
-        "mm shell",
-        "mm status",
-        "mm sync-doctor",
-        "mm tags",
-        "mm uninstall",
-        "mm upgrade",
-        "mm version",
-        "mm watchdog",
-        "mm web",
-        "mm wiki",
-    }
-
-    missing = expected - catalog
-    assert not missing
-
-
-async def test_tui_catalog_assigns_scroll_to_list_until_minimum_height() -> None:
-    async def measure(size: tuple[int, int]) -> tuple[bool, int, bool]:
-        app = make_tui_app()
-        async with app.run_test(size=size) as pilot:
-            await pilot.pause()
-            app.render_catalog()
-            await pilot.pause()
-            body = app.query_one("#main-body", PanelScroll)
-            command_list = app.query_one(".command-list", ListView)
-            return (
-                body.show_vertical_scrollbar,
-                command_list.size.height,
-                command_list.show_vertical_scrollbar,
-            )
-
-    normal_body_scroll, normal_list_height, normal_list_scroll = await measure((120, 30))
-    assert not normal_body_scroll
-    assert normal_list_height > 1
-    assert normal_list_scroll
-
-    short_body_scroll, short_list_height, short_list_scroll = await measure((120, 15))
-    assert not short_body_scroll
-    assert short_list_height == 1
-    assert short_list_scroll
-
-    extreme_body_scroll, extreme_list_height, _ = await measure((120, 12))
-    assert extreme_body_scroll
-    assert extreme_list_height == 1
-
-
-def test_init_flow_definition_uses_canonical_presets() -> None:
-    from memtomem.cli.init_cmd import get_init_flow_definition
-    from memtomem.cli.init_presets import PRESETS
-
-    flow = get_init_flow_definition()
-
-    assert [p.name for p in flow.presets] == ["minimal", "english", "korean"]
-    assert [p.label for p in flow.presets] == [
-        PRESETS["minimal"].label,
-        PRESETS["english"].label,
-        PRESETS["korean"].label,
-    ]
-    assert flow.interactive_default_preset == "english"
-    assert flow.non_interactive_default_preset == "minimal"
-    assert len(flow.advanced_step_titles) == 10
-    assert flow.advanced_step_titles[0] == "Embedding Provider"
-    assert flow.advanced_step_titles[-1] == "Connect to AI Editor"
-
-
-def test_count_indexable_files(tmp_path) -> None:
-    root = tmp_path / "memories"
-    root.mkdir()
-    (root / "one.md").write_text("# One", encoding="utf-8")
-    (root / "skip.bin").write_bytes(b"\0")
-    nested = root / "nested"
-    nested.mkdir()
-    (nested / "two.json").write_text("{}", encoding="utf-8")
-
-    assert runtime.count_indexable_files((root,), {".md", ".json"}) == 2
-
-
-def test_tui_dev_config_is_isolated_and_rejects_database_escape(tmp_path) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
-    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
-    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
-    paths.state_root.mkdir(parents=True)
-    paths.config_path.write_text(
-        json.dumps(
-            {
-                "storage": {"sqlite_path": str(tmp_path / "outside.db")},
-                "indexing": {"memory_dirs": [str(paths.memories_path)]},
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    try:
-        runtime.load_tui_config(paths)
-    except ValueError as exc:
-        assert "must stay under" in str(exc)
-    else:
-        raise AssertionError("dev config accepted a database outside its state root")
-
-
-def test_tui_dev_config_save_writes_only_project_local_config(tmp_path) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
-    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
-    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
-    config = runtime.load_tui_config(paths)
-    extra_root = tmp_path / "external-memory"
-    config.indexing.memory_dirs.append(extra_root)
-
-    runtime.save_tui_config(paths, config)
-
-    assert paths.config_path.is_file()
-    saved = json.loads(paths.config_path.read_text(encoding="utf-8"))
-    assert str(extra_root) in saved["indexing"]["memory_dirs"]
-    assert config.storage.sqlite_path == paths.database_path
-
-
-def test_initialize_tui_config_applies_preset_and_memory_dir(tmp_path) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
-    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
-    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
-    memory_dir = tmp_path / "my-memories"
-
-    state = TuiInitState(preset_name="korean", memory_dir=str(memory_dir), mcp_choice=3)
-    state.apply_preset()
-    runtime.initialize_tui_config(paths, state=state)
-
-    config = runtime.load_tui_config(paths)
-    assert paths.config_path.is_file()
-    assert memory_dir.is_dir()
-    assert [Path(path) for path in config.indexing.memory_dirs] == [memory_dir.resolve()]
-    assert config.embedding.provider == "onnx"
-    assert config.embedding.model == "bge-m3"
-    assert config.search.tokenizer == "kiwipiepy"
-    assert config.namespace.enable_auto_ns
-    assert config.rerank.enabled
-
-
-async def test_tui_first_run_opens_init_gate_before_dashboard(tmp_path) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
-    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
-    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
-    app = MemtomemTuiApp(paths=paths, terminal_profile="windows-terminal")
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-
-        assert app.screen.__class__.__name__ == "InitScreen"
-        assert app.screen.query_one("#init-next", Button)
-        assert app.screen.query_one("#init-step-title", Static).content == "Step 1/4  Setup style"
-        assert not paths.config_path.exists()
-
-
-async def test_tui_init_wizard_preserves_values_when_moving_back(tmp_path) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
-    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
-    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
-    app = MemtomemTuiApp(paths=paths, terminal_profile="windows-terminal")
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        screen = app.screen
-        await screen.on_button_pressed(
-            Button.Pressed(screen.query_one("#init-preset-korean", Button))
-        )
-        await screen.on_button_pressed(Button.Pressed(screen.query_one("#init-next", Button)))
-        memory_dir = str(tmp_path / "custom-memories")
-        screen.query_one("#init-memory-dir", Input).value = memory_dir
-        await screen.on_button_pressed(Button.Pressed(screen.query_one("#init-next", Button)))
-        assert screen.state.preset_name == "korean"
-        assert screen.state.memory_dir == memory_dir
-        assert screen.state.steps[screen.step_index] == "Provider Memory Folders"
-        await screen.on_button_pressed(Button.Pressed(screen.query_one("#init-back", Button)))
-        assert screen.query_one("#init-memory-dir", Input).value == memory_dir
-        await screen.on_button_pressed(Button.Pressed(screen.query_one("#init-back", Button)))
-        assert screen.state.preset_name == "korean"
-        assert not paths.config_path.exists()
-
-
-async def test_tui_init_wizard_is_fully_keyboard_operable(tmp_path) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
-    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
-    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
-    app = MemtomemTuiApp(paths=paths, terminal_profile="windows-terminal")
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        screen = app.screen
-        assert getattr(screen.focused, "id", None) == "init-preset-english"
-
-        await pilot.press("down", "enter")
-        await pilot.pause()
-        assert screen.state.preset_name == "korean"
-        assert getattr(screen.focused, "id", None) == "init-preset-korean"
-
-        screen.query_one("#init-next", Button).focus()
-        await pilot.press("enter")
-        await pilot.pause()
-        assert screen.step_index == 1
-        assert getattr(screen.focused, "id", None) == "init-memory-dir"
-
-        await pilot.press("enter")
-        await pilot.pause()
-        assert screen.step_index == 2
-
-        screen.query_one("#init-back", Button).focus()
-        await pilot.press("enter")
-        await pilot.pause()
-        assert screen.step_index == 1
-
-
-async def test_tui_init_advanced_exposes_all_ten_cli_steps(tmp_path) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
-    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
-    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
-    app = MemtomemTuiApp(paths=paths, terminal_profile="windows-terminal")
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        screen = app.screen
-        await screen.on_button_pressed(
-            Button.Pressed(screen.query_one("#init-mode-advanced", Button))
-        )
-        await screen.on_button_pressed(Button.Pressed(screen.query_one("#init-next", Button)))
-        assert screen.state.mode == "advanced"
-        assert screen.state.steps == ADVANCED_STEPS
-        assert screen.query_one("#init-step-title", Static).content == (
-            "Step 2/10  Reranker (optional)"
-        )
-
-
-async def test_tui_init_uses_scrollable_main_and_detail_panels(tmp_path) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
-    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
-    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
-    app = MemtomemTuiApp(paths=paths, terminal_profile="windows-terminal")
-
-    async with app.run_test(size=(80, 16)) as pilot:
-        await pilot.pause()
-        screen = app.screen
-        main_body = screen.query_one("#init-step-body", PanelScroll)
-        detail_body = screen.query_one("#init-detail-body", PanelScroll)
-        assert main_body.allow_vertical_scroll
-        assert detail_body.allow_vertical_scroll
-
-        screen.query_one("#init-preset-korean", Button).focus()
-        await pilot.pause()
-        detail = str(screen.query_one("#init-detail-text", Static).content)
-        assert PRESETS["korean"].description in detail
-
-
-async def test_tui_test_browse_tab_selects_folder(tmp_path) -> None:
-    app = make_tui_app()
-
-    async with app.run_test(size=(100, 30)) as pilot:
-        app.render_test_page("browse")
-        await pilot.pause()
-
-        assert app.query_one("#test-tabs", Tabs).active == "test-tab-browse"
-        path_input = app.query_one("#test-browse-path", Input)
-        path_input.value = str(tmp_path)
-
-        app.focus_panel_by_id("main", target_id="test-browse-path-button")
-        await app.handle_button("test-browse-path-button")
-        await pilot.pause()
-
-        assert isinstance(app.screen, FolderBrowserScreen)
-        browser = app.screen
-        assert browser.selected_path == tmp_path.resolve()
-        browser.dismiss(tmp_path.resolve())
-        await pilot.pause()
-
-        assert path_input.value == str(tmp_path.resolve())
-
-
-async def test_tui_dev_mode_shows_dev_badge_and_uses_dev_setup_state(tmp_path) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='memtomem'\n", encoding="utf-8")
-    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
-    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    async with app.run_test(size=(100, 24)):
+        rendered = _rendered_text(app.query_one("#home-surface"))
+        assert "SETUP REQUIRED" in rendered
+        assert "Run 'mm init'" in rendered
+        assert "does not invoke or reinterpret CLI flows" in rendered
+
+
+async def test_refresh_rechecks_config_without_rebuilding_home_or_moving_focus(
+    tmp_path: Path,
+) -> None:
+    paths = _paths(tmp_path, configured=False)
     app = MemtomemTuiApp(
+        startup_refresh=True,
+        terminal_profile="windows-terminal",
         paths=paths,
-        startup_refresh=False,
+    )
+    async with app.run_test(size=(100, 24)) as pilot:
+        home = app.query_one("#home-surface")
+        app.activate_section("main")
+        home.focus()
+
+        paths.config_path.write_text("{}\n", encoding="utf-8")
+        await pilot.press("ctrl+r")
+
+        assert app.query_one("#home-surface") is home
+        assert app.state.active_section == "main"
+        assert app.focused is home
+        assert "TUI PREVIEW" in _rendered_text(home)
+        assert "SETUP REQUIRED" not in _rendered_text(home)
+
+        paths.config_path.unlink()
+        await pilot.press("ctrl+r")
+
+        assert app.query_one("#home-surface") is home
+        assert app.state.active_section == "main"
+        assert app.focused is home
+        assert "SETUP REQUIRED" in _rendered_text(home)
+        assert "Run 'mm init'" in _rendered_text(home)
+
+
+async def test_refresh_is_guarded_while_a_modal_is_open(tmp_path: Path) -> None:
+    paths = _paths(tmp_path, configured=False)
+    app = MemtomemTuiApp(
+        startup_refresh=True,
         terminal_profile="windows-terminal",
+        paths=paths,
     )
+    async with app.run_test(size=(100, 24)) as pilot:
+        home = app.query_one("#home-surface")
+        assert "SETUP REQUIRED" in _rendered_text(home)
 
-    async with app.run_test() as pilot:
-        await app.refresh_readiness()
-        await pilot.pause()
+        await pilot.press("ctrl+q")
+        paths.config_path.write_text("{}\n", encoding="utf-8")
+        await pilot.press("ctrl+r")
 
-        assert app.query_one("#environment-status", Static).content == "DEV"
-        assert app.readiness is not None
-        assert app.readiness.state == ReadinessState.SETUP_REQUIRED
-        assert any(str(paths.config_path) in str(widget.content) for widget in app.query(Static))
-        topbar = app.query_one("#topbar")
-        title = app.query_one("#top-title")
-        environment = app.query_one("#environment-status")
-        mouse = app.query_one("#mouse-status")
-        clock = app.query_one("#top-clock")
-        assert title.region.width >= len("memtomem")
-        assert environment.region.width == 4
-        assert mouse.region.right <= topbar.region.right
-        assert clock.region.right <= topbar.region.right
+        assert isinstance(app.screen, QuitConfirmScreen)
+        assert "SETUP REQUIRED" in _rendered_text(home)
+
+        await pilot.press("escape")
+        await pilot.press("ctrl+r")
+        assert "TUI PREVIEW" in _rendered_text(home)
 
 
-async def test_inspect_readiness_flags_index_required(tmp_path) -> None:
-    class Storage:
-        async def get_stats(self):
-            return {"total_chunks": 0, "total_sources": 0}
-
-    root = tmp_path / "memories"
-    root.mkdir()
-    (root / "note.md").write_text("# Note", encoding="utf-8")
-
-    config = type(
-        "Config",
-        (),
-        {
-            "indexing": type(
-                "Indexing",
-                (),
-                {
-                    "memory_dirs": [root],
-                    "supported_extensions": {".md"},
-                },
-            )()
-        },
-    )()
-    comp = type("Components", (), {"config": config, "storage": Storage()})()
-
-    readiness = await runtime.inspect_readiness(comp)
-
-    assert readiness.state == ReadinessState.INDEX_REQUIRED
-    assert readiness.indexable_files == 1
-
-
-async def test_tui_vertical_navigation_moves_within_active_panel() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await app._replace_main(  # noqa: SLF001 - focused TUI interaction test.
-            Button("One", id="main-one"),
-            Button("Two", id="main-two"),
+async def test_global_errors_are_structured_and_user_visible(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        notice = ErrorNotice(
+            code="TUI-PHASE2",
+            message="Example [bold] recoverable shell error",
+            detail="private diagnostic detail",
+            recoverable=True,
         )
-        app.focus_panel(0)
-
-        await pilot.press("down")
-        assert app.PANEL_IDS[app.panel_index] == "main"
-        assert getattr(app.focused, "id", None) == "main-one"
-        await pilot.press("up")
-        assert app.PANEL_IDS[app.panel_index] == "menu"
-        await pilot.press("down")
-        assert app.PANEL_IDS[app.panel_index] == "main"
-        assert getattr(app.focused, "id", None) == "main-one"
-
-        app.query_one("#main-one", Button).focus()
-        await pilot.press("down")
-        assert getattr(app.focused, "id", None) == "main-two"
-
-        await pilot.press("up")
-        assert getattr(app.focused, "id", None) == "main-one"
-        await pilot.press("right")
-        assert app.PANEL_IDS[app.panel_index] == "detail"
-        await pilot.press("left")
-        assert app.PANEL_IDS[app.panel_index] == "main"
-        assert getattr(app.focused, "id", None) == "main-one"
-
-        app.render_catalog()
+        app.report_error(notice)
         await pilot.pause()
-        app.focus_panel(0)
+        app.screen.query_one("#global-error").refresh()
+        assert app.state.error is notice
+        rendered = _rendered_text(app.screen)
+        assert "TUI-PHASE2" in rendered
+        assert "private diagnostic detail" not in rendered
+        banner = app.query_one("#global-error", Static)
+        assert "[x]" in banner.render_line(0).text
+        assert "[bold]" in banner.render_line(0).text
+        assert list(app._notifications)[-1].markup is False
+
+
+async def test_global_error_remains_visible_across_focused_and_split_layouts(
+    tmp_path: Path,
+) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(59, 16)) as pilot:
+        app.report_error(ErrorNotice(code="VISIBLE", message="Keep this error visible"))
+        await pilot.pause()
+        banner = app.query_one("#global-error", Static)
+        assert banner.display
+        assert banner.region.height > 0
+        assert not app.query_one("#detail").display
+
+        await pilot.resize_terminal(60, 16)
+        assert app.state.active_section == "nav"
+        assert app.query_one("#detail").display
+        assert banner.display
+        assert banner.region.height > 0
+        assert "VISIBLE" in str(banner.render())
+
+
+async def test_pointer_click_activates_nearest_focusable_section_owner(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        await pilot.click("#home-surface")
+        assert app.state.active_section == "main"
+        assert getattr(app.focused, "id", None) == "home-surface"
+
+
+async def test_arrows_and_hjkl_never_leave_the_active_panel(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        await pilot.press("up", "down", "left", "right", "h", "j", "k", "l")
+        assert app.state.active_section == "nav"
+
+        await pilot.press("f3", "up", "down", "left", "right", "h", "j", "k", "l")
+        assert app.state.active_section == "main"
+
+        await pilot.press("f4", "up", "down", "left", "right", "h", "j", "k", "l")
+        assert app.state.active_section == "detail"
+
+
+async def test_square_brackets_move_panels_without_wrapping(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("left_square_bracket")
+        assert app.state.active_section == "nav"
+
+        await pilot.press("right_square_bracket")
+        assert app.state.active_section == "main"
+        await pilot.press("right_square_bracket")
+        assert app.state.active_section == "detail"
+        await pilot.press("right_square_bracket")
+        assert app.state.active_section == "detail"
+
+        await pilot.press("left_square_bracket", "left_square_bracket")
+        assert app.state.active_section == "nav"
+        await pilot.press("left_square_bracket")
+        assert app.state.active_section == "nav"
+
+
+async def test_text_input_keeps_printable_navigation_keys(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        surface = app.query_one("#home-surface")
+        field = TuiInput(id="navigation-key-input")
+        await surface.mount(field)
+        app.activate_section("main")
+        field.focus()
+
+        await pilot.press(
+            "left_square_bracket",
+            "h",
+            "j",
+            "k",
+            "l",
+            "right_square_bracket",
+        )
+
+        assert field.value == "[hjkl]"
+        assert app.state.active_section == "main"
+
+
+async def test_escape_follows_detail_main_navigation_quit_ladder(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("f4", "escape")
+        assert app.state.active_section == "main"
+        await pilot.press("escape")
+        assert app.state.active_section == "nav"
+        await pilot.press("escape")
+        await pilot.pause()
+        assert isinstance(app.screen, QuitConfirmScreen)
+
+
+async def test_modal_blocks_background_panel_navigation(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("?")
+        assert isinstance(app.screen, HelpScreen)
+
+        await pilot.press("f4", "right_square_bracket", "down", "right")
+        assert app.state.active_section == "nav"
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.state.active_section == "nav"
+
+
+async def test_inactive_remembered_navigation_focus_cannot_activate_route(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        route = app.query_one("#route-home", NavigationItem)
+        route.focus()
+        app.state.route_id = "sentinel"
+        app.state.activate("main")
+
+        await pilot.press("enter")
+        assert app.state.route_id == "sentinel"
+
+
+async def test_escape_from_input_restores_focusable_parent_surface(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        surface = app.query_one("#home-surface")
+        field = TuiInput(id="phase2-input")
+        await surface.mount(field)
+        app.activate_section("main")
+        field.focus()
+
+        await pilot.press("escape")
+        assert app.focused is surface
+
+
+async def test_repeated_resize_preserves_input_value_and_remembered_focus(tmp_path: Path) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        surface = app.query_one("#home-surface")
+        field = TuiInput(value="한글 / C:/very/long/path", id="resize-input")
+        await surface.mount(field)
+        app.activate_section("main")
+        field.focus()
+
+        for width, height in ((60, 16), (160, 10), (31, 8), (100, 24)):
+            await pilot.resize_terminal(width, height)
+
+        assert field.value == "한글 / C:/very/long/path"
+        assert app.state.active_section == "main"
+        assert app.focused is field
+
+
+async def test_panel_button_blocks_stale_keyboard_but_syncs_pointer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app(tmp_path)
+    async with app.run_test(size=(160, 50)) as pilot:
+        surface = app.query_one("#home-surface")
+        button = PanelButton("Run", id="phase2-run")
+        await surface.mount(button)
+        pressed: list[bool] = []
+        monkeypatch.setattr(button, "press", lambda: pressed.append(True))
+        button.focus()
+        app.state.activate("nav")
+
+        await pilot.press("enter")
+        assert pressed == []
+
+        await pilot.click("#phase2-run")
+        assert app.state.active_section == "main"
+        assert pressed == [True]
+
+
+async def test_ascii_active_section_keeps_focus_border_color(tmp_path: Path) -> None:
+    app = _app(tmp_path, border_style="ascii")
+    async with app.run_test(size=(100, 24)) as pilot:
         await pilot.press("f3")
-        assert app.PANEL_IDS[app.panel_index] == "main"
+        main = app.query_one("#main")
+        assert main.styles.border_top[0] == "ascii"
+        assert main.styles.border_top[1].hex == "#00DDDD"
 
-        catalog = app.query_one("#main-body ListView", ListView)
-        catalog.focus()
-        catalog.index = 0
-        await pilot.press("down")
-        assert catalog.index == 1
-
+        await pilot.resize_terminal(59, 16)
         await pilot.press("f2")
-        assert app.PANEL_IDS[app.panel_index] == "menu"
-        await pilot.press("f4")
-        assert app.PANEL_IDS[app.panel_index] == "detail"
-
-
-async def test_tui_ascii_border_class_is_applied() -> None:
-    app = make_tui_app(border_style="ascii")
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-
-        assert not app.query_one("#menu-bar").has_class("ascii-border")
-        assert app.query_one("#main").has_class("ascii-border")
-        assert app.query_one("#detail").has_class("ascii-border")
-
-
-async def test_tui_help_uses_selected_border_style() -> None:
-    app = make_tui_app(border_style="ascii")
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("?")
-
-        assert isinstance(app.screen, KeybindingsScreen)
-        assert app.screen.query_one("#keybindings-dialog").has_class("ascii-border")
-
-
-async def test_tui_settings_controls_footer_offset() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-settings"))
-        await app.handle_button("nav-settings")
-        await pilot.pause()
-
-        assert app.query_one("#footer-height-value", Static).content == "0"
-        assert app.query_one("#footer-height-decrease", SettingStep).content == "v"
-        assert app.query_one("#footer-height-increase", SettingStep).content == "^"
-        assert getattr(app.focused, "id", None) == "nav-settings"
-        assert not app.query_one("#footer-height-setting", SettingRow).has_class("active-nav")
-        assert app.query_one(Footer).styles.margin.bottom == 0
-
-        await app.handle_button("footer-height-increase")
-        assert app.footer_offset == 1
-        assert app.query_one("#footer-height-value", Static).content == "1"
-        assert app.query_one(Footer).styles.margin.bottom == 1
-
-        await app.handle_button("footer-height-decrease")
-        assert app.footer_offset == 0
-        assert app.query_one("#footer-height-value", Static).content == "0"
-        assert app.query_one(Footer).styles.margin.bottom == 0
-
-
-async def test_tui_navigation_activation_does_not_move_focus() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-settings"))
-
-        await pilot.press("enter")
-        await pilot.pause()
-
-        assert app.current_page_id == "settings"
-        assert getattr(app.focused, "id", None) == "nav-settings"
-        assert app.PANEL_IDS[app.panel_index] == "menu"
-
-
-async def test_tui_menu_focus_keeps_label_with_cyan_focus_style() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-search"))
-        await pilot.pause()
-
-        item = app.query_one("#nav-search", MenuItem)
-
-        assert item.content == "Search"
-        assert item.styles.background.hex == "#45E0FF"
-        assert item.styles.color.hex == "#0D141C"
-
-
-async def test_tui_settings_keyboard_edit_applies_and_cancels_footer_height() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-settings"))
-        await app.handle_button("nav-settings")
-        await pilot.pause()
-
-        assert getattr(app.focused, "id", None) == "nav-settings"
-        await pilot.press("right")
-        await pilot.press("down")
-        assert getattr(app.focused, "id", None) == "footer-height-setting"
-
-        await pilot.press("enter")
-        assert app.settings_editing is True
-        assert app.query_one("#footer-height-setting", SettingRow).has_class("editing-setting")
-        assert app.query_one("#footer-height-value", Static).has_class("editing-setting")
-
-        await pilot.press("up")
-        assert app.footer_offset == 0
-        assert app.query_one("#footer-height-value", Static).content == "1"
-        assert app.query_one(Footer).styles.margin.bottom == 0
-
-        await pilot.press("enter")
-        assert app.settings_editing is False
-        assert app.footer_offset == 1
-        assert app.query_one(Footer).styles.margin.bottom == 1
-        assert not app.query_one("#footer-height-value", Static).has_class("editing-setting")
-
-        await pilot.press("enter")
-        await pilot.press("up")
-        assert app.query_one("#footer-height-value", Static).content == "2"
-        await pilot.press("escape")
-
-        assert app.settings_editing is False
-        assert app.footer_offset == 1
-        assert app.query_one("#footer-height-value", Static).content == "1"
-        assert app.query_one(Footer).styles.margin.bottom == 1
-
-
-async def test_tui_enter_on_panel_focus_does_nothing() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-settings"))
-        await app.handle_button("nav-settings")
-        await pilot.pause()
-
-        main_body = app.query_one("#main-body")
-        app.set_focus(main_body)
-        app.panel_index = app.PANEL_IDS.index("main")
-        app.set_active_panel("main")
-
-        await pilot.press("enter")
-        await pilot.pause()
-
-        assert app.current_page_id == "settings"
-        assert app.focused is main_body
-        assert app.PANEL_IDS[app.panel_index] == "main"
-
-
-async def test_tui_enter_ignores_stale_focus_from_inactive_panel() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-settings"))
-        await app.handle_button("nav-settings")
-        await pilot.pause()
-
-        app.query_one("#nav-dashboard", MenuItem).focus()
-        app.panel_index = app.PANEL_IDS.index("main")
-        app.set_active_panel("main")
-
-        await pilot.press("enter")
-        await pilot.pause()
-
-        assert app.current_page_id == "settings"
-        assert getattr(app.focused, "id", None) == "nav-dashboard"
-        assert app.PANEL_IDS[app.panel_index] == "main"
-
-
-async def test_tui_settings_editing_blocks_panel_left_right() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-settings"))
-        await app.handle_button("nav-settings")
-        await pilot.pause()
-
-        await pilot.press("right")
-        await pilot.press("down")
-        await pilot.press("enter")
-        assert app.settings_editing is True
-        assert app.PANEL_IDS[app.panel_index] == "main"
-
-        await pilot.press("left")
-        await pilot.press("right")
-
-        assert app.PANEL_IDS[app.panel_index] == "main"
-        assert getattr(app.focused, "id", None) == "footer-height-setting"
-
-
-async def test_tui_settings_row_click_focuses_setting() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-settings"))
-        await app.handle_button("nav-settings")
-        await pilot.pause()
-
-        await pilot.click("#footer-height-setting")
-        await pilot.pause()
-
-        assert getattr(app.focused, "id", None) == "footer-height-setting"
-        assert app.PANEL_IDS[app.panel_index] == "main"
-        assert app.query_one("#footer-height-setting", SettingRow).has_class("active-nav")
-
-        await pilot.press("enter")
-        assert app.settings_editing is True
-
-
-async def test_tui_settings_edit_mouse_click_cancels_without_applying() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-settings"))
-        await app.handle_button("nav-settings")
-        await pilot.pause()
-
-        app.focus_settings_item()
-        await pilot.press("enter")
-        await pilot.press("up")
-
-        assert app.settings_editing is True
-        assert app.footer_offset == 0
-        assert app.query_one("#footer-height-value", Static).content == "1"
-
-        await pilot.click("#footer-height-increase")
-        await pilot.pause()
-
-        assert app.settings_editing is False
-        assert app.footer_offset == 0
-        assert app.query_one("#footer-height-value", Static).content == "0"
-
-
-async def test_tui_settings_edit_panel_button_click_cancels_without_running() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-settings"))
-        await app.handle_button("nav-settings")
-        await pilot.pause()
-
-        app.focus_settings_item()
-        await pilot.press("enter")
-        await pilot.press("up")
-        button = app.query_one("#nav-search", MenuItem)
-        event = FakeClick()
-
-        await button._on_click(event)
-        await pilot.pause()
-
-        assert event.stopped is True
-        assert app.settings_editing is False
-        assert app.current_page_id == "settings"
-        assert app.footer_offset == 0
-        assert app.query_one("#footer-height-value", Static).content == "0"
-
-
-async def test_tui_mouse_click_syncs_panel_before_button_action() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-settings"))
-        await app.handle_button("nav-settings")
-        await pilot.pause()
-
-        setting = app.query_one("#footer-height-setting", SettingRow)
-        setting.focus()
-        app.panel_index = app.PANEL_IDS.index("main")
-        app.set_active_panel("main")
-
-        button = app.query_one("#nav-search", MenuItem)
-        event = FakeClick()
-
-        await button._on_click(event)
-        await pilot.pause()
-
-        assert event.stopped is True
-        assert app.current_page_id == "search"
-        assert getattr(app.focused, "id", None) == "nav-search"
-        assert app.PANEL_IDS[app.panel_index] == "menu"
-
-
-async def test_tui_escape_moves_widget_focus_to_panel() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_search()
-        await pilot.pause()
-        search_input = app.query_one("#search-query", Input)
-        search_input.focus()
-
-        await pilot.press("escape")
-
-        assert app.focused is app.query_one("#main-body")
-        assert not isinstance(app.screen, QuitConfirmScreen)
-
-
-async def test_tui_escape_on_panel_moves_to_menu_before_quit_confirmation() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_panel(1)
-        app.set_focus(app.query_one("#main-body"))
-
-        await pilot.press("escape")
-        await pilot.pause()
-
-        assert app.PANEL_IDS[app.panel_index] == "menu"
-        assert getattr(app.focused, "id", None) == "nav-dashboard"
-        assert not isinstance(app.screen, QuitConfirmScreen)
-
-        await pilot.press("escape")
-        await pilot.pause()
-
-        assert isinstance(app.screen, QuitConfirmScreen)
-
-        await pilot.press("escape")
-        await pilot.pause()
-
-        assert not isinstance(app.screen, QuitConfirmScreen)
-
-
-async def test_tui_ctrl_q_opens_quit_confirmation() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-
-        await pilot.press("ctrl+q")
-        await pilot.pause()
-
-        assert isinstance(app.screen, QuitConfirmScreen)
-
-        await pilot.press("escape")
-
-
-async def test_tui_quit_confirmation_enter_uses_focused_button() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-
-        await pilot.press("ctrl+q")
-        await pilot.pause()
-
-        assert isinstance(app.screen, QuitConfirmScreen)
-        assert getattr(app.screen.focused, "id", None) == "cancel-quit"
-        assert isinstance(app.screen.query_one("#cancel-quit", Button), ModalButton)
-        assert app.screen.query_one("#cancel-quit", Button).has_class("cyan")
-        assert not app.screen.query_one("#confirm-quit", Button).has_class("cyan")
-
-        await pilot.press("enter")
-        await pilot.pause()
-
-        assert not isinstance(app.screen, QuitConfirmScreen)
-
-
-async def test_tui_quit_confirmation_arrow_keys_move_button_focus() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-
-        await pilot.press("ctrl+q")
-        await pilot.pause()
-
-        assert isinstance(app.screen, QuitConfirmScreen)
-        assert getattr(app.screen.focused, "id", None) == "cancel-quit"
-
-        await pilot.press("left")
-        assert getattr(app.screen.focused, "id", None) == "confirm-quit"
-        assert app.screen.query_one("#confirm-quit", Button).has_class("cyan")
-        assert not app.screen.query_one("#cancel-quit", Button).has_class("cyan")
-
-        await pilot.press("right")
-        assert getattr(app.screen.focused, "id", None) == "cancel-quit"
-        assert app.screen.query_one("#cancel-quit", Button).has_class("cyan")
-        assert not app.screen.query_one("#confirm-quit", Button).has_class("cyan")
-
-        await pilot.press("escape")
-
-
-async def test_tui_quit_confirmation_tab_updates_button_style() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-
-        await pilot.press("ctrl+q")
-        await pilot.pause()
-
-        assert isinstance(app.screen, QuitConfirmScreen)
-        await pilot.press("shift+tab")
-        await pilot.pause()
-
-        assert getattr(app.screen.focused, "id", None) == "confirm-quit"
-        assert app.screen.query_one("#confirm-quit", Button).has_class("cyan")
-        assert not app.screen.query_one("#cancel-quit", Button).has_class("cyan")
-
-        await pilot.press("escape")
-
-
-async def test_tui_page_keys_scroll_main_body() -> None:
-    app = make_tui_app()
-
-    async with app.run_test(size=(100, 16)) as pilot:
-        await pilot.pause()
-        await app._replace_main(  # noqa: SLF001 - focused TUI interaction test.
-            *[Static(f"Line {index}") for index in range(40)]
-        )
-        app.focus_panel(1)
-        body = app.query_one("#main-body")
-
-        assert body.scroll_y == 0
-        await pilot.press("page_down")
-        assert body.scroll_y > 0
-
-        await pilot.press("page_up")
-        assert body.scroll_y == 0
-
-
-async def test_tui_arrow_keys_do_not_scroll_panel_body() -> None:
-    app = make_tui_app()
-
-    async with app.run_test(size=(100, 16)) as pilot:
-        await pilot.pause()
-        await app._replace_main(  # noqa: SLF001 - focused TUI interaction test.
-            *[Static(f"Line {index}") for index in range(40)]
-        )
-        app.focus_panel(1)
-        await pilot.pause()
-        body = app.query_one("#main-body")
-
-        assert body.scroll_y == 0
-        await pilot.press("down")
-        await pilot.press("j")
-        assert body.scroll_y == 0
-
-        await pilot.press("page_down")
-        assert body.scroll_y > 0
-
-
-async def test_tui_page_keys_move_list_view_by_page() -> None:
-    app = make_tui_app()
-
-    async with app.run_test(size=(100, 16)) as pilot:
-        await pilot.pause()
-        list_view = ListView(*[ListItem(Static(f"Item {index}")) for index in range(40)])
-        await app._replace_main(list_view)  # noqa: SLF001 - focused TUI interaction test.
-        await pilot.pause()
-        app.focus_panel(1)
-        await pilot.pause()
-        app.set_focus(list_view)
-
-        assert isinstance(app.focused, ListView)
-        app.focused.index = 0
-        await pilot.press("page_down")
-
-        assert app.focused.index is not None
-        assert app.focused.index > 0
-
-
-async def test_tui_page_keys_scroll_detail_panel() -> None:
-    app = make_tui_app()
-
-    async with app.run_test(size=(100, 16)) as pilot:
-        await pilot.pause()
-        detail_text = app.query_one("#detail-text", Static)
-        detail_text.update("\n".join(f"Detail line {index}" for index in range(40)))
-        app.focus_panel(2)
-        await pilot.pause()
-        detail_body = app.query_one("#detail-body")
-
-        assert detail_body.scroll_y == 0
-        await pilot.press("page_down")
-        assert detail_body.scroll_y > 0
-
-
-async def test_tui_page_keys_scroll_help_modal() -> None:
-    app = make_tui_app()
-
-    async with app.run_test(size=(80, 10)) as pilot:
-        await pilot.pause()
-        await pilot.press("?")
-        await pilot.pause()
-        assert isinstance(app.screen, KeybindingsScreen)
-        help_body = app.screen.query_one("#keybindings-body-scroll")
-
-        assert help_body.scroll_y == 0
-        await pilot.press("page_down")
-        assert help_body.scroll_y > 0
-
-
-async def test_tui_search_screen_runs_pipeline() -> None:
-    class SearchPipeline:
-        def __init__(self) -> None:
-            self.query = None
-
-        async def search(self, query, **kwargs):
-            self.query = query
-            chunk = Chunk(
-                id=uuid4(),
-                content="Searchable content for the terminal UI.",
-                metadata=ChunkMetadata(
-                    source_file="notes/search.md",
-                    heading_hierarchy=("Search", "TUI"),
-                    tags=("tui",),
-                    namespace="user",
-                ),
-            )
-            result = SearchResult(chunk=chunk, score=0.75, rank=1, source="bm25")
-            stats = SimpleNamespace(bm25_candidates=1, dense_candidates=0, final_total=1)
-            return [result], stats
-
-    pipeline = SearchPipeline()
-    config = SimpleNamespace(indexing=SimpleNamespace(project_memory_dirs=[]))
-    app = make_tui_app()
-    app.comp = SimpleNamespace(search_pipeline=pipeline, config=config)
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_search()
-        await pilot.pause()
-        query = app.query_one("#search-query")
-        query.value = "terminal ui"
-        await app.run_search_from_input()
-        await pilot.pause()
-
-        assert pipeline.query == "terminal ui"
-        assert len(app.search_results) == 1
-        assert "notes/search.md" in app.query_one("#detail-text", Static).content
-
-
-async def test_tui_index_overview_shows_dense_coverage() -> None:
-    class Storage:
-        async def get_stats(self):
-            return {"total_chunks": 10, "total_sources": 2}
-
-        async def get_dense_coverage(self):
-            return {"total": 10, "with_dense": 8}
-
-        async def get_all_source_files(self):
-            return set()
-
-    app = make_tui_app()
-    app.comp = SimpleNamespace(storage=Storage())
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_index("overview")
-        await pilot.pause()
-
-        main_text = "\n".join(
-            str(widget.content) for widget in app.query("#main-body Static").results(Static)
-        )
-        assert "Dense vectors: 8/10 (80.0%)" in main_text
-        assert "semantic-search embeddings" in app.query_one("#detail-text", Static).content
-
-
-async def test_tui_managed_roots_uses_selection_list(tmp_path) -> None:
-    class Storage:
-        async def get_source_files_with_counts(self):
-            return []
-
-    root_a = tmp_path / "a"
-    root_b = tmp_path / "b"
-    root_a.mkdir()
-    root_b.mkdir()
-
-    class Indexing:
-        memory_dirs = [root_a, root_b]
-        supported_extensions = frozenset({".md"})
-
-        def all_index_roots(self):
-            return self.memory_dirs
-
-    app = make_tui_app()
-    app.comp = SimpleNamespace(storage=Storage(), config=SimpleNamespace(indexing=Indexing()))
-
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        app.render_index("roots")
-        await pilot.pause()
-
-        root_list = app.query_one("#root-list", ManagedRootsSelectionList)
-        assert root_list.option_count == 2
-        assert root_list.size.height > 0
-        assert root_list.highlighted == 0
-        assert root_list.render_line(0).text.startswith("[ ]")
-
-        app.focus_panel(1)
-        root_list.focus()
-        await pilot.press("space")
-        assert root_list.render_line(0).text.startswith("[*]")
-        await pilot.press("enter")
-        assert root_list.render_line(0).text.startswith("[ ]")
-        await pilot.press("enter")
-        assert root_list.render_line(0).text.startswith("[*]")
-        await pilot.press("down")
-        await pilot.press("space")
-
-        assert root_list.selected == [str(root_a.resolve()), str(root_b.resolve())]
-
-
-async def test_tui_managed_roots_selection_toolbar(tmp_path) -> None:
-    class Storage:
-        async def get_source_files_with_counts(self):
-            return []
-
-    root_a = tmp_path / "a"
-    root_b = tmp_path / "b"
-    root_a.mkdir()
-    root_b.mkdir()
-
-    class Indexing:
-        memory_dirs = [root_a, root_b]
-        supported_extensions = frozenset({".md"})
-
-        def all_index_roots(self):
-            return self.memory_dirs
-
-    app = make_tui_app()
-    app.comp = SimpleNamespace(storage=Storage(), config=SimpleNamespace(indexing=Indexing()))
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_index("roots")
-        await pilot.pause()
-
-        root_list = app.query_one("#root-list", ManagedRootsSelectionList)
-        assert app.query_one("#select-all-roots", RootSelectionAction).content == "*"
-        assert app.query_one("#deselect-all-roots", RootSelectionAction).content == "-"
-        assert app.query_one("#toggle-all-roots", RootSelectionAction).content == "~"
-        assert "root-selection-label" not in {widget.id for widget in app.query("*")}
-        assert "* selects all roots" in app.query_one("#detail-text", Static).content
-
-        await app.handle_button("select-all-roots")
-        assert root_list.selected == [str(root_a.resolve()), str(root_b.resolve())]
-
-        await app.handle_button("deselect-all-roots")
-        assert root_list.selected == []
-
-        root_list.select(str(root_a.resolve()))
-        await app.handle_button("toggle-all-roots")
-        assert root_list.selected == [str(root_b.resolve())]
-
-
-async def test_tui_managed_roots_selection_tokens_are_interactive(tmp_path) -> None:
-    class Storage:
-        async def get_source_files_with_counts(self):
-            return []
-
-    root_a = tmp_path / "a"
-    root_b = tmp_path / "b"
-    root_a.mkdir()
-    root_b.mkdir()
-
-    class Indexing:
-        memory_dirs = [root_a, root_b]
-        supported_extensions = frozenset({".md"})
-
-        def all_index_roots(self):
-            return self.memory_dirs
-
-    app = make_tui_app()
-    app.comp = SimpleNamespace(storage=Storage(), config=SimpleNamespace(indexing=Indexing()))
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_index("roots")
-        await pilot.pause()
-
-        root_list = app.query_one("#root-list", ManagedRootsSelectionList)
-
-        await pilot.click("#select-all-roots")
-        await pilot.pause()
-        assert root_list.selected == [str(root_a.resolve()), str(root_b.resolve())]
-        assert getattr(app.focused, "id", None) == "select-all-roots"
-
-        await pilot.press("right")
-        assert getattr(app.focused, "id", None) == "deselect-all-roots"
-        await pilot.press("right")
-        assert getattr(app.focused, "id", None) == "toggle-all-roots"
-        await pilot.press("left")
-        assert getattr(app.focused, "id", None) == "deselect-all-roots"
-        await pilot.press("down")
-        assert getattr(app.focused, "id", None) == "add-root-path"
-        await pilot.press("up")
-        assert getattr(app.focused, "id", None) == "select-all-roots"
-
-        app.query_one("#deselect-all-roots", RootSelectionAction).focus()
-        await pilot.press("enter")
-        assert root_list.selected == []
-
-
-async def test_tui_managed_roots_buttons_move_vertically_in_nearest_order(tmp_path) -> None:
-    class Storage:
-        async def get_source_files_with_counts(self):
-            return []
-
-    root_a = tmp_path / "a"
-    root_b = tmp_path / "b"
-    root_a.mkdir()
-    root_b.mkdir()
-
-    class Indexing:
-        memory_dirs = [root_a, root_b]
-        supported_extensions = frozenset({".md"})
-
-        def all_index_roots(self):
-            return self.memory_dirs
-
-    app = make_tui_app()
-    app.comp = SimpleNamespace(storage=Storage(), config=SimpleNamespace(indexing=Indexing()))
-
-    async with app.run_test(size=(120, 30)) as pilot:
-        await pilot.pause()
-        app.render_index("roots")
-        await pilot.pause()
-
-        app.focus_panel_by_id("main", target_id="add-root")
-        await pilot.press("down")
-        assert getattr(app.focused, "id", None) == "reindex-selected-root"
-
-        await pilot.press("down")
-        assert getattr(app.focused, "id", None) == "force-reindex-selected-root"
-
-        await pilot.press("up")
-        assert getattr(app.focused, "id", None) == "reindex-selected-root"
-
-
-async def test_tui_reindex_runs_for_selected_roots(tmp_path) -> None:
-    class Storage:
-        async def get_source_files_with_counts(self):
-            return []
-
-        async def get_stats(self):
-            return {"total_chunks": 1, "total_sources": 1}
-
-    class IndexEngine:
-        def __init__(self) -> None:
-            self.paths = []
-
-        async def index_path_stream(self, path, **kwargs):
-            self.paths.append((path, kwargs))
-            yield {
-                "type": "complete",
-                "indexed_chunks": 0,
-                "skipped_chunks": 0,
-                "deleted_chunks": 0,
-            }
-
-    root_a = tmp_path / "a"
-    root_b = tmp_path / "b"
-    root_a.mkdir()
-    root_b.mkdir()
-
-    class Indexing:
-        memory_dirs = [root_a, root_b]
-        supported_extensions = frozenset({".md"})
-
-        def all_index_roots(self):
-            return self.memory_dirs
-
-    engine = IndexEngine()
-    app = make_tui_app()
-    app.comp = SimpleNamespace(
-        index_engine=engine,
-        storage=Storage(),
-        config=SimpleNamespace(indexing=Indexing()),
+        navigation = app.query_one("#navigation")
+        assert navigation.styles.border_top[0] == "ascii"
+        assert navigation.styles.border_top[1].hex == "#00DDDD"
+
+
+def test_styles_are_layered_and_do_not_style_individual_buttons_by_id() -> None:
+    styles = Path(__file__).parents[1] / "src" / "memtomem" / "tui" / "styles"
+    assert {path.name for path in styles.glob("*.tcss")} == {
+        "tokens.tcss",
+        "layout.tcss",
+        "components.tcss",
+        "states.tcss",
+        "responsive.tcss",
+    }
+    css = "\n".join(path.read_text(encoding="utf-8") for path in styles.glob("*.tcss"))
+    assert "#quit-yes {" not in css
+    assert "#quit-no {" not in css
+    assert "#route-home {" not in css
+    assert "Button.cyan" in css
+    assert ".nav-item:disabled" in css
+    assert MemtomemTuiApp.CSS.index("$surface-lowest:") < MemtomemTuiApp.CSS.index(
+        "background: $surface-lowest"
     )
 
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_index("roots")
-        await pilot.pause()
 
-        root_list = app.query_one("#root-list", SelectionList)
-        root_list.select(str(root_a.resolve()))
-        root_list.select(str(root_b.resolve()))
-
-        await app.reindex_selected_root(force=False)
-
-        assert [path for path, _kwargs in engine.paths] == [root_a.resolve(), root_b.resolve()]
-        assert all(kwargs["recursive"] is True for _path, kwargs in engine.paths)
-        assert all(kwargs["force"] is False for _path, kwargs in engine.paths)
-
-
-async def test_tui_removes_selected_root_and_its_chunks(tmp_path, monkeypatch) -> None:
-    root_a = tmp_path / "a"
-    root_b = tmp_path / "b"
-    source_a = root_a / "a.md"
-    source_b = root_b / "b.md"
-    root_a.mkdir()
-    root_b.mkdir()
-
-    class Storage:
-        def __init__(self) -> None:
-            self.deleted_sources = []
-
-        async def get_source_files_with_counts(self):
-            return [(source_a, 2, None), (source_b, 3, None)]
-
-        async def delete_by_source(self, source_path):
-            self.deleted_sources.append(source_path)
-            return 2
-
-    class Indexing:
-        memory_dirs = [root_a, root_b]
-        supported_extensions = frozenset({".md"})
-
-        def all_index_roots(self):
-            return self.memory_dirs
-
-    storage = Storage()
-    config = SimpleNamespace(indexing=Indexing())
-    saved_configs = []
-    app = make_tui_app()
-    app.comp = SimpleNamespace(storage=storage, config=config)
+async def test_tui_input_copy_cut_and_paste_use_os_clipboard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied: list[str] = []
     monkeypatch.setattr(
-        "memtomem.tui.app.save_tui_config",
-        lambda _paths, saved: saved_configs.append(saved),
+        "memtomem.tui.widgets.controls.write_os_clipboard",
+        lambda text: copied.append(text) or True,
     )
-
-    async def keep_test_components() -> None:
-        return None
-
-    monkeypatch.setattr(app, "refresh_readiness", keep_test_components)
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_index("roots")
-        await pilot.pause()
-        monkeypatch.setattr(app, "render_index", lambda _section: None)
-
-        root_list = app.query_one("#root-list", SelectionList)
-        root_list.select(str(root_a.resolve()))
-
-        await app.remove_selected_root(delete_chunks=True)
-
-        assert config.indexing.memory_dirs == [root_b]
-        assert saved_configs == [config]
-        assert storage.deleted_sources == [source_a]
-        assert "Deleted chunks: 2" in app.query_one("#detail-text", Static).content
-
-
-async def test_tui_one_time_index_uses_stream_without_memory_dirs(tmp_path) -> None:
-    class IndexEngine:
-        def __init__(self) -> None:
-            self.path = None
-
-        async def index_path_stream(self, path, **kwargs):
-            self.path = path
-            yield {"type": "discovery", "files_total": 1}
-            yield {
-                "type": "progress",
-                "files_done": 1,
-                "indexed": 2,
-                "skipped": 0,
-                "file": str(path),
-            }
-            yield {
-                "type": "complete",
-                "total_files": 1,
-                "indexed_chunks": 2,
-                "skipped_chunks": 0,
-                "deleted_chunks": 0,
-                "errors": [],
-            }
-
-    class Storage:
-        async def get_stats(self):
-            return {"total_chunks": 2, "total_sources": 1}
-
-    target = tmp_path / "outside"
-    target.mkdir()
-    engine = IndexEngine()
-    app = make_tui_app()
-    app.comp = SimpleNamespace(
-        index_engine=engine,
-        storage=Storage(),
-        config=SimpleNamespace(
-            indexing=SimpleNamespace(
-                memory_dirs=[tmp_path / "managed"], supported_extensions={".md"}
-            )
-        ),
-    )
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_index("one-time")
-        await pilot.pause()
-        app.query_one("#one-time-index-path").value = str(target)
-        await app.index_one_time_path()
-        await pilot.pause()
-
-        assert engine.path == target.resolve()
-        assert "Indexing complete." in app.query_one("#index-log", Static).content
-
-
-async def test_tui_f_keys_move_active_index_tabs_from_input_focus() -> None:
-    class Storage:
-        async def get_stats(self):
-            return {"total_chunks": 0, "total_sources": 0}
-
-        async def get_dense_coverage(self):
-            return {"total": 0, "with_dense": 0}
-
-        async def get_all_source_files(self):
-            return set()
-
-        async def get_source_files_with_counts(self):
-            return []
-
-    class Indexing:
-        supported_extensions = {".md"}
-
-        def all_index_roots(self):
-            return []
-
-    app = make_tui_app()
-    app.comp = SimpleNamespace(storage=Storage(), config=SimpleNamespace(indexing=Indexing()))
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-index"))
-        app.render_index("one-time")
-        await pilot.pause()
-        app.query_one("#one-time-index-path").focus()
-
-        await pilot.press("f7")
-        assert app.index_section == "roots"
-        assert app.focused is app.query_one("#index-tabs", Tabs)
-        await pilot.pause()
-
-        await pilot.press("f8")
-        assert app.index_section == "one-time"
-        assert app.focused is app.query_one("#index-tabs", Tabs)
-
-
-async def test_tui_f_keys_do_nothing_without_active_tabs() -> None:
-    app = make_tui_app()
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_search()
-        await pilot.pause()
-        app.query_one("#search-query").focus()
-
-        await pilot.press("f8")
-
-        assert app.index_section == "overview"
-        assert app.query_one("#search-query", Input).value == ""
-
-
-async def test_tui_f_keys_move_tabs_only_in_focused_panel() -> None:
-    app = make_tui_app()
-
-    async with app.run_test(size=(120, 30)) as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-test"))
-        app.render_test_page()
-        await pilot.pause()
-
-        app.query_one("#test-input-one").focus()
-        await pilot.press("f8")
-        assert app.query_one("#test-tabs", Tabs).active == "test-tab-two"
-        assert app.focused is app.query_one("#test-tabs", Tabs)
-        assert app.query_one("#test-detail-tabs", Tabs).active == "test-detail-tab-alpha"
-
-        app.focus_panel(app.PANEL_IDS.index("detail"))
-        app.query_one("#test-detail-tabs", Tabs).focus()
-        await pilot.pause()
-        await pilot.press("f8")
-        assert app.query_one("#test-tabs", Tabs).active == "test-tab-two"
-        assert app.focused is app.query_one("#test-detail-tabs", Tabs)
-        assert app.query_one("#test-detail-tabs", Tabs).active == "test-detail-tab-beta"
-
-        app.focus_panel(app.PANEL_IDS.index("menu"))
-        await pilot.pause()
-        await pilot.press("f8")
-        assert app.query_one("#test-tabs", Tabs).active == "test-tab-two"
-        assert app.query_one("#test-detail-tabs", Tabs).active == "test-detail-tab-beta"
-
-
-async def test_tui_preserves_input_values_across_tab_renders() -> None:
-    app = make_tui_app()
-
-    async with app.run_test(size=(120, 30)) as pilot:
-        await pilot.pause()
-        app.focus_nav_button(app.NAV_BUTTON_IDS.index("nav-test"))
-        app.render_test_page()
-        await pilot.pause()
-
-        first = app.query_one("#test-input-one", Input)
-        first.value = "abcde"
-        first.focus()
-
-        await pilot.press("f8")
-        await pilot.pause()
-        second_a = app.query_one("#test-input-two-a", Input)
-        second_b = app.query_one("#test-input-two-b", Input)
-        second_a.value = "two-a"
-        second_b.value = "two-b"
-
-        await pilot.press("f8")
-        await pilot.pause()
-        assert not app.query(Input)
-
-        await pilot.press("f7")
-        await pilot.pause()
-        assert app.query_one("#test-input-two-a", Input).value == "two-a"
-        assert app.query_one("#test-input-two-b", Input).value == "two-b"
-
-        await pilot.press("f7")
-        await pilot.pause()
-        assert app.query_one("#test-input-one", Input).value == "abcde"
-
-
-async def test_tui_input_pastes_from_os_clipboard(monkeypatch) -> None:
-    monkeypatch.setattr("memtomem.tui.app.read_os_clipboard", lambda: "한글 검색\nignored")
-
-    app = make_tui_app()
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_search()
-        await pilot.pause()
-        query = app.query_one("#search-query")
-        query.focus()
-
-        await pilot.press("ctrl+v")
-
-        assert query.value == "한글 검색"
-
-
-async def test_tui_input_copies_and_cuts_to_os_clipboard(monkeypatch) -> None:
-    copied = []
-    monkeypatch.setattr(
-        "memtomem.tui.app.write_os_clipboard", lambda text: copied.append(text) or True
-    )
-
-    app = make_tui_app()
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_search()
-        await pilot.pause()
-        query = app.query_one("#search-query")
-        query.value = "abcdef"
-        query.focus()
-        await pilot.pause()
-        query.selection = Selection(1, 4)
-
-        await pilot.press("ctrl+c")
-        await pilot.press("ctrl+x")
-
-        assert copied == ["bcd", "bcd"]
-        assert query.value == "aef"
-
-
-async def test_tui_clipboard_keys_do_nothing_without_input_focus(monkeypatch) -> None:
-    reads = []
-    writes = []
-    monkeypatch.setattr(
-        "memtomem.tui.app.read_os_clipboard", lambda: reads.append(True) or "ignored"
-    )
-    monkeypatch.setattr(
-        "memtomem.tui.app.write_os_clipboard", lambda text: writes.append(text) or True
-    )
-
-    app = make_tui_app()
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.render_search()
-        await pilot.pause()
-        query = app.query_one("#search-query")
-        query.value = "unchanged"
-        app.query_one("#run-search", Button).focus()
-
-        await pilot.press("ctrl+v")
-        await pilot.press("ctrl+c")
-        await pilot.press("ctrl+x")
-
-        assert query.value == "unchanged"
-        assert reads == []
-        assert writes == []
-
-
-async def test_tui_help_lists_clipboard_keys() -> None:
-    app = make_tui_app()
-
-    async with app.run_test(size=(80, 20)) as pilot:
-        await pilot.pause()
-        await pilot.press("?")
-        await pilot.pause()
-
-        body = app.screen.query_one("#keybindings-body", Static).content
-        assert "Clipboard" in body
-        assert "Ctrl+C" in body
-        assert "Ctrl+V" in body
-        assert "Shift+Insert" in body
-        assert "F7" in body
-        assert "F8" in body
-        assert "Ctrl+R" in body
-        assert "Ctrl+Q" in body
-        assert body.index("F6") < body.index("Alt+M")
+    monkeypatch.setattr("memtomem.tui.widgets.controls.read_os_clipboard", lambda: "붙여넣기")
+    app = _InputTestApp()
+    async with app.run_test():
+        widget = app.query_one("#test-input", TuiInput)
+        widget.selection = (1, 4)
+        widget.action_copy()
+        assert copied == ["bcd"]
+        widget.action_cut()
+        assert widget.value == "aef"
+        assert widget.cursor_position == 1
+        widget.action_paste()
+        assert widget.value == "a붙여넣기ef"

@@ -1,0 +1,20 @@
+/* Stitch Operational Terminal Logic translated to terminal-safe tokens. */
+$surface: #0d1515;
+$surface-lowest: #071010;
+$surface-low: #151d1d;
+$surface-high: #232c2b;
+$surface-highest: #2e3636;
+$text: #dbe4e3;
+$muted: #839493;
+$outline: #3a4a49;
+$focus: #00dddd;
+$cyan: #00dddd;
+$blue: #72a7ff;
+$green: #4ade80;
+$yellow: #fce442;
+$red: #ff7b72;
+
+Screen {
+    background: $surface;
+    color: $text;
+}

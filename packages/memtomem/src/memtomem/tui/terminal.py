@@ -89,7 +89,9 @@ def windows_console_viewport_size(stream: IO[str] | None = None) -> tuple[int, i
             ("dwMaximumWindowSize", Coord),
         ]
 
-    output = stream or sys.__stdout__
+    output = stream if stream is not None else sys.__stdout__
+    if output is None:
+        return None
     try:
         handle = msvcrt.get_osfhandle(output.fileno())
     except (AttributeError, OSError, ValueError):
@@ -101,75 +103,6 @@ def windows_console_viewport_size(stream: IO[str] | None = None) -> tuple[int, i
         info.srWindow.Right - info.srWindow.Left + 1,
         info.srWindow.Bottom - info.srWindow.Top + 1,
     )
-
-
-def normalize_windows_console_buffer_width(stream: IO[str] | None = None) -> bool:
-    """Shrink a classic console's backing buffer to its visible width.
-
-    Classic conhost may keep the fullscreen buffer width after restoring its
-    window. That creates an OS-owned horizontal scrollbar even when the TUI
-    itself fits the visible viewport. The buffer height is deliberately kept
-    so normal vertical scrollback remains available.
-    """
-    if os.name != "nt":
-        return False
-
-    import ctypes
-    import msvcrt
-    from ctypes import wintypes
-
-    class Coord(ctypes.Structure):
-        _fields_ = [("X", wintypes.SHORT), ("Y", wintypes.SHORT)]
-
-    class SmallRect(ctypes.Structure):
-        _fields_ = [
-            ("Left", wintypes.SHORT),
-            ("Top", wintypes.SHORT),
-            ("Right", wintypes.SHORT),
-            ("Bottom", wintypes.SHORT),
-        ]
-
-    class ConsoleScreenBufferInfo(ctypes.Structure):
-        _fields_ = [
-            ("dwSize", Coord),
-            ("dwCursorPosition", Coord),
-            ("wAttributes", wintypes.WORD),
-            ("srWindow", SmallRect),
-            ("dwMaximumWindowSize", Coord),
-        ]
-
-    output = stream or sys.__stdout__
-    try:
-        handle = msvcrt.get_osfhandle(output.fileno())
-    except (AttributeError, OSError, ValueError):
-        return False
-
-    kernel32 = ctypes.windll.kernel32
-    info = ConsoleScreenBufferInfo()
-    if not kernel32.GetConsoleScreenBufferInfo(handle, ctypes.byref(info)):
-        return False
-
-    viewport_width = info.srWindow.Right - info.srWindow.Left + 1
-    if info.dwSize.X <= viewport_width:
-        return False
-
-    if info.srWindow.Left:
-        window = SmallRect(
-            0,
-            info.srWindow.Top,
-            viewport_width - 1,
-            info.srWindow.Bottom,
-        )
-        if not kernel32.SetConsoleWindowInfo(handle, True, ctypes.byref(window)):
-            return False
-
-    if info.dwCursorPosition.X >= viewport_width:
-        cursor = Coord(viewport_width - 1, info.dwCursorPosition.Y)
-        if not kernel32.SetConsoleCursorPosition(handle, cursor):
-            return False
-
-    buffer_size = Coord(viewport_width, info.dwSize.Y)
-    return bool(kernel32.SetConsoleScreenBufferSize(handle, buffer_size))
 
 
 def choose_border_style(

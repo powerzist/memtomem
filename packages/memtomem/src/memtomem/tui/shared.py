@@ -2,15 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 
 from memtomem.tui.terminal import BorderStyle
-
-
-TUI_CSS = Path(__file__).with_name("styles.tcss").read_text(encoding="utf-8")
 
 
 class BorderStyleMixin:

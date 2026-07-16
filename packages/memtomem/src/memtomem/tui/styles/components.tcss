@@ -1,0 +1,79 @@
+/* Reusable component appearance. */
+.section-title,
+.modal-title {
+    text-style: bold;
+    color: $text;
+}
+
+.nav-item {
+    width: 100%;
+    height: 1;
+    color: $text;
+}
+
+.nav-item:disabled {
+    color: $muted;
+}
+
+.home-surface,
+.details-surface {
+    width: 100%;
+    height: 100%;
+    padding: 1;
+}
+
+.readiness-line {
+    margin-top: 1;
+}
+
+.action-bar {
+    height: 3;
+    margin-top: 1;
+}
+
+Button {
+    min-width: 12;
+    height: 3;
+    margin: 0 1 0 0;
+    border: none;
+    background: $surface-highest;
+    color: $text;
+}
+
+Button.choice-button {
+    min-width: 9;
+    margin: 0 0 0 1;
+}
+
+.task-center {
+    width: 100%;
+    height: 100%;
+}
+
+.task-row {
+    width: 100%;
+    height: auto;
+    padding: 1 0;
+    border-bottom: solid $outline;
+}
+
+.error-banner {
+    width: 100%;
+    height: auto;
+    max-height: 3;
+    padding: 0 1;
+    border-left: thick $red;
+    color: $red;
+    overflow-y: auto;
+}
+
+.empty-state,
+.supporting-text {
+    height: auto;
+    margin-top: 1;
+}
+
+Footer {
+    height: 1;
+    background: $surface-lowest;
+}

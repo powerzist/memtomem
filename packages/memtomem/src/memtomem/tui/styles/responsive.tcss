@@ -1,0 +1,90 @@
+/* App classes are applied from tested character-cell breakpoints. */
+MemtomemTuiApp.layout-wide #detail {
+    width: 38;
+}
+
+MemtomemTuiApp.layout-standard #main {
+    width: 64%;
+}
+
+MemtomemTuiApp.layout-standard #detail {
+    width: 36%;
+}
+
+MemtomemTuiApp.layout-wide #navigation.active-section,
+MemtomemTuiApp.layout-standard #navigation.active-section {
+    background: $surface-low;
+}
+
+MemtomemTuiApp.layout-wide #navigation.ascii-border,
+MemtomemTuiApp.layout-standard #navigation.ascii-border {
+    border: none;
+}
+
+MemtomemTuiApp.layout-compact #navigation,
+MemtomemTuiApp.layout-compact #main,
+MemtomemTuiApp.layout-compact #detail,
+MemtomemTuiApp.layout-extreme #navigation,
+MemtomemTuiApp.layout-extreme #main,
+MemtomemTuiApp.layout-extreme #detail {
+    display: none;
+    width: 1fr;
+}
+
+MemtomemTuiApp.layout-compact.section-nav #navigation,
+MemtomemTuiApp.layout-extreme.section-nav #navigation {
+    display: block;
+    width: 100%;
+    height: 1fr;
+    layout: vertical;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: solid $focus;
+    padding: 0 1;
+}
+
+MemtomemTuiApp.layout-compact.section-nav #navigation.ascii-border,
+MemtomemTuiApp.layout-extreme.section-nav #navigation.ascii-border {
+    border: ascii $focus;
+}
+
+MemtomemTuiApp.layout-compact.section-nav #navigation .nav-item,
+MemtomemTuiApp.layout-extreme.section-nav #navigation .nav-item {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+}
+
+MemtomemTuiApp.layout-compact.section-nav #navigation-title,
+MemtomemTuiApp.layout-compact.section-nav #navigation-legend,
+MemtomemTuiApp.layout-extreme.section-nav #navigation-title,
+MemtomemTuiApp.layout-extreme.section-nav #navigation-legend {
+    display: block;
+}
+
+MemtomemTuiApp.layout-compact.section-nav #shell-content,
+MemtomemTuiApp.layout-extreme.section-nav #shell-content {
+    display: none;
+}
+
+MemtomemTuiApp.layout-compact.section-main #main,
+MemtomemTuiApp.layout-compact.section-detail #detail,
+MemtomemTuiApp.layout-extreme.section-main #main,
+MemtomemTuiApp.layout-extreme.section-detail #detail {
+    display: block;
+}
+
+MemtomemTuiApp.layout-extreme #topbar .secondary-status,
+MemtomemTuiApp.layout-safe-floor #topbar .secondary-status,
+MemtomemTuiApp.layout-safe-floor #topbar .clock-status {
+    display: none;
+}
+
+MemtomemTuiApp.layout-safe-floor #navigation,
+MemtomemTuiApp.layout-safe-floor #shell-content {
+    display: none;
+}
+
+MemtomemTuiApp.layout-safe-floor #safe-floor {
+    display: block;
+}

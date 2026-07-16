@@ -1,0 +1,53 @@
+/* Color variants and interaction states. */
+.muted { color: $muted; }
+.warning { color: $yellow; }
+.ok { color: $green; }
+.error { color: $red; }
+
+Button.cyan { background: $cyan; color: $surface-lowest; }
+Button.blue { background: $blue; color: $surface-lowest; }
+Button.green { background: $green; color: $surface-lowest; }
+Button.yellow { background: $yellow; color: $surface-lowest; }
+Button.red { background: $red; color: $surface-lowest; }
+
+.section-panel.active-section {
+    border: solid $focus;
+}
+
+.nav-item:focus,
+Button:focus {
+    background: $focus;
+    color: $surface-lowest;
+    text-style: bold;
+}
+
+.nav-item.route-active {
+    color: $cyan;
+    text-style: bold;
+}
+
+.nav-item.route-active:focus {
+    color: $surface-lowest;
+}
+
+.task-running { color: $cyan; }
+.task-succeeded { color: $green; }
+.task-partial,
+.task-cancelling { color: $yellow; }
+.task-failed { color: $red; }
+
+.ascii-border,
+.ascii-border:focus-within {
+    border: ascii $outline;
+}
+
+.section-panel.ascii-border.active-section,
+.section-panel.ascii-border.active-section:focus-within {
+    border: ascii $focus;
+}
+
+#safe-floor:focus {
+    color: $focus;
+    background: $surface-low;
+    text-style: bold;
+}
