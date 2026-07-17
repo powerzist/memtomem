@@ -28,6 +28,16 @@ record. It captures the final mouse lifecycle, Refresh, modal-key, and literal
 rendering corrections, their verification, and the remaining Phase 3 entry
 notes without modifying the original Phase 2 record.
 
+`amendments/2026-07-16-phase3-runtime-contracts.md` separately records the
+approved Phase 3 result/cancellation states, permanent-until-reapproved TASKS
+boundary, Gate 6 result-cache policy, and Stitch evidence limits. It leaves the
+original plan and decision-gate audit unchanged.
+
+`corrections/2026-07-16-phase3-closeout.md` records the implemented typed
+contracts, operation/runtime ownership, multi-generation Gate 6 behavior, DEV
+model-cache isolation, shared Textual components, verification evidence, and
+exact rollback boundary for Phase 3.
+
 Regenerate the inventory after an approved CLI-tree change:
 
 ```powershell

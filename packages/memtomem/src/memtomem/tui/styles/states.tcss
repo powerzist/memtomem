@@ -10,6 +10,12 @@ Button.green { background: $green; color: $surface-lowest; }
 Button.yellow { background: $yellow; color: $surface-lowest; }
 Button.red { background: $red; color: $surface-lowest; }
 
+Button:disabled {
+    background: $surface-high;
+    color: $muted;
+    text-style: none;
+}
+
 .section-panel.active-section {
     border: solid $focus;
 }
@@ -19,6 +25,88 @@ Button:focus {
     background: $focus;
     color: $surface-lowest;
     text-style: bold;
+}
+
+.text-input:focus {
+    border: solid $focus;
+}
+
+.preview-confirm-compact .text-input:focus {
+    border: none;
+    background: $focus;
+    color: $surface-lowest;
+}
+
+.data-table:focus > .datatable--cursor {
+    background: $focus;
+    color: $surface-lowest;
+    text-style: bold;
+}
+
+.form-error,
+.error-state-title,
+.fingerprint-mismatch .confirmation-status {
+    color: $red;
+}
+
+.fingerprint-verified .confirmation-status {
+    color: $green;
+}
+
+.operation-state.state-succeeded {
+    border: solid $green;
+}
+
+.operation-state.state-running {
+    border: solid $cyan;
+}
+
+.operation-state.state-partial,
+.operation-state.state-cancelling {
+    border: solid $yellow;
+}
+
+.operation-state.state-failed {
+    border: solid $red;
+}
+
+.operation-state.state-cancelled,
+.operation-state.state-queued {
+    border: solid $outline;
+}
+
+.operation-state.state-succeeded .operation-state-title {
+    color: $green;
+}
+
+.operation-state.state-running .operation-state-title {
+    color: $cyan;
+}
+
+.operation-state.state-partial .operation-state-title,
+.operation-state.state-cancelling .operation-state-title {
+    color: $yellow;
+}
+
+.operation-state.state-failed .operation-state-title {
+    color: $red;
+}
+
+.operation-state.state-cancelled .operation-state-title,
+.operation-state.state-queued .operation-state-title {
+    color: $muted;
+}
+
+.confirmation-block.confirmation-valid {
+    border: solid $green;
+}
+
+.confirmation-block.confirmation-incomplete {
+    border: solid $yellow;
+}
+
+.confirmation-block.fingerprint-mismatch {
+    border: solid $red;
 }
 
 .nav-item.route-active {
@@ -39,6 +127,31 @@ Button:focus {
 .ascii-border,
 .ascii-border:focus-within {
     border: ascii $outline;
+}
+
+.ascii-border .text-input {
+    border: ascii $outline;
+}
+
+.ascii-border .text-input:focus {
+    border: ascii $focus;
+}
+
+.preview-confirm-compact .ascii-border .text-input,
+.preview-confirm-compact .ascii-border .text-input:focus {
+    border: none;
+}
+
+.confirmation-block.ascii-border.confirmation-valid {
+    border: ascii $green;
+}
+
+.confirmation-block.ascii-border.confirmation-incomplete {
+    border: ascii $yellow;
+}
+
+.confirmation-block.ascii-border.fingerprint-mismatch {
+    border: ascii $red;
 }
 
 .section-panel.ascii-border.active-section,

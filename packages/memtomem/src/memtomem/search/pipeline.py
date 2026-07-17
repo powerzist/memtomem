@@ -28,13 +28,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
+from dataclasses import replace as dataclass_replace
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-from dataclasses import dataclass
-
-from dataclasses import replace as dataclass_replace
 from uuid import UUID
 
 from memtomem.config import (
@@ -215,9 +215,10 @@ class SearchPipeline:
         self._search_cache: dict[str, tuple[float, int, list[SearchResult], RetrievalStats]] = {}
         self._cache_ttl = config.cache_ttl
         self._cache_version = 0
+        self._result_cache_suspensions = 0
         self._bg_tasks: set[asyncio.Task] = set()
 
-        # LLM query expansion cache (cleared on invalidate_cache)
+        # LLM query expansion cache (retained by data-only invalidation)
         self._expansion_cache: dict[str, str] = {}
 
     def _cache_key(
@@ -256,11 +257,45 @@ class SearchPipeline:
         )
         return hashlib.md5(raw.encode()).hexdigest()
 
-    def invalidate_cache(self) -> None:
-        """Clear the search result TTL cache (call after data/config changes)."""
+    def invalidate_result_cache(self) -> None:
+        """Clear only cached search results after a search-visible data change.
+
+        The generation bump also prevents searches that started before the
+        mutation completed from repopulating the cache with stale results.
+        Query-expansion and provider/model caches are intentionally retained.
+        """
+
         self._cache_version += 1
         self._search_cache.clear()
+
+    def invalidate_cache(self) -> None:
+        """Clear result and query-expansion caches after runtime/config changes."""
+
+        self.invalidate_result_cache()
         self._expansion_cache.clear()
+
+    @property
+    def result_cache_suspended(self) -> bool:
+        """Return whether result-cache reads and writes are currently bypassed."""
+
+        return self._result_cache_suspensions > 0
+
+    @contextmanager
+    def suspend_result_cache(self) -> Iterator[None]:
+        """Bypass result-cache reads/writes for a mutation critical window.
+
+        Suspension is nestable and does not itself invalidate anything. The
+        mutation owner must call :meth:`invalidate_result_cache` before leaving
+        the outermost window when structured effects confirm that data changed.
+        This distinction preserves warm entries for previews, dry-runs, no-ops,
+        and cancellations that happen before the first write.
+        """
+
+        self._result_cache_suspensions += 1
+        try:
+            yield
+        finally:
+            self._result_cache_suspensions -= 1
 
     def _resolve_context_window(self, override: int | None) -> int:
         """Return the effective context window size (0 = disabled)."""
@@ -645,7 +680,11 @@ class SearchPipeline:
         )
         version_at_start = self._cache_version
         ttl_snapshot = self._cache_ttl
-        if as_of_unix is None and cache_key in self._search_cache:
+        if (
+            as_of_unix is None
+            and not self.result_cache_suspended
+            and cache_key in self._search_cache
+        ):
             ts, ver, cached_results, cached_stats = self._search_cache[cache_key]
             if ver == self._cache_version and time.time() - ts < ttl_snapshot:
                 return cached_results, cached_stats
@@ -1006,7 +1045,11 @@ class SearchPipeline:
         # historical-query result never overwrites the default-path slot
         # (next default caller would otherwise be served a past-snapshot
         # filtering of the same query).
-        if as_of_unix is None and self._cache_version == version_at_start:
+        if (
+            as_of_unix is None
+            and not self.result_cache_suspended
+            and self._cache_version == version_at_start
+        ):
             self._search_cache[cache_key] = (time.time(), version_at_start, fused, stats)
             # Evict old entries (keep max 50)
             if len(self._search_cache) > 50:

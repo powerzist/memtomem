@@ -7,6 +7,7 @@ import inspect
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from click.testing import CliRunner
 
 from memtomem.cli import cli
@@ -176,6 +177,7 @@ def test_dev_paths_share_one_contained_state_root(tmp_path: Path) -> None:
         paths.config_d_path,
         paths.database_path,
         paths.memories_path,
+        paths.fastembed_cache_path,
     ):
         assert path.resolve().is_relative_to(paths.state_root.resolve())
 
@@ -189,6 +191,22 @@ def test_dev_config_replaces_only_the_isolated_user_tier(tmp_path: Path) -> None
 
     assert config.indexing.memory_dirs == [paths.memories_path]
     assert config.indexing.project_memory_dirs == []
+
+
+def test_dev_config_rejects_index_roots_outside_the_isolated_state_tree(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "pyproject.toml").touch()
+    (tmp_path / "packages" / "memtomem").mkdir(parents=True)
+    paths = resolve_tui_paths(dev=True, cwd=tmp_path)
+    paths.config_path.parent.mkdir(parents=True)
+    paths.config_path.write_text(
+        '{"indexing": {"memory_dirs": ["C:/outside/memories"]}}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"indexing\.memory_dirs\[0\].*must stay under"):
+        runtime.load_tui_config(paths)
 
 
 async def test_readiness_fans_out_across_user_and_project_roots(tmp_path: Path) -> None:

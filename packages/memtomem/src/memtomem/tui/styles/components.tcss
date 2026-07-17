@@ -26,11 +26,6 @@
     margin-top: 1;
 }
 
-.action-bar {
-    height: 3;
-    margin-top: 1;
-}
-
 Button {
     min-width: 12;
     height: 3;
@@ -67,10 +62,60 @@ Button.choice-button {
     overflow-y: auto;
 }
 
-.empty-state,
 .supporting-text {
     height: auto;
     margin-top: 1;
+}
+
+/* Shared form, table, preview, confirmation, and state appearance. */
+.form-label,
+.preview-title,
+.empty-state-title,
+.error-state-title,
+.operation-state-title,
+.confirmation-status {
+    text-style: bold;
+}
+
+.preview-item-label,
+.fingerprint-label,
+.form-support {
+    color: $muted;
+}
+
+.data-table {
+    background: $surface-low;
+    color: $text;
+}
+
+.data-table > .datatable--header {
+    background: $surface-high;
+    color: $text;
+    text-style: bold;
+}
+
+.preview-block,
+.confirmation-block,
+.empty-state,
+.error-state,
+.operation-state {
+    border: solid $outline;
+    background: $surface-low;
+}
+
+.operation-state-counts {
+    color: $muted;
+}
+
+.confirmation-phrase {
+    background: $surface-highest;
+    text-style: bold;
+}
+
+.text-input {
+    border: solid $outline;
+    background: $surface-lowest;
+    color: $text;
 }
 
 Footer {

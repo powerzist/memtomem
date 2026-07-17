@@ -34,6 +34,12 @@ class TuiPaths:
     def is_dev(self) -> bool:
         return self.mode == "dev"
 
+    @property
+    def fastembed_cache_path(self) -> Path:
+        """Return the TUI-owned FastEmbed cache inside the selected state root."""
+
+        return self.state_root / "cache" / "fastembed"
+
 
 def resolve_tui_paths(*, dev: bool, cwd: Path | None = None) -> TuiPaths:
     """Resolve the single canonical state tree for this TUI process."""
@@ -87,10 +93,31 @@ def load_tui_config(paths: TuiPaths) -> Mem2MemConfig:
     config = _dev_default_config(paths)
     load_config_d(config, config_d_path=paths.config_d_path)
     load_config_overrides(config, migrate=False, override_path=paths.config_path)
-    database_path = Path(config.storage.sqlite_path).expanduser().resolve()
-    if not database_path.is_relative_to(paths.state_root.resolve()):
-        raise ValueError(f"development storage.sqlite_path must stay under {paths.state_root}")
+    _validate_dev_config_containment(paths, config)
     return config
+
+
+def _validate_dev_config_containment(paths: TuiPaths, config: Mem2MemConfig) -> None:
+    """Reject persisted dev paths that escape the isolated TUI state tree."""
+
+    if not paths.is_dev:
+        return
+    state_root = paths.state_root.resolve()
+    candidates = (
+        ("storage.sqlite_path", Path(config.storage.sqlite_path)),
+        *(
+            (f"indexing.memory_dirs[{index}]", Path(path))
+            for index, path in enumerate(config.indexing.memory_dirs)
+        ),
+        *(
+            (f"indexing.project_memory_dirs[{index}]", Path(path))
+            for index, path in enumerate(config.indexing.project_memory_dirs)
+        ),
+    )
+    for field_name, candidate in candidates:
+        resolved = candidate.expanduser().resolve()
+        if not resolved.is_relative_to(state_root):
+            raise ValueError(f"development {field_name} must stay under {paths.state_root}")
 
 
 def save_tui_config(paths: TuiPaths, config: Mem2MemConfig) -> None:
@@ -101,6 +128,7 @@ def save_tui_config(paths: TuiPaths, config: Mem2MemConfig) -> None:
     if not paths.is_dev:
         save_config_overrides(config)
         return
+    _validate_dev_config_containment(paths, config)
     comparand = _dev_default_config(paths)
     load_config_d(comparand, quiet=True, config_d_path=paths.config_d_path)
     save_config_overrides(

@@ -132,3 +132,184 @@ ModalScreen {
     height: 3;
     align-horizontal: right;
 }
+
+/* Shared form, table, preview, and state geometry. */
+.form-row {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.form-row-line {
+    width: 100%;
+    height: auto;
+    min-height: 3;
+}
+
+.form-label {
+    width: 20;
+    height: 3;
+    padding: 1 1 0 0;
+    text-wrap: wrap;
+}
+
+.form-control {
+    width: 1fr;
+    height: auto;
+}
+
+.form-message {
+    width: 100%;
+    height: auto;
+    padding-left: 20;
+}
+
+.action-bar {
+    width: 100%;
+    height: 3;
+    margin-top: 1;
+    align-horizontal: right;
+}
+
+.data-table-view,
+.data-table {
+    width: 100%;
+    height: 1fr;
+    min-height: 3;
+}
+
+.preview-block,
+.confirmation-block,
+.empty-state,
+.error-state,
+.operation-state {
+    width: 100%;
+    height: auto;
+    padding: 1;
+}
+
+.preview-block,
+.confirmation-block {
+    margin-bottom: 1;
+}
+
+.preview-title,
+.empty-state-title,
+.error-state-title,
+.confirmation-status,
+.modal-status {
+    height: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+.preview-summary,
+.confirmation-message,
+.confirmation-instruction,
+.empty-state-message,
+.error-state-message,
+.error-state-recovery {
+    width: 100%;
+    height: auto;
+    text-wrap: wrap;
+}
+
+.operation-state-message,
+.operation-state-counts,
+.operation-state-recovery {
+    width: 100%;
+    height: auto;
+    text-wrap: wrap;
+}
+
+.operation-state-title {
+    height: 1;
+    text-wrap: nowrap;
+}
+
+.operation-state-message,
+.operation-state-counts {
+    margin-bottom: 1;
+}
+
+.preview-summary,
+.confirmation-message,
+.confirmation-instruction,
+.error-state-recovery {
+    margin-bottom: 1;
+}
+
+.preview-item,
+.fingerprint-row {
+    width: 100%;
+    height: auto;
+    min-height: 1;
+}
+
+.preview-item-label,
+.fingerprint-label {
+    width: 20;
+    height: auto;
+    padding-right: 1;
+    text-wrap: wrap;
+}
+
+.preview-item-value,
+.fingerprint-value {
+    width: 1fr;
+    height: auto;
+    text-wrap: wrap;
+    text-overflow: fold;
+}
+
+.confirmation-phrase {
+    width: 100%;
+    height: auto;
+    min-height: 1;
+    padding: 0 1;
+    margin-bottom: 1;
+    text-wrap: wrap;
+    text-overflow: fold;
+}
+
+.confirmation-input {
+    width: 100%;
+}
+
+.preview-confirm-dialog {
+    width: 76;
+    height: 30;
+    max-width: 94%;
+    max-height: 92%;
+}
+
+.preview-confirm-body {
+    width: 100%;
+    height: 1fr;
+    overflow-y: auto;
+}
+
+.preview-confirm-compact .preview-confirm-dialog {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    padding: 0;
+}
+
+.preview-confirm-compact .preview-confirm-body {
+    height: 1fr;
+    min-height: 1;
+}
+
+.preview-confirm-compact .action-bar {
+    height: 3;
+    margin-top: 0;
+}
+
+.preview-confirm-compact .confirmation-input {
+    height: 1;
+    min-height: 1;
+    padding: 0;
+    border: none;
+}

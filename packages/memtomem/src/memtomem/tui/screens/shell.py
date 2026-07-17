@@ -12,6 +12,11 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.css.query import NoMatches
 from textual.widgets import Footer, Input, Static, TextArea
 
+from memtomem.tui.application.operations import (
+    OperationRunner,
+    OperationShutdownBlockedError,
+)
+from memtomem.tui.application.runtime import RuntimeManager
 from memtomem.tui.application.tasks import TaskCenter
 from memtomem.tui.mouse import driver_mouse_enabled, set_driver_mouse_enabled
 from memtomem.tui.runtime import TuiPaths, config_exists, resolve_tui_paths
@@ -138,6 +143,8 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         mouse_enabled: bool = True,
         paths: TuiPaths | None = None,
         task_center: TaskCenter | None = None,
+        operation_runner: OperationRunner | None = None,
+        runtime_manager: RuntimeManager[Any] | None = None,
     ) -> None:
         super().__init__()
         self.border_style = border_style
@@ -147,6 +154,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self._initial_mouse_enabled = mouse_enabled
         self.state = ShellState()
         self.task_center = task_center or TaskCenter()
+        self.operation_runner = operation_runner or OperationRunner()
+        self.runtime_manager = runtime_manager or RuntimeManager(self.paths)
+        self._services_shutdown = False
 
     def compose(self) -> ComposeResult:
         with Vertical(id="root"):
@@ -384,9 +394,54 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
 
     async def _confirm_quit(self) -> None:
         if await self.push_screen_wait(QuitConfirmScreen(border_style=self.border_style)):
-            self.exit()
+            if await self._shutdown_services():
+                self.exit()
+                return
+            self._restore_layout_focus()
             return
         self._restore_layout_focus()
+
+    async def on_unmount(self) -> None:
+        """Close lazy runtime/application work when the app is stopped externally."""
+
+        if self._services_shutdown:
+            return
+        await self.operation_runner.force_shutdown()
+        await self.runtime_manager.close()
+        self._services_shutdown = True
+
+    async def _shutdown_services(self, *, report_blocker: bool = True) -> bool:
+        """Apply operation exit policy, then close every runtime generation."""
+
+        if self._services_shutdown:
+            return True
+        try:
+            await self.operation_runner.shutdown()
+        except OperationShutdownBlockedError:
+            if report_blocker:
+                self.report_error(
+                    ErrorNotice(
+                        code="TUI-EXIT-BLOCKED",
+                        message="A critical operation must finish before exit.",
+                        detail=None,
+                        recoverable=True,
+                    )
+                )
+            return False
+        await self.runtime_manager.close()
+        self._services_shutdown = True
+        if self.runtime_manager.close_errors:
+            if report_blocker:
+                self.report_error(
+                    ErrorNotice(
+                        code="TUI-RUNTIME-CLOSE",
+                        message="Some runtime resources could not be closed cleanly.",
+                        detail=None,
+                        recoverable=False,
+                    )
+                )
+            return False
+        return True
 
     def action_escape(self) -> None:
         if self.screen.is_modal:
