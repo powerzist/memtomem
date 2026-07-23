@@ -86,13 +86,49 @@ def load_tui_config(paths: TuiPaths) -> Mem2MemConfig:
 
     if not paths.is_dev:
         config = Mem2MemConfig()
-        load_config_d(config)
-        load_config_overrides(config)
+        load_config_d(config, strict_read=True)
+        load_config_overrides(config, strict_read=True)
         return config
 
     config = _dev_default_config(paths)
-    load_config_d(config, config_d_path=paths.config_d_path)
-    load_config_overrides(config, migrate=False, override_path=paths.config_path)
+    load_config_d(
+        config,
+        config_d_path=paths.config_d_path,
+        strict_read=True,
+    )
+    load_config_overrides(
+        config,
+        migrate=False,
+        override_path=paths.config_path,
+        strict_read=True,
+    )
+    _validate_dev_config_containment(paths, config)
+    return config
+
+
+def load_tui_config_read_only(paths: TuiPaths) -> Mem2MemConfig:
+    """Load the selected TUI config without running persistence migrations.
+
+    Home and Status use this loader before the mutable runtime exists.  Both
+    normal and development modes receive their resolved paths explicitly so a
+    diagnostic read cannot silently fall back to another state tree.
+    """
+
+    from memtomem.config import Mem2MemConfig, load_config_d, load_config_overrides
+
+    config = _dev_default_config(paths) if paths.is_dev else Mem2MemConfig()
+    load_config_d(
+        config,
+        quiet=True,
+        config_d_path=paths.config_d_path,
+        strict_read=True,
+    )
+    load_config_overrides(
+        config,
+        migrate=False,
+        override_path=paths.config_path,
+        strict_read=True,
+    )
     _validate_dev_config_containment(paths, config)
     return config
 
@@ -106,12 +142,8 @@ def _validate_dev_config_containment(paths: TuiPaths, config: Mem2MemConfig) -> 
     candidates = (
         ("storage.sqlite_path", Path(config.storage.sqlite_path)),
         *(
-            (f"indexing.memory_dirs[{index}]", Path(path))
-            for index, path in enumerate(config.indexing.memory_dirs)
-        ),
-        *(
-            (f"indexing.project_memory_dirs[{index}]", Path(path))
-            for index, path in enumerate(config.indexing.project_memory_dirs)
+            (f"indexing.all_index_roots()[{index}]", Path(path))
+            for index, path in enumerate(config.indexing.all_index_roots())
         ),
     )
     for field_name, candidate in candidates:

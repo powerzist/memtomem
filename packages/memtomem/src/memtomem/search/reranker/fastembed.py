@@ -7,6 +7,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from memtomem.embedding.fastembed_cache import resolve_fastembed_cache_dir
+from memtomem.search.reranker.base import RerankOutcome
 
 if TYPE_CHECKING:
     from memtomem.config import RerankConfig
@@ -85,6 +86,32 @@ class FastEmbedReranker:
         return [float(s) for s in model.rerank(query, documents)]  # type: ignore[attr-defined]
 
     async def rerank(
+        self, query: str, results: list[SearchResult], top_k: int
+    ) -> list[SearchResult]:
+        """Rerank while preserving direct-call setup error semantics."""
+        return await self._rerank(query, results, top_k)
+
+    async def rerank_with_diagnostics(
+        self, query: str, results: list[SearchResult], top_k: int
+    ) -> RerankOutcome:
+        from memtomem.models import SearchResult as SR
+
+        if not results:
+            return RerankOutcome(())
+        documents = [result.chunk.content for result in results]
+        try:
+            scores = await asyncio.to_thread(self._rerank_sync, query, documents)
+        except Exception as exc:
+            logger.warning("FastEmbed rerank failed, returning original order: %s", exc)
+            return RerankOutcome(tuple(results[:top_k]), error=str(exc))
+        scored = sorted(zip(scores, results), key=lambda item: item[0], reverse=True)
+        reranked = [
+            SR(chunk=result.chunk, score=float(score), rank=index + 1, source="reranked")
+            for index, (score, result) in enumerate(scored[:top_k])
+        ]
+        return RerankOutcome(tuple(reranked))
+
+    async def _rerank(
         self, query: str, results: list[SearchResult], top_k: int
     ) -> list[SearchResult]:
         from memtomem.models import SearchResult as SR

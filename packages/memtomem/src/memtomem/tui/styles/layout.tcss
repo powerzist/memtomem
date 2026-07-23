@@ -182,7 +182,8 @@ ModalScreen {
 .confirmation-block,
 .empty-state,
 .error-state,
-.operation-state {
+.operation-state,
+.notice-block {
     width: 100%;
     height: auto;
     padding: 1;
@@ -208,7 +209,9 @@ ModalScreen {
 .confirmation-instruction,
 .empty-state-message,
 .error-state-message,
-.error-state-recovery {
+.error-state-recovery,
+.notice-message,
+.notice-recovery {
     width: 100%;
     height: auto;
     text-wrap: wrap;
@@ -235,8 +238,105 @@ ModalScreen {
 .preview-summary,
 .confirmation-message,
 .confirmation-instruction,
-.error-state-recovery {
+.error-state-recovery,
+.notice-recovery {
     margin-bottom: 1;
+}
+
+/* Persistent route surfaces and dense operational content. */
+.route-surface {
+    width: 100%;
+    height: 100%;
+    padding: 1;
+}
+
+.inline-notice,
+.status-list,
+.notice-stack,
+.feedback-stack,
+.detail-stack {
+    width: 100%;
+    height: auto;
+}
+
+.status-row {
+    width: 100%;
+    height: auto;
+    min-height: 2;
+    layout: horizontal;
+    padding: 0 1;
+}
+
+.status-label {
+    width: 14;
+    height: auto;
+}
+
+.status-value {
+    width: 22;
+    height: auto;
+    text-wrap: wrap;
+}
+
+.status-note {
+    width: 1fr;
+    height: auto;
+    text-wrap: wrap;
+    text-overflow: fold;
+}
+
+.filter-grid {
+    width: 100%;
+    height: auto;
+}
+
+.filter-column {
+    width: 1fr;
+    height: auto;
+}
+
+.compact-form-row .form-label {
+    width: 12;
+}
+
+.compact-form-row .form-message {
+    padding-left: 12;
+}
+
+.result-summary,
+.detail-copy,
+.detail-heading,
+.metadata-row,
+.memory-content {
+    width: 100%;
+    height: auto;
+    text-wrap: wrap;
+    text-overflow: fold;
+}
+
+.result-summary {
+    min-height: 1;
+    margin: 1 0;
+}
+
+.result-table-view {
+    width: 100%;
+    height: 12;
+    min-height: 5;
+}
+
+.detail-heading {
+    height: 1;
+    margin-top: 1;
+}
+
+.memory-content {
+    min-height: 3;
+    padding: 1;
+}
+
+.metadata-row {
+    padding: 0 1;
 }
 
 .preview-item,

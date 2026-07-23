@@ -205,7 +205,7 @@ def test_dev_config_rejects_index_roots_outside_the_isolated_state_tree(
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match=r"indexing\.memory_dirs\[0\].*must stay under"):
+    with pytest.raises(ValueError, match=r"indexing\.all_index_roots\(\)\[0\].*must stay under"):
         runtime.load_tui_config(paths)
 
 

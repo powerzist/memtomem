@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import DataTable
@@ -68,6 +69,13 @@ class SemanticDataTable(DataTable[object]):
             self.add_column(Text(column.label), key=column.key, width=column.width)
         self._add_presented_rows()
 
+    async def _on_click(self, event: events.Click) -> None:
+        """Synchronize the shell section before DataTable consumes the click."""
+        synchronize = getattr(self.app, "synchronize_pointer_target", None)
+        if synchronize is not None:
+            synchronize(self)
+        await super()._on_click(event)
+
     def replace_rows(self, rows: tuple[TableRow, ...]) -> None:
         """Replace only presented rows; callers remain responsible for domain state."""
         self._presented_rows = self._validate_rows(rows)
@@ -117,7 +125,40 @@ class TableView(Vertical):
         self.empty_message = empty_message
 
     def compose(self) -> ComposeResult:
-        if self.rows:
-            yield SemanticDataTable(self.columns, self.rows)
-        else:
-            yield EmptyState(self.empty_title, self.empty_message)
+        yield SemanticDataTable(self.columns, self.rows)
+        yield EmptyState(self.empty_title, self.empty_message)
+
+    def on_mount(self) -> None:
+        self._sync_visibility()
+
+    @property
+    def table(self) -> SemanticDataTable:
+        """Return the stable table mounted for the lifetime of this view."""
+        return self.query_one(SemanticDataTable)
+
+    def replace_rows(self, rows: tuple[TableRow, ...]) -> None:
+        """Replace rows without replacing the table or losing route state."""
+        self.rows = rows
+        if self.is_mounted:
+            self.table.replace_rows(rows)
+            self._sync_visibility()
+
+    def set_empty_state(self, title: str, message: str) -> None:
+        """Update the literal empty-state copy used for the current lifecycle."""
+        self.empty_title = title
+        self.empty_message = message
+        if not self.is_mounted:
+            return
+        empty = self.query_one(EmptyState)
+        empty.title = title
+        empty.message = message
+        statics = list(empty.query("Static"))
+        if len(statics) >= 2:
+            statics[0].update(f"[ {title} ]")
+            statics[1].update(message)
+
+    def _sync_visibility(self) -> None:
+        table = self.table
+        empty = self.query_one(EmptyState)
+        table.display = bool(self.rows)
+        empty.display = not self.rows

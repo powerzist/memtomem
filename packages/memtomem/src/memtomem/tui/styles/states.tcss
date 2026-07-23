@@ -97,6 +97,44 @@ Button:focus {
     color: $muted;
 }
 
+.notice-block.notice-ok {
+    border: solid $green;
+}
+
+.notice-block.notice-warning {
+    border: solid $yellow;
+}
+
+.notice-block.notice-error {
+    border: solid $red;
+}
+
+.notice-block.notice-muted,
+.notice-block.notice-default {
+    border: solid $outline;
+}
+
+.notice-ok .notice-title,
+.status-ok .status-value {
+    color: $green;
+}
+
+.notice-warning .notice-title,
+.status-warning .status-value {
+    color: $yellow;
+}
+
+.notice-error .notice-title,
+.status-error .status-value {
+    color: $red;
+}
+
+.notice-muted .notice-title,
+.notice-default .notice-title,
+.status-muted .status-value {
+    color: $muted;
+}
+
 .confirmation-block.confirmation-valid {
     border: solid $green;
 }
@@ -137,6 +175,35 @@ Button:focus {
     border: ascii $focus;
 }
 
+.ascii-border .empty-state,
+.ascii-border .error-state,
+.ascii-border .operation-state,
+.ascii-border .notice-block,
+.ascii-border .memory-content {
+    border: ascii $outline;
+}
+
+.ascii-border .status-row {
+    border-bottom: ascii $outline;
+}
+
+.ascii-border .operation-state.state-succeeded {
+    border: ascii $green;
+}
+
+.ascii-border .operation-state.state-running {
+    border: ascii $cyan;
+}
+
+.ascii-border .operation-state.state-partial,
+.ascii-border .operation-state.state-cancelling {
+    border: ascii $yellow;
+}
+
+.ascii-border .operation-state.state-failed {
+    border: ascii $red;
+}
+
 .preview-confirm-compact .ascii-border .text-input,
 .preview-confirm-compact .ascii-border .text-input:focus {
     border: none;
@@ -151,6 +218,21 @@ Button:focus {
 }
 
 .confirmation-block.ascii-border.fingerprint-mismatch {
+    border: ascii $red;
+}
+
+.notice-block.ascii-border.notice-ok,
+.ascii-border .notice-block.notice-ok {
+    border: ascii $green;
+}
+
+.notice-block.ascii-border.notice-warning,
+.ascii-border .notice-block.notice-warning {
+    border: ascii $yellow;
+}
+
+.notice-block.ascii-border.notice-error,
+.ascii-border .notice-block.notice-error {
     border: ascii $red;
 }
 

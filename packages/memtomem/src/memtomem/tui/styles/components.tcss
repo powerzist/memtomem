@@ -15,13 +15,6 @@
     color: $muted;
 }
 
-.home-surface,
-.details-surface {
-    width: 100%;
-    height: 100%;
-    padding: 1;
-}
-
 .readiness-line {
     margin-top: 1;
 }
@@ -98,9 +91,30 @@ Button.choice-button {
 .confirmation-block,
 .empty-state,
 .error-state,
-.operation-state {
+.operation-state,
+.notice-block {
     border: solid $outline;
     background: $surface-low;
+}
+
+.notice-title,
+.status-value,
+.detail-heading {
+    text-style: bold;
+}
+
+.notice-recovery,
+.status-label {
+    color: $muted;
+}
+
+.status-row {
+    border-bottom: solid $outline;
+}
+
+.memory-content {
+    border: solid $outline;
+    background: $surface-lowest;
 }
 
 .operation-state-counts {

@@ -38,6 +38,12 @@ contracts, operation/runtime ownership, multi-generation Gate 6 behavior, DEV
 model-cache isolation, shared Textual components, verification evidence, and
 exact rollback boundary for Phase 3.
 
+`corrections/2026-07-23-phase4-closeout.md` records the completed read-only
+Home/Status and real Search vertical slice, approved Top K/format/reranker/
+cancellation decisions, Stitch references, rendered interaction evidence,
+configuration-safety corrections, verification limits, Phase 5 boundary, and
+exact rollback steps.
+
 Regenerate the inventory after an approved CLI-tree change:
 
 ```powershell

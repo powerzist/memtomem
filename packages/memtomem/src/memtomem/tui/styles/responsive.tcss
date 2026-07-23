@@ -11,6 +11,46 @@ MemtomemTuiApp.layout-standard #detail {
     width: 36%;
 }
 
+MemtomemTuiApp.layout-standard .filter-grid,
+MemtomemTuiApp.layout-compact .filter-grid,
+MemtomemTuiApp.layout-extreme .filter-grid {
+    layout: vertical;
+}
+
+MemtomemTuiApp.layout-standard .filter-column,
+MemtomemTuiApp.layout-compact .filter-column,
+MemtomemTuiApp.layout-extreme .filter-column {
+    width: 100%;
+}
+
+MemtomemTuiApp.layout-compact .status-row,
+MemtomemTuiApp.layout-extreme .status-row {
+    layout: vertical;
+}
+
+MemtomemTuiApp.layout-compact .status-label,
+MemtomemTuiApp.layout-compact .status-value,
+MemtomemTuiApp.layout-compact .status-note,
+MemtomemTuiApp.layout-extreme .status-label,
+MemtomemTuiApp.layout-extreme .status-value,
+MemtomemTuiApp.layout-extreme .status-note {
+    width: 100%;
+}
+
+MemtomemTuiApp.layout-extreme .route-surface {
+    padding: 0;
+}
+
+MemtomemTuiApp.layout-extreme .action-bar {
+    height: 3;
+    margin-top: 0;
+}
+
+MemtomemTuiApp.layout-extreme .action-bar Button {
+    width: 100%;
+    margin: 0;
+}
+
 MemtomemTuiApp.layout-wide #navigation.active-section,
 MemtomemTuiApp.layout-standard #navigation.active-section {
     background: $surface-low;

@@ -55,40 +55,54 @@ class OperationStateBlock(Vertical):
         self.presentation = presentation
 
     def compose(self) -> ComposeResult:
+        yield Static(classes="operation-state-title", markup=False)
+        yield Static(classes="operation-state-message", markup=False)
+        yield Static(classes="operation-state-counts", markup=False)
+        yield Static(classes="operation-state-recovery", markup=False)
+
+    def on_mount(self) -> None:
+        self._sync_presentation()
+
+    def update_presentation(self, presentation: OperationStatePresentation) -> None:
+        """Update one stable lifecycle block without replacing focused siblings."""
+        self.presentation = presentation
+        if self.is_mounted:
+            self._sync_presentation()
+
+    def _sync_presentation(self) -> None:
         state = self.presentation
-        yield Static(
-            f"[ {state.status.value.upper()} ]",
-            classes="operation-state-title",
-            markup=False,
-        )
-        yield Static(state.message, classes="operation-state-message", markup=False)
-        if any(
+        for status in OperationStatus:
+            self.set_class(status is state.status, f"state-{status.value}")
+        self.query_one(".operation-state-title", Static).update(f"[ {state.status.value.upper()} ]")
+        self.query_one(".operation-state-message", Static).update(state.message)
+
+        counts = self.query_one(".operation-state-counts", Static)
+        has_counts = any(
             (
                 state.completed,
                 state.remaining is not None,
                 state.skipped,
                 state.failed,
             )
-        ):
-            remaining = "?" if state.remaining is None else str(state.remaining)
-            yield Static(
-                " | ".join(
-                    (
-                        f"Completed {state.completed}",
-                        f"Remaining {remaining}",
-                        f"Skipped {state.skipped}",
-                        f"Failed {state.failed}",
-                    )
-                ),
-                classes="operation-state-counts",
-                markup=False,
+        )
+        remaining = "?" if state.remaining is None else str(state.remaining)
+        counts.update(
+            " | ".join(
+                (
+                    f"Completed {state.completed}",
+                    f"Remaining {remaining}",
+                    f"Skipped {state.skipped}",
+                    f"Failed {state.failed}",
+                )
             )
-        if state.recovery is not None:
-            yield Static(
-                state.recovery,
-                classes="operation-state-recovery",
-                markup=False,
-            )
+            if has_counts
+            else ""
+        )
+        counts.display = has_counts
+
+        recovery = self.query_one(".operation-state-recovery", Static)
+        recovery.update(state.recovery or "")
+        recovery.display = state.recovery is not None
 
 
 __all__ = ["OperationStateBlock", "OperationStatePresentation"]

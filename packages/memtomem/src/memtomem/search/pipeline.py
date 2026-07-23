@@ -163,6 +163,7 @@ class RetrievalStats:
     final_total: int = 0
     bm25_error: str | None = None
     dense_error: str | None = None
+    rerank_error: str | None = None
     # Chunks that live in namespaces matching ``system_namespace_prefixes``
     # (e.g. ``archive:*``) and were therefore excluded from the default,
     # namespace=None search. Non-zero only when the caller did not pick an
@@ -923,9 +924,20 @@ class SearchPipeline:
         # Stage 3b: Cross-encoder reranking
         if self._reranker is not None and fused:
             try:
-                fused = await self._reranker.rerank(query, fused, top_k=top_k)
+                rerank_with_diagnostics = getattr(
+                    self._reranker,
+                    "rerank_with_diagnostics",
+                    None,
+                )
+                if callable(rerank_with_diagnostics):
+                    outcome = await rerank_with_diagnostics(query, fused, top_k=top_k)
+                    fused = list(outcome.results)
+                    stats.rerank_error = outcome.error
+                else:
+                    fused = await self._reranker.rerank(query, fused, top_k=top_k)
             except Exception as exc:
                 logger.warning("Reranking failed, using original order: %s", exc)
+                stats.rerank_error = str(exc)
                 # Fallback must still honor the caller's response size —
                 # fused is at rerank_pool (e.g. 20) right now, not top_k.
                 fused = fused[:top_k]

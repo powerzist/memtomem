@@ -360,8 +360,9 @@ class TestRerankCandidatePool:
         fused_input = [self._make_result(f"chunk{i}", rank=i + 1) for i in range(20)]
 
         pipeline = self._make_pipeline(fused_input, reranker=None, rerank_config=None)
-        results, _ = await pipeline.search("anything", top_k=10)
+        results, stats = await pipeline.search("anything", top_k=10)
         assert len(results) == 10
+        assert stats.rerank_error is None
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -493,8 +494,34 @@ class TestRerankCandidatePool:
             rerank_config=RerankConfig(enabled=True),
         )
 
-        results, _ = await pipeline.search("anything", top_k=10)
+        results, stats = await pipeline.search("anything", top_k=10)
         assert len(results) == 10
+        assert stats.rerank_error == "model unavailable"
+
+    @pytest.mark.asyncio
+    async def test_rerank_diagnostic_outcome_is_captured_without_shared_state(self):
+        from memtomem.config import RerankConfig
+        from memtomem.search.reranker.base import RerankOutcome
+
+        fused_input = [self._make_result(f"chunk{i}", rank=i + 1) for i in range(20)]
+
+        class DiagnosticReranker:
+            async def rerank_with_diagnostics(self, query, results, top_k):
+                return RerankOutcome(tuple(results[:top_k]), error="provider unavailable")
+
+            async def rerank(self, query, results, top_k):
+                raise AssertionError("diagnostic path should be preferred")
+
+        pipeline = self._make_pipeline(
+            fused_input,
+            reranker=DiagnosticReranker(),
+            rerank_config=RerankConfig(enabled=True),
+        )
+
+        results, stats = await pipeline.search("anything", top_k=10)
+
+        assert len(results) == 10
+        assert stats.rerank_error == "provider unavailable"
 
     def test_pool_knobs_registered_as_mutable(self):
         """Runtime mutation via `mm config set` / Web UI PATCH must accept

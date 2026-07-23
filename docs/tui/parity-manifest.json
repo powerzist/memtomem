@@ -3728,18 +3728,35 @@
           "prompt": null
         }
       ],
-      "validation": "unreviewed",
-      "preview_and_confirmation": "unreviewed",
-      "core_dependencies": [],
-      "outputs": "unreviewed",
-      "errors_and_exit_meaning": "unreviewed",
-      "mutations_and_side_effects": "unreviewed",
-      "partial_failure": "unreviewed",
-      "cancellation": "unreviewed",
-      "tui_destination": null,
-      "tests": [],
-      "disposition": null,
-      "decision_notes": []
+      "validation": "Query is text. By explicit user correction, the TUI Top K field initializes from the effective memtomem search.default_top_k setting rather than the CLI command's hard-coded 10; user edits retain CLI-style integer conversion without a TUI-only range. Filters are passed to the core pipeline, and as-of accepts YYYY-MM-DD or YYYY-QN.",
+      "preview_and_confirmation": "Before the first runtime lease, an inline consequence notice explains that storage initialization and schema migration may occur. The explicitly labelled Initialize & Search action acknowledges that transition; no format or cancellation control is added.",
+      "core_dependencies": [
+        "tui.application.RuntimeManager",
+        "search.SearchPipeline",
+        "storage.StorageBackend",
+        "embedding.EmbeddingProvider",
+        "search.reranker.Reranker"
+      ],
+      "outputs": "Native Main result table plus contextual F4 Details. The table is a scan-friendly projection; Details preserves full literal content, metadata, context, and retrieval statistics. CLI table/json/plain/context/smart are presentation formats and are not exposed as TUI choices.",
+      "errors_and_exit_meaning": "Invalid input, setup/runtime failure, empty index, and total retrieval failure are structured user-safe failures. No-match is a successful empty result. Search work uses WAIT on application exit.",
+      "mutations_and_side_effects": "The first acknowledged Search may initialize storage and run schema/config migrations. Real searches retain core access-count, query-history, provider, and result-cache behavior. Search never auto-indexes files or builds missing document embeddings.",
+      "partial_failure": "BM25, dense, embedding-coverage, and reranker degradation are structured warnings and a partial result when another retrieval path succeeds. Failure of every enabled retriever is terminal failure.",
+      "cancellation": "Phase 4 Search is explicitly non-cancellable and exposes no cancel affordance. Feasibility analysis, proof, and implementation are assigned to rollback-safe Phase 12 amendment 2026-07-18-phase12-search-cancellation after Phase 11.",
+      "tui_destination": "Memories / Search in Main; selected result in contextual Details (F4)",
+      "tests": [
+        "test_tui_search_service.py",
+        "test_tui_phase4_widgets.py",
+        "test_tui_phase4_interactions.py",
+        "test_pipeline.py"
+      ],
+      "disposition": "native",
+      "decision_notes": [
+        "User approved CLI-style integer-only Top-K validation with no 1..100 or 1..500 TUI range.",
+        "User approved native result-list plus Details presentation instead of a CLI --format selector.",
+        "User approved structured TUI reranker-degradation visibility without CLI output changes.",
+        "User assigned Search cancellation analysis, feasibility, and implementation to new Phase 12.",
+        "On 2026-07-19 the user corrected the TUI initial Top K source to the effective search.default_top_k setting; the CLI command remains unchanged."
+      ]
     },
     {
       "id": "click:cli session",
@@ -4183,18 +4200,29 @@
       "invoke_without_command": false,
       "help": "Show indexing statistics and current configuration summary.\n\nMirrors the MCP ``mem_status`` tool — same output, callable from a\nterminal without an MCP client. Useful as a post-install sanity\ncheck that the binary works, the config is readable, and the DB is\nreachable, without having to run a search.\n",
       "inputs": [],
-      "validation": "unreviewed",
-      "preview_and_confirmation": "unreviewed",
-      "core_dependencies": [],
-      "outputs": "unreviewed",
-      "errors_and_exit_meaning": "unreviewed",
-      "mutations_and_side_effects": "unreviewed",
-      "partial_failure": "unreviewed",
-      "cancellation": "unreviewed",
-      "tui_destination": null,
-      "tests": [],
-      "disposition": null,
-      "decision_notes": []
+      "validation": "Resolve the selected TUI config and SQLite paths without migration. Missing, old, partial, corrupt, and unreadable state are represented as structured diagnostics rather than mutable bootstrap errors.",
+      "preview_and_confirmation": "Not applicable: Home/Status is strictly read-only and requires no confirmation.",
+      "core_dependencies": [
+        "config.load_config_d",
+        "config.load_config_overrides(migrate=False)",
+        "sqlite3 mode=ro and PRAGMA query_only"
+      ],
+      "outputs": "Home/Status presents configuration, storage, schema, index counts, orphan sources, dense coverage, embedding state, immutable search fields, and warnings; contextual Details preserves paths and exact metadata.",
+      "errors_and_exit_meaning": "Missing setup/database, migration-required schema, unreadable configuration/database, incomplete dense coverage, embedding mismatch, orphan sources, and scheduler/watchdog mismatch are explicit structured states or warnings.",
+      "mutations_and_side_effects": "None. Home/Status does not create directories or databases, run schema/config migrations, acquire a RuntimeManager lease, start watchers, index files, or build embeddings.",
+      "partial_failure": "Available facts remain visible when an independent diagnostic cannot be read; each unavailable area carries a user-safe warning without converting Home into mutable bootstrap.",
+      "cancellation": "Not applicable to the bounded read-only inspection. Refresh replaces only its presentation worker and never owns or cancels domain work.",
+      "tui_destination": "Home / Status in Main; diagnostic provenance and embedding details in contextual Details (F4)",
+      "tests": [
+        "test_tui_readonly_diagnostics.py",
+        "test_tui_phase4_widgets.py",
+        "test_tui_phase4_interactions.py"
+      ],
+      "disposition": "native",
+      "decision_notes": [
+        "Gate 9: Home/Status is no-create and no-migrate; only acknowledged Search may activate the normal runtime.",
+        "CLI prose and MCP AppContext output are not parsed or invoked by the TUI."
+      ]
     },
     {
       "id": "click:cli sync-doctor",

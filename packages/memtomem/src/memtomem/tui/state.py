@@ -40,7 +40,7 @@ class Route:
 
 ROUTES = (
     Route("home", "Home", "Home", available=True),
-    Route("memories", "Memories", "Memory"),
+    Route("memories", "Memories", "Memory", available=True),
     Route("sources", "Sources", "Sources"),
     Route("context", "Context", "Context"),
     Route("collaboration", "Agents & Sessions", "Agents"),

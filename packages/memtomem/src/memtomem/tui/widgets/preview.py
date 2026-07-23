@@ -21,6 +21,13 @@ from memtomem.tui.widgets.forms import ModalActionBar
 PreviewTone = Literal["default", "muted", "ok", "warning", "error"]
 ConfirmTone = Literal["primary", "destructive"]
 _PREVIEW_TONES: frozenset[str] = frozenset({"default", "muted", "ok", "warning", "error"})
+_NOTICE_MARKERS: dict[PreviewTone, str] = {
+    "default": "[i]",
+    "muted": "[-]",
+    "ok": "[+]",
+    "warning": "[!]",
+    "error": "[x]",
+}
 
 
 def _with_semantic_class(semantic_class: str, classes: str | None) -> str:
@@ -147,6 +154,67 @@ class ErrorState(Vertical):
         yield Static(self.message, classes="error-state-message", markup=False)
         if self.recovery is not None:
             yield Static(self.recovery, classes="error-state-recovery", markup=False)
+
+
+class NoticeBlock(Vertical):
+    """Reusable text-first notice for disclosure, warning, and success states."""
+
+    def __init__(
+        self,
+        title: str,
+        message: str,
+        *,
+        tone: PreviewTone = "default",
+        recovery: str | None = None,
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+        disabled: bool = False,
+    ) -> None:
+        if tone not in _PREVIEW_TONES:
+            raise ValueError(f"unsupported notice tone: {tone}")
+        super().__init__(
+            name=name,
+            id=id,
+            classes=_with_semantic_class(f"notice-block notice-{tone}", classes),
+            disabled=disabled,
+        )
+        self.title = title
+        self.message = message
+        self.tone = tone
+        self.recovery = recovery
+
+    def compose(self) -> ComposeResult:
+        yield Static(
+            f"{_NOTICE_MARKERS[self.tone]} {self.title}",
+            classes="notice-title",
+            markup=False,
+        )
+        yield Static(self.message, classes="notice-message", markup=False)
+        if self.recovery is not None:
+            yield Static(self.recovery, classes="notice-recovery", markup=False)
+
+    def update_notice(
+        self,
+        title: str,
+        message: str,
+        *,
+        tone: PreviewTone | None = None,
+    ) -> None:
+        """Update a stable inline notice while preserving surrounding form state."""
+        resolved_tone = self.tone if tone is None else tone
+        if resolved_tone not in _PREVIEW_TONES:
+            raise ValueError(f"unsupported notice tone: {resolved_tone}")
+        for candidate in _PREVIEW_TONES:
+            self.set_class(candidate == resolved_tone, f"notice-{candidate}")
+        self.title = title
+        self.message = message
+        self.tone = resolved_tone
+        if self.is_mounted:
+            self.query_one(".notice-title", Static).update(
+                f"{_NOTICE_MARKERS[resolved_tone]} {title}"
+            )
+            self.query_one(".notice-message", Static).update(message)
 
 
 class ConfirmationBlock(Vertical):

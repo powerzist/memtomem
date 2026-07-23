@@ -1142,6 +1142,7 @@ def load_config_overrides(
     *,
     migrate: bool = True,
     override_path: Path | None = None,
+    strict_read: bool = False,
 ) -> None:
     """Apply persisted overrides from ~/.memtomem/config.json (if exists).
 
@@ -1153,6 +1154,11 @@ def load_config_overrides(
     required for read-only diagnostic surfaces (e.g. ``mm context detect``,
     scope resolution from config) that must not touch disk as a side
     effect (see ``feedback_doctor_no_migration_loader``).
+
+    ``strict_read=True`` re-raises file I/O, JSON decoding, known-section
+    structure, and known-field validation failures so readiness callers can
+    distinguish malformed data from an absent override. The default behavior
+    remains unchanged.
     """
     import json as _json
     import logging
@@ -1166,11 +1172,17 @@ def load_config_overrides(
     try:
         data = _json.loads(path.read_text(encoding="utf-8"))
     except (OSError, _json.JSONDecodeError) as exc:
+        if strict_read:
+            raise
         _log.warning("Failed to read config overrides from %s: %s", path, exc)
         return
+    if strict_read and not isinstance(data, dict):
+        raise ValueError(f"Config overrides in {path} are not a JSON object")
     for section_name, updates in data.items():
         section_obj = getattr(config, section_name, None)
         if section_obj is None or not isinstance(updates, dict):
+            if strict_read and section_obj is not None:
+                raise ValueError(f"Config section {section_name!r} in {path} is not an object")
             if section_obj is None and isinstance(updates, dict):
                 _log.warning("Unknown config section '%s' in %s (ignored)", section_name, path)
             continue
@@ -1192,6 +1204,8 @@ def load_config_overrides(
                     try:
                         value = coerce_and_validate(value, constraint)
                     except ValueError as exc:
+                        if strict_read:
+                            raise ValueError(f"Invalid config value {full_key} in {path}") from exc
                         _log.warning(
                             "Invalid config value %s=%r in %s: %s (using default)",
                             full_key,
@@ -1203,6 +1217,10 @@ def load_config_overrides(
                 try:
                     setattr(section_obj, key, value)
                 except (TypeError, ValueError) as exc:
+                    if strict_read:
+                        raise ValueError(
+                            f"Invalid config override {section_name}.{key} in {path}"
+                        ) from exc
                     _log.warning(
                         "Skipping invalid config override %s.%s=%r: %s",
                         section_name,
@@ -1284,6 +1302,7 @@ def load_config_d(
     *,
     quiet: bool = False,
     config_d_path: Path | None = None,
+    strict_read: bool = False,
 ) -> None:
     """Apply fragments from ``~/.memtomem/config.d/*.json`` (if dir exists).
 
@@ -1310,6 +1329,11 @@ def load_config_d(
     for every PATCH. Exceptions that represent real errors still raise
     (pydantic validation etc. are already caught + logged here, not
     raised, so this toggle is purely about log noise).
+
+    ``strict_read=True`` re-raises file I/O, JSON decoding, known-section
+    structure, and known-field validation failures so readiness callers can
+    report a blocked configuration instead of silently inspecting defaults.
+    The default behavior remains unchanged.
     """
     import json as _json
     import logging
@@ -1330,14 +1354,22 @@ def load_config_d(
         try:
             data = _json.loads(path.read_text(encoding="utf-8"))
         except (OSError, _json.JSONDecodeError) as exc:
+            if strict_read:
+                raise
             _warn("Failed to read config fragment %s: %s", path, exc)
             continue
         if not isinstance(data, dict):
+            if strict_read:
+                raise ValueError(f"Config fragment {path} is not a JSON object")
             _warn("Config fragment %s is not a JSON object (ignored)", path)
             continue
         for section_name, updates in data.items():
             section_obj = getattr(config, section_name, None)
             if section_obj is None or not isinstance(updates, dict):
+                if strict_read and section_obj is not None:
+                    raise ValueError(
+                        f"Config section {section_name!r} in fragment {path} is not an object"
+                    )
                 if section_obj is None and isinstance(updates, dict):
                     _warn("Unknown config section '%s' in %s (ignored)", section_name, path)
                 continue
@@ -1358,6 +1390,11 @@ def load_config_d(
                 strategy = _merge_strategy_for(section_cls, key)
                 if strategy is not None and strategy.mode == "append":
                     if not isinstance(value, list):
+                        if strict_read:
+                            raise ValueError(
+                                f"Config fragment {path} has a non-list value for "
+                                f"{section_name}.{key}"
+                            )
                         _warn(
                             "Expected list for %s.%s in %s (got %s); skipping",
                             section_name,
@@ -1381,6 +1418,11 @@ def load_config_d(
                             try:
                                 item = coerce.model_validate(item)
                             except Exception as exc:
+                                if strict_read:
+                                    raise ValueError(
+                                        f"Config fragment {path} has an invalid "
+                                        f"{section_name}.{key} entry"
+                                    ) from exc
                                 _warn(
                                     "Skipping invalid %s.%s entry in %s: %s",
                                     section_name,
@@ -1396,6 +1438,10 @@ def load_config_d(
                     try:
                         setattr(section_obj, key, current)
                     except (TypeError, ValueError) as exc:
+                        if strict_read:
+                            raise ValueError(
+                                f"Config fragment {path} has an invalid {section_name}.{key} merge"
+                            ) from exc
                         _warn(
                             "Skipping invalid fragment merge %s.%s from %s: %s",
                             section_name,
@@ -1407,6 +1453,10 @@ def load_config_d(
                     try:
                         setattr(section_obj, key, value)
                     except (TypeError, ValueError) as exc:
+                        if strict_read:
+                            raise ValueError(
+                                f"Config fragment {path} has an invalid {section_name}.{key} value"
+                            ) from exc
                         _warn(
                             "Skipping invalid fragment value %s.%s=%r from %s: %s",
                             section_name,

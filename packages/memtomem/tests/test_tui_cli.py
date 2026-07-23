@@ -133,7 +133,9 @@ async def test_unimplemented_routes_are_honest_disabled_inventory(tmp_path: Path
         assert items[0].route.id == "home"
         assert items[0].disabled is False
         assert items[0].has_class("route-active")
-        assert all(item.disabled for item in items[1:])
+        assert items[1].route.id == "memories"
+        assert items[1].disabled is False
+        assert all(item.disabled for item in items[2:])
 
 
 @pytest.mark.parametrize(
@@ -170,7 +172,7 @@ async def test_split_shell_exposes_navigation_main_and_details_at_terminal_defau
         assert shell.virtual_size.width <= shell.region.width
         root = app.query_one("#root")
         assert root.virtual_size.width <= root.region.width
-        assert "Context for the current route" in _rendered_text(detail)
+        assert "HOME DETAILS" in _rendered_text(detail)
         assert not app.query("#task-status")
         assert app.query_one("#environment-status").region.width == 4
         assert app.query_one("#mouse-status").region.width == 12
@@ -201,7 +203,7 @@ async def test_split_navigation_text_occupies_its_single_rendered_row(
 
         assert navigation.region.height == 1
         assert navigation.styles.scrollbar_size_horizontal == 0
-        assert f"  {expected_route_label}  -" in screenshot
+        assert f"  {expected_route_label}" in screenshot
 
 
 async def test_split_navigation_scrolls_the_focused_route_into_its_single_row(
@@ -213,7 +215,7 @@ async def test_split_navigation_scrolls_the_focused_route_into_its_single_row(
         services = app.query_one("#route-services", NavigationItem)
         services.disabled = False
 
-        await pilot.press("right")
+        await pilot.press("right", "right")
         await pilot.pause()
 
         assert app.focused is services
@@ -440,7 +442,7 @@ async def test_task_registry_remains_headless_while_details_stay_contextual(
         assert app.task_center.get(task.id).phase == "Embedding"
         assert not app.query(".task-row")
         assert not app.query("#task-status")
-        assert "Use Main for actions" in _rendered_text(app.query_one("#details-surface"))
+        assert "HOME DETAILS" in _rendered_text(app.query_one("#home-details-surface"))
 
 
 async def test_help_is_keyboard_reachable_and_escape_closes(tmp_path: Path) -> None:
@@ -597,11 +599,12 @@ async def test_missing_config_is_disclosed_without_opening_runtime(tmp_path: Pat
         terminal_profile="windows-terminal",
         paths=_paths(tmp_path, configured=False),
     )
-    async with app.run_test(size=(100, 24)):
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.pause()
         rendered = _rendered_text(app.query_one("#home-surface"))
         assert "SETUP REQUIRED" in rendered
-        assert "Run 'mm init'" in rendered
-        assert "does not invoke or reinterpret CLI flows" in rendered
+        assert "Setup has not been completed" in rendered
+        assert "without creating a database" in rendered
 
 
 async def test_refresh_rechecks_config_without_rebuilding_home_or_moving_focus(
@@ -624,7 +627,7 @@ async def test_refresh_rechecks_config_without_rebuilding_home_or_moving_focus(
         assert app.query_one("#home-surface") is home
         assert app.state.active_section == "main"
         assert app.focused is home
-        assert "TUI PREVIEW" in _rendered_text(home)
+        assert "SEARCH DATABASE MISSING" in _rendered_text(home)
         assert "SETUP REQUIRED" not in _rendered_text(home)
 
         paths.config_path.unlink()
@@ -634,7 +637,7 @@ async def test_refresh_rechecks_config_without_rebuilding_home_or_moving_focus(
         assert app.state.active_section == "main"
         assert app.focused is home
         assert "SETUP REQUIRED" in _rendered_text(home)
-        assert "Run 'mm init'" in _rendered_text(home)
+        assert "Setup has not been completed" in _rendered_text(home)
 
 
 async def test_refresh_is_guarded_while_a_modal_is_open(tmp_path: Path) -> None:
@@ -645,6 +648,7 @@ async def test_refresh_is_guarded_while_a_modal_is_open(tmp_path: Path) -> None:
         paths=paths,
     )
     async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.pause()
         home = app.query_one("#home-surface")
         assert "SETUP REQUIRED" in _rendered_text(home)
 
@@ -657,7 +661,7 @@ async def test_refresh_is_guarded_while_a_modal_is_open(tmp_path: Path) -> None:
 
         await pilot.press("escape")
         await pilot.press("ctrl+r")
-        assert "TUI PREVIEW" in _rendered_text(home)
+        assert "SEARCH DATABASE MISSING" in _rendered_text(home)
 
 
 async def test_global_errors_are_structured_and_user_visible(tmp_path: Path) -> None:

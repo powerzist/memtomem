@@ -16,10 +16,14 @@ from memtomem.tui.application.operations import (
     OperationRunner,
     OperationShutdownBlockedError,
 )
+from memtomem.tui.application.diagnostics import ReadOnlyDiagnosticsService
 from memtomem.tui.application.runtime import RuntimeManager
+from memtomem.tui.application.search import SearchService
 from memtomem.tui.application.tasks import TaskCenter
 from memtomem.tui.mouse import driver_mouse_enabled, set_driver_mouse_enabled
-from memtomem.tui.runtime import TuiPaths, config_exists, resolve_tui_paths
+from memtomem.tui.runtime import TuiPaths, resolve_tui_paths
+from memtomem.tui.screens.home import HomeDetailsSurface, HomeSurface
+from memtomem.tui.screens.memories import MemoriesSurface, MemoryDetailsSurface
 from memtomem.tui.shared import BorderStyleMixin, PanelScroll
 from memtomem.tui.state import ROUTES, ErrorNotice, LayoutMode, ShellState
 from memtomem.tui.styles import load_tui_css
@@ -28,75 +32,12 @@ from memtomem.tui.widgets.modals import ConhostWarningScreen, HelpScreen, QuitCo
 from memtomem.tui.widgets.navigation import NavigationItem
 
 
-class HomeSurface(VerticalScroll, can_focus=True):
-    """Honest preview state while native workflows are still unavailable."""
-
-    SETUP_READINESS = "[!] SETUP REQUIRED"
-    PREVIEW_READINESS = "[ ] TUI PREVIEW"
-    SETUP_GUIDANCE = (
-        "No memtomem configuration was found. Run 'mm init' in the terminal; this "
-        "preview does not invoke or reinterpret CLI flows."
-    )
-    PREVIEW_GUIDANCE = (
-        "This preview does not open or migrate memory storage. Use the CLI for "
-        "production workflows while native Home and Search workflows are built."
-    )
-
-    def __init__(self, *, setup_required: bool) -> None:
-        super().__init__(id="home-surface", classes="home-surface")
-        self.setup_required = setup_required
-
-    def compose(self) -> ComposeResult:
-        yield Static("[ HOME ]", classes="section-title", markup=False)
-        yield Static(
-            self.SETUP_READINESS if self.setup_required else self.PREVIEW_READINESS,
-            id="home-readiness",
-            classes=f"readiness-line {'warning' if self.setup_required else 'muted'}",
-            markup=False,
-        )
-        yield Static(
-            self.SETUP_GUIDANCE if self.setup_required else self.PREVIEW_GUIDANCE,
-            id="home-guidance",
-            classes="supporting-text",
-        )
-        yield Static(
-            "Destinations marked with '-' are disabled preview inventory, not completed features.",
-            classes="supporting-text muted",
-        )
-
-    def set_setup_required(self, setup_required: bool) -> None:
-        """Refresh the cheap configuration status without rebuilding the surface."""
-        self.setup_required = setup_required
-        readiness = self.query_one("#home-readiness", Static)
-        readiness.update(self.SETUP_READINESS if setup_required else self.PREVIEW_READINESS)
-        readiness.set_class(setup_required, "warning")
-        readiness.set_class(not setup_required, "muted")
-        self.query_one("#home-guidance", Static).update(
-            self.SETUP_GUIDANCE if setup_required else self.PREVIEW_GUIDANCE
-        )
-
-
-class DetailsSurface(VerticalScroll, can_focus=True):
-    """Read-mostly context for the current route and selection."""
-
-    def __init__(self) -> None:
-        super().__init__(id="details-surface", classes="details-surface")
-
-    def compose(self) -> ComposeResult:
-        yield Static("[ DETAILS ]", classes="section-title", markup=False)
-        yield Static("Home", classes="readiness-line")
-        yield Static(
-            "Context for the current route or selection appears here. Use Main for actions.",
-            classes="supporting-text muted",
-        )
-
-
 class SafeFloor(Static, can_focus=True):
     """Minimal focus target kept usable below the supported viewport floor."""
 
 
 class MemtomemTuiApp(BorderStyleMixin, App[None]):
-    """Phase 2 shell: routes, responsive regions, global state, errors, and details."""
+    """Responsive shell hosting the Phase 4 Home and Search vertical slice."""
 
     CSS = load_tui_css()
     BINDINGS = [
@@ -145,6 +86,8 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         task_center: TaskCenter | None = None,
         operation_runner: OperationRunner | None = None,
         runtime_manager: RuntimeManager[Any] | None = None,
+        diagnostics_service: ReadOnlyDiagnosticsService | None = None,
+        search_service: SearchService | None = None,
     ) -> None:
         super().__init__()
         self.border_style = border_style
@@ -156,13 +99,15 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.task_center = task_center or TaskCenter()
         self.operation_runner = operation_runner or OperationRunner()
         self.runtime_manager = runtime_manager or RuntimeManager(self.paths)
+        self.diagnostics_service = diagnostics_service or ReadOnlyDiagnosticsService(self.paths)
+        self.search_service = search_service or SearchService(self.runtime_manager)
         self._services_shutdown = False
 
     def compose(self) -> ComposeResult:
         with Vertical(id="root"):
             with Horizontal(id="topbar"):
                 yield Static(
-                    "memtomem / TUI preview",
+                    "memtomem / TUI",
                     id="app-title",
                     classes="app-title",
                 )
@@ -200,14 +145,16 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                     id="main", classes=f"section-panel main-section {self.border_class}".strip()
                 ):
                     yield HomeSurface(
-                        setup_required=self.startup_refresh
-                        and not config_exists(self.paths.config_path)
+                        self.diagnostics_service,
+                        auto_refresh=self.startup_refresh,
                     )
+                    yield MemoriesSurface(self.search_service, self.operation_runner)
                 with Vertical(
                     id="detail",
                     classes=f"section-panel detail-section {self.border_class}".strip(),
                 ):
-                    yield DetailsSurface()
+                    yield HomeDetailsSurface()
+                    yield MemoryDetailsSurface()
             yield SafeFloor(
                 "Resize to at least 32 columns x 8 rows.  ? Help   Ctrl+Q Quit",
                 id="safe-floor",
@@ -246,9 +193,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         for item in self.query(NavigationItem):
             item.set_compact(compact_labels)
         self.query_one("#app-title", Static).update(
-            "memtomem"
-            if mode in {LayoutMode.EXTREME, LayoutMode.SAFE_FLOOR}
-            else "memtomem / TUI preview"
+            "memtomem" if mode in {LayoutMode.EXTREME, LayoutMode.SAFE_FLOOR} else "memtomem / TUI"
         )
         self._update_section_classes()
         if self.screen.is_modal:
@@ -297,14 +242,29 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             widget = self.query_one(f"#{widget_id}")
         except NoMatches:
             return None
-        return widget if widget.can_focus and not widget.disabled and widget.display else None
+        return (
+            widget
+            if widget.can_focus and not widget.disabled and self._is_effectively_visible(widget)
+            else None
+        )
 
     def _section_focusables(self, section: str) -> list[Any]:
         panel = self.query_one(self._section_selector(section))
         candidates = [widget for widget in panel.query("*") if widget.can_focus]
-        return [widget for widget in candidates if not widget.disabled and widget.display] or [
-            panel
-        ]
+        return [
+            widget
+            for widget in candidates
+            if not widget.disabled and self._is_effectively_visible(widget)
+        ] or [panel]
+
+    @staticmethod
+    def _is_effectively_visible(widget: Any) -> bool:
+        current = widget
+        while current is not None:
+            if not current.display or not current.visible:
+                return False
+            current = getattr(current, "parent", None)
+        return True
 
     @staticmethod
     def _section_selector(section: str) -> str:
@@ -315,9 +275,9 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         while current is not None:
             if current.id == "navigation":
                 return "nav"
-            if current.id in {"main", "home-surface"}:
+            if current.id == "main":
                 return "main"
-            if current.id in {"detail", "details-surface"}:
+            if current.id == "detail":
                 return "detail"
             current = getattr(current, "parent", None)
         return None
@@ -360,15 +320,40 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.state.route_id = event.route_id
         self._update_route_classes()
 
+    def on_home_surface_diagnostics_updated(
+        self,
+        event: HomeSurface.DiagnosticsUpdated,
+    ) -> None:
+        self.query_one(HomeDetailsSurface).show_snapshot(event.snapshot)
+
+    async def on_memories_surface_selection_changed(
+        self,
+        event: MemoriesSurface.SelectionChanged,
+    ) -> None:
+        await self.query_one(MemoryDetailsSurface).show_item(event.item, event.response)
+
     def _update_route_classes(self) -> None:
         for item in self.query(NavigationItem):
             item.set_class(item.route.id == self.state.route_id, "route-active")
+        route_surfaces = {
+            "home": (self.query_one(HomeSurface), self.query_one(HomeDetailsSurface)),
+            "memories": (
+                self.query_one(MemoriesSurface),
+                self.query_one(MemoryDetailsSurface),
+            ),
+        }
+        for route_id, surfaces in route_surfaces.items():
+            visible = route_id == self.state.route_id
+            for surface in surfaces:
+                surface.display = visible
 
     async def action_refresh(self) -> None:
         if self.screen.is_modal:
             return
-        setup_required = self.startup_refresh and not config_exists(self.paths.config_path)
-        self.query_one(HomeSurface).set_setup_required(setup_required)
+        if self.state.route_id == "home":
+            self.query_one(HomeSurface).refresh_diagnostics()
+        elif self.state.route_id == "memories":
+            self.query_one(MemoriesSurface).refresh_preflight()
 
     def action_show_keybindings(self) -> None:
         if isinstance(self.screen, HelpScreen):
@@ -534,7 +519,14 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         if self.screen.is_modal or self.state.layout_mode is LayoutMode.SAFE_FLOOR:
             return
         panel = self.query_one(self._section_selector(self.state.active_section))
-        target = next(iter(panel.query(VerticalScroll)), panel)
+        target = next(
+            (
+                candidate
+                for candidate in panel.query(VerticalScroll)
+                if self._is_effectively_visible(candidate)
+            ),
+            panel,
+        )
         if direction < 0:
             target.scroll_page_up(animate=False)
         else:
