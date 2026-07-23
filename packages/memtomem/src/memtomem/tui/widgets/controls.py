@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from textual import events
-from textual.widgets import Button, Input
+from typing import Any
 
-from memtomem.tui.clipboard import read_os_clipboard, write_os_clipboard
+from textual import events
+from textual.actions import SkipAction
+from textual.binding import Binding
+from textual.dom import NoScreen
+from textual.widgets import Button, Input
 
 
 class PanelButton(Button):
@@ -33,31 +36,67 @@ class ModalButton(Button):
 
 
 class TuiInput(Input):
-    """Input with best-effort OS clipboard behavior."""
+    """Single-line editor routed through the app's common clipboard boundary."""
 
     BINDINGS = [
-        ("ctrl+c", "copy", "Copy"),
-        ("ctrl+x", "cut", "Cut"),
-        ("ctrl+v,ctrl+shift+v,shift+insert", "paste", "Paste"),
+        Binding("ctrl+c", "copy", "Copy", show=False),
+        Binding("ctrl+x", "cut", "Cut", show=False),
+        Binding(
+            "ctrl+v,ctrl+shift+v,shift+insert",
+            "paste",
+            "Paste",
+            show=False,
+        ),
     ]
 
     def action_copy(self) -> None:
-        start, end = sorted((self.selection.start, self.selection.end))
-        if start == end:
-            return
-        write_os_clipboard(self.value[start:end])
+        if not self._is_clipboard_target_active() or not self.selected_text:
+            raise SkipAction()
+        self.app.copy_to_clipboard(self.selected_text)
 
     def action_cut(self) -> None:
-        start, end = sorted((self.selection.start, self.selection.end))
-        if start == end or not write_os_clipboard(self.value[start:end]):
+        if not self._is_clipboard_target_active() or not self.selected_text:
             return
-        self.value = self.value[:start] + self.value[end:]
-        self.cursor_position = start
+        self.app.copy_to_clipboard(self.selected_text)
+        self.delete_selection()
 
     def action_paste(self) -> None:
-        value = read_os_clipboard()
-        if value is None:
+        if not self._is_clipboard_target_active():
             return
-        start, end = sorted((self.selection.start, self.selection.end))
-        self.value = self.value[:start] + value + self.value[end:]
-        self.cursor_position = start + len(value)
+        value = self.app.clipboard
+        lines = value.splitlines()
+        first_line = lines[0] if lines else value
+        self.replace(first_line, *self.selection)
+
+    def _on_paste(self, event: events.Paste) -> None:
+        if not self._is_clipboard_target_active():
+            event.stop()
+            event.prevent_default()
+            return
+        super()._on_paste(event)
+        # Textual dispatches convention handlers across the MRO. Mark this event
+        # handled so Input._on_paste is not invoked a second time automatically.
+        event.prevent_default()
+
+    def _is_clipboard_target_active(self) -> bool:
+        validator = getattr(self.app, "is_clipboard_target_active", None)
+        if validator is not None:
+            return bool(validator(self))
+
+        try:
+            widget_screen = self.screen
+        except (NoScreen, RuntimeError):
+            return False
+        if (
+            widget_screen is not self.app.screen
+            or self.app.focused is not self
+            or self.disabled
+            or not self.is_attached
+        ):
+            return False
+        current: Any = self
+        while current is not None:
+            if not current.display or not current.visible:
+                return False
+            current = getattr(current, "parent", None)
+        return True

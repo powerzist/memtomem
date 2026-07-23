@@ -8,6 +8,7 @@ from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import Static
 
+from memtomem.tui.clipboard import ClipboardAppMixin
 from memtomem.tui.shared import BorderStyleMixin, PanelScroll
 from memtomem.tui.styles import load_tui_css
 from memtomem.tui.terminal import BorderStyle, detect_terminal_profile, has_ime_limitations
@@ -19,10 +20,18 @@ class DiagnosticInput(TuiInput):
 
     async def _on_key(self, event: events.Key) -> None:
         value_before = self.value
+        defer_screen_copy_log = (
+            event.key in {"ctrl+c", "super+c"}
+            and not self.selected_text
+            and self.screen.get_selected_text() is not None
+        )
         await super()._on_key(event)
         recorder = getattr(self.app, "record_key_event", None)
         if recorder is not None:
-            recorder(event, value_before)
+            if defer_screen_copy_log:
+                self.call_after_refresh(recorder, event, value_before)
+            else:
+                recorder(event, value_before)
 
     def _on_paste(self, event: events.Paste) -> None:
         value_before = self.value
@@ -33,7 +42,7 @@ class DiagnosticInput(TuiInput):
             recorder(event, value_before)
 
 
-class InputDiagnosticsApp(BorderStyleMixin, App[None]):
+class InputDiagnosticsApp(ClipboardAppMixin, BorderStyleMixin, App[None]):
     """Small isolated surface for inspecting terminal input events."""
 
     CSS = load_tui_css()

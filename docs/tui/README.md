@@ -44,6 +44,19 @@ cancellation decisions, Stitch references, rendered interaction evidence,
 configuration-safety corrections, verification limits, Phase 5 boundary, and
 exact rollback steps.
 
+`amendments/2026-07-23-phase4-2-clipboard-contract.md` inserts the
+user-approved TUI-wide clipboard phase between Phase 4 and Phase 5. It records
+read-only Copy versus editable-only Cut/Paste, active/visible target ownership,
+exact PowerShell/conhost text transport, single-line paste behavior, unified
+OS/Textual/OSC 52 fallbacks, Help-only discoverability, corrected Stitch
+evidence, verification requirements, and exact rollback steps.
+
+`corrections/2026-07-23-phase4-2-closeout.md` records the implemented common
+clipboard boundary, exact Windows transport, stale-host loss protection,
+editable and read-only target routing, Help/Stitch evidence, automated
+verification, explicit interactive-terminal follow-ups, and rollback steps
+without changing CLI or TCSS.
+
 Regenerate the inventory after an approved CLI-tree change:
 
 ```powershell

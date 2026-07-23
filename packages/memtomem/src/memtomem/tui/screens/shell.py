@@ -6,10 +6,13 @@ from datetime import datetime
 from typing import Any
 
 from textual import events
+from textual.actions import SkipAction
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.css.query import NoMatches
+from textual.dom import NoScreen
+from textual.screen import Screen
 from textual.widgets import Footer, Input, Static, TextArea
 
 from memtomem.tui.application.operations import (
@@ -20,6 +23,7 @@ from memtomem.tui.application.diagnostics import ReadOnlyDiagnosticsService
 from memtomem.tui.application.runtime import RuntimeManager
 from memtomem.tui.application.search import SearchService
 from memtomem.tui.application.tasks import TaskCenter
+from memtomem.tui.clipboard import ClipboardAppMixin
 from memtomem.tui.mouse import driver_mouse_enabled, set_driver_mouse_enabled
 from memtomem.tui.runtime import TuiPaths, resolve_tui_paths
 from memtomem.tui.screens.home import HomeDetailsSurface, HomeSurface
@@ -36,7 +40,38 @@ class SafeFloor(Static, can_focus=True):
     """Minimal focus target kept usable below the supported viewport floor."""
 
 
-class MemtomemTuiApp(BorderStyleMixin, App[None]):
+class ActiveSelectionScreen(Screen[None]):
+    """Default screen that excludes stale or hidden panel selections from copy."""
+
+    def get_selected_text(self) -> str | None:
+        if self is not self.app.screen or not self.selections:
+            return None
+
+        selected_fragments: list[str] = []
+        source_is_active = getattr(self.app, "is_clipboard_selection_source", None)
+        for widget, selection in self.selections.items():
+            if not widget.is_attached:
+                continue
+            if source_is_active is not None and not source_is_active(widget):
+                continue
+            selected = widget.get_selection(selection)
+            if selected is not None:
+                selected_fragments.extend(selected)
+
+        # Textual selection fragments include layout line endings. This keeps
+        # its normal screen-selection behavior separate from exact clipboard
+        # transport, which must never trim user clipboard data.
+        selected_text = "".join(selected_fragments).rstrip("\n")
+        return selected_text or None
+
+    def action_copy_text(self) -> None:
+        selected_text = self.get_selected_text()
+        if selected_text is None:
+            raise SkipAction()
+        self.app.copy_to_clipboard(selected_text)
+
+
+class MemtomemTuiApp(ClipboardAppMixin, BorderStyleMixin, App[None]):
     """Responsive shell hosting the Phase 4 Home and Search vertical slice."""
 
     CSS = load_tui_css()
@@ -103,6 +138,11 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
         self.search_service = search_service or SearchService(self.runtime_manager)
         self._services_shutdown = False
 
+    def get_default_screen(self) -> Screen:
+        """Use active-panel-aware read-only selection for the shell screen."""
+
+        return ActiveSelectionScreen(id="_default")
+
     def compose(self) -> ComposeResult:
         with Vertical(id="root"):
             with Horizontal(id="topbar"):
@@ -118,7 +158,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
                         classes="status-item environment-status warning secondary-status",
                     )
                 yield Static(
-                    "MOUSE:ON",
+                    "MOUSE:TUI",
                     id="mouse-status",
                     classes="status-item mouse-status secondary-status",
                 )
@@ -305,6 +345,35 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
             self.state.layout_mode is not LayoutMode.SAFE_FLOOR
             and section == self.state.active_section
         )
+
+    def is_clipboard_target_active(self, widget: Any) -> bool:
+        """Return whether an editable widget may receive a clipboard command."""
+
+        try:
+            widget_screen = widget.screen
+        except (NoScreen, RuntimeError):
+            return False
+        focused = self.focused
+        if focused is None or focused is not widget:
+            return False
+        return (
+            widget_screen is self.screen
+            and not focused.disabled
+            and self._is_effectively_visible(focused)
+            and self.is_widget_actionable(focused)
+        )
+
+    def is_clipboard_selection_source(self, widget: Any) -> bool:
+        """Return whether a read-only selection belongs to the active context."""
+
+        try:
+            widget_screen = widget.screen
+        except (NoScreen, RuntimeError):
+            return False
+        if widget_screen is not self.screen or not self._is_effectively_visible(widget):
+            return False
+        section = self.section_for_widget(widget)
+        return section is None or section == self.state.active_section
 
     def on_click(self, event: events.Click) -> None:
         """Synchronize section state for clicks on non-actionable panel content."""
@@ -573,7 +642,7 @@ class MemtomemTuiApp(BorderStyleMixin, App[None]):
     def _update_mouse_status(self) -> None:
         try:
             self.query_one("#mouse-status", Static).update(
-                "MOUSE:ON" if self.mouse_enabled else "MOUSE:OS"
+                "MOUSE:TUI" if self.mouse_enabled else "MOUSE:OS"
             )
         except NoMatches:
             pass

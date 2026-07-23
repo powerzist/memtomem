@@ -24,6 +24,7 @@ from memtomem.tui.application.tasks import (
     TaskStatus,
     TaskSurfaceEffect,
 )
+from memtomem.tui.clipboard import ClipboardAppMixin
 from memtomem.tui.runtime import TuiPaths
 from memtomem.tui.state import ROUTES, ErrorNotice, LayoutMode
 from memtomem.tui.widgets.controls import ModalButton, PanelButton, TuiInput
@@ -31,7 +32,7 @@ from memtomem.tui.widgets.modals import HelpScreen
 from memtomem.tui.widgets.navigation import NavigationItem
 
 
-class _InputTestApp(App[None]):
+class _InputTestApp(ClipboardAppMixin, App[None]):
     def compose(self) -> ComposeResult:
         yield TuiInput(value="abcdef", id="test-input")
 
@@ -266,7 +267,7 @@ async def test_initial_no_mouse_mode_is_synced_to_the_active_driver(tmp_path: Pa
 
         await pilot.press("f6")
         assert app.mouse_enabled is True
-        assert str(app.query_one("#mouse-status", Static).render()) == "MOUSE:ON"
+        assert str(app.query_one("#mouse-status", Static).render()) == "MOUSE:TUI"
 
 
 async def test_mouse_toggle_failure_is_reported_without_false_state(
@@ -285,7 +286,7 @@ async def test_mouse_toggle_failure_is_reported_without_false_state(
         await pilot.press("f6")
 
         assert app.mouse_enabled is True
-        assert str(app.query_one("#mouse-status", Static).render()) == "MOUSE:ON"
+        assert str(app.query_one("#mouse-status", Static).render()) == "MOUSE:TUI"
         assert app.state.error is not None
         assert app.state.error.code == "TUI-MOUSE-MODE"
         assert "private terminal failure" not in _rendered_text(app.screen)
@@ -898,10 +899,10 @@ async def test_tui_input_copy_cut_and_paste_use_os_clipboard(
 ) -> None:
     copied: list[str] = []
     monkeypatch.setattr(
-        "memtomem.tui.widgets.controls.write_os_clipboard",
+        "memtomem.tui.clipboard.write_os_clipboard",
         lambda text: copied.append(text) or True,
     )
-    monkeypatch.setattr("memtomem.tui.widgets.controls.read_os_clipboard", lambda: "붙여넣기")
+    monkeypatch.setattr("memtomem.tui.clipboard.read_os_clipboard", lambda: "붙여넣기")
     app = _InputTestApp()
     async with app.run_test():
         widget = app.query_one("#test-input", TuiInput)
